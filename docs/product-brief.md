@@ -1,78 +1,122 @@
-# Product Brief: {Jaunt}
+# Product Brief: Jaunt
 
 ## Executive Summary
 
-Jaunt is a web application that builds a walking route based on three main inputs: where you are, how long you have, and optionally what kind of walk you want. It delivers a route on a map with real stops in a suggested order, with something to discover, notice or learn about or do along the way. The Jaunt is built around the user's total available time, including both walking and time spent at stops. 
+Jaunt is a web application that turns a user's available time into a purposeful walking experience. The user enters a starting location, chooses how much time they have, and may select an interest such as history, architecture, or public art. Jaunt then creates a walking route with real and relevant stops in a suggested order, giving the user something to discover, notice, or learn about along the way.
 
-The problem Jaunt solves is not a shortage of information about places around us. That information already exists in maps, articles, heritage registers and other sources, but often arrives as individual places or lists rather than a walk you can actually take. Jaunt uses AI to turn real source material about each stop into a short story, prompt, or fact you can read (or hear) as you arrive. Turning it into a route means deciding where to go, what is worth seeing, in what order, and whether the whole experience fits the time available. For a casual walk, that planning can require more effort than the walk is worth.
+The available time represents the complete outing, including both walking and time spent at stops. By default, a Jaunt returns the user to their starting point.
 
-Jaunt does that planning for the user, turning available time into a purposeful walk that can be followed directly on a map. Rather than always producing a route, it prioritises real and relevant stops and can suggest a different topic or shorter walk when there is not enough nearby to create a worthwhile Jaunt. The goal is to make “have a Jaunt” an easy answer when you have some spare time, need a break, or simply want something worth walking for.
+Jaunt uses AI to evaluate source-supported candidate places near the starting location and select stops that suit the user's chosen topic and time limit. A mapping service calculates a practical walking route between those stops and estimates the walking duration. AI also turns real source material associated with each stop into a short story, fact, task, or observation prompt.
+
+If the requested topic, location, or duration cannot support a worthwhile route, Jaunt should suggest a different topic or shorter walk rather than inventing places or including weak and irrelevant stops.
 
 ## The Problem
 
-Going for walk is an easy way to get outside, take a break or fill some spare time. However, without a destination or a purpose, getting out the door can get surprisingly difficult. In familiar areas, walks can also become repetitive, you have the same street, same distance and little reason to pay attention to what exists around you. 
+Going for a walk is an accessible way to get outside, take a break, or fill some spare time. However, without a destination or purpose, getting out the door can be surprisingly difficult. In familiar areas, walks can become repetitive, with the same streets, distances, and little reason to pay attention to what exists nearby.
 
-Finding a more interesting walk may require planning. Deciding where to go, search for things in the area, and work out a sensible route in a suitable timeframe are all components that eats up disposable time. For someone with 30-60 minutes available, the planning takes up enough effort that it either becomes the usual route or it does not happen at all. 
+Creating a more interesting walk requires planning. Someone must find relevant places, decide which ones are worth visiting, arrange them into a sensible route, and estimate whether the complete experience will fit the available time. For a person with only 30–60 minutes available, this planning may require enough effort that they either follow their usual route or do not go at all.
 
-On another side of this, being in an area unfamiliar to you, might lead to the same problems. There may be plenty of accessible recommendations, maps and information, but turning it into a walk starting where you are, fits your available time and gives you a worthwhile experience along the way requires effort. 
+The same problem exists in unfamiliar areas. Maps and recommendation services may provide many individual attractions, but they do not necessarily turn them into a coherent walk that starts nearby, fits a specific amount of time, and gives the walker something meaningful to discover.
 
-The problem is therefore, how do we turn available time into a purposeful walk. 
+The central problem is therefore:
 
-## The Solution
+> How can available time be turned into a purposeful walk without requiring the user to plan it themselves?
 
-Jaunt turns the time someone has available into a purposeful walk from where they are. The user provides a starting point and how much time they have, and can optionally provide information on what kind of walk they are interested in. Jaunt then uses AI to create a route that fits within the total time available, including both walking and time spent at stops, and to turn real source material about each stop into a short story, prompt, or fact the user can read, or eventually hear, as they arrive.
+## Proposed Solution
 
-Instead of just routing between nearby attractions, Jaunt gives the walk a purpose through relevant places, stories, details or small activities along the way. A user might choose a history, architecture or public-art Jaunt, or let Jaunt choose based on what is available nearby. 
+The user provides three main inputs:
 
-By default, a Jaunt returns the user to the starting point, while a point-to-point walk can also be supported. The proposed route and stops are shown before the user sets off, allowing them to decide whether the Jaunt is worth taking. 
+- A starting point
+- The total time available
+- An optional topic or "surprise me"
 
-Jaunt should only create a route when there is enough suitable material nearby to make the requested walk worthwhile. If a chosen topic cannot support a good Jaunt within available time, it should instead suggest a shorter route or a different topic rather than filling the route with weak or invented stops. 
+Jaunt gathers candidate places from a collected, source-supported dataset and uses AI to evaluate how well they match the selected topic. AI then chooses a small group of relevant stops that could form an interesting and coherent walk.
 
-## What Makes This Different
+A mapping service calculates a practical walking route connecting the selected stops. Jaunt combines the estimated walking duration with an allowance for time spent at each stop. If the complete experience exceeds the user's time limit, the selection is adjusted until a suitable route is found or the application determines that the request cannot be fulfilled.
 
-Jaunt is designed specifically around the walk itself rather than the search for places. Instead of returning a list of nearby recommendations or requiring the user to assemble a route, it turns starting point, available time and optional interest into an experience that can be followed on a map. 
+The proposed route and its stops are displayed on an interactive map before the user begins. Each stop includes short AI-generated text based on source material connected to that specific place. This may be a historical fact, an architectural detail, information about public art, or a prompt encouraging the user to notice something or do something in their surroundings.
 
-The available time represents the outing, this includes the time to stop and engage with places along the route. Each stop gives the user a reason for being there through relevant context, stories or prompts, generated by AI from real source material for that specific stop rather than a generic description. Eventually this can be experienced through audio as well as text. 
+The result is not simply a list of nearby attractions. It is an ordered walking experience designed around the user's available time and interests.
 
-Jaunt also prioritises quality of the walk over always returning a result. In cases where there is not enough suitable information for the requested topic and time, it can suggest a different or shorter Jaunt rather than creating weak or fabricated stops. 
+## Intended Users
 
-In the long term, Jaunt could combine reliable public information with knowledge contributed by people who know an area (local legends). Allowing small local details and places that rarely appear in conventional guides to become part of future Jaunts. 
+The primary user is someone who wants to walk but does not have a particular destination in mind. They may have time to fill, need a break, or want to go outside without using time and mental effort to plan a route. Jaunt gives familiar surroundings novelty and purpose.
 
-## Who This Serves
+A secondary user is someone in an unfamiliar area who wants to explore on foot without researching attractions and constructing their own route. Instead of trying to see everything, they want a manageable walk that fits their available time and helps them notice or learn something about where they already are.
 
-Primary user: Someone who likes walking, or wants to walk more, but misses somewhere specific to go. They may have some time to kill, need a break or simply wish to go outside without spending time or mental capacity on deciding a route or destination. Jaunt attempts to give familiar surroundings enough novelty and purpose to make the walk feel more worthwhile. 
+## What Makes Jaunt Different
 
-Secondary user: Someone in an unfamiliar area who wants to explore on foot without researching attractions and constructing their own route. Instead of trying to see "everything" they want a walk that fits their available time and helps them notice or learn something about the area they are already in. 
+Existing map and recommendation services are generally designed to find individual places or provide directions to a destination already chosen by the user. Jaunt begins with the walk itself.
+
+The user does not need to decide where to go first. Jaunt uses their starting location, available time, and interests to select relevant stops and organise them into a route. Each stop gives the user a reason to be there through source-based stories, facts, or prompts.
+
+The user's time limit applies to the entire outing, not only the time required to walk between destinations. Jaunt therefore considers both route duration and time spent engaging with the stops.
+
+Jaunt also prioritises trustworthy and relevant results over always generating an answer. An honest alternative is more useful than a route containing fabricated, inaccessible, or unrelated stops.
+
+## V1 Scope
+
+The first version will focus on a defined inner-Sydney test area covering the CBD and nearby neighbourhoods that can be tested locally, including Chippendale, Redfern, Surry Hills, Glebe, Erskineville, and Newtown. This area has sufficient public information about historical places, architecture, and public art, and its bounded scope makes it possible to verify stops and sources, evaluate the AI-generated content, and complete real-world testing of route quality and timing.
+
+V1 will include:
+
+- Selection of a starting point on the map
+- Selection of total available time
+- History, architecture, public art, and "surprise me" topics
+- AI-assisted selection of relevant stops from collected, source-supported place data
+- A loop route that returns to the starting point
+- A small number of real stops in a suggested order
+- An interactive map displaying the route and stops
+- Estimated walking time plus an allowance for time at stops
+- Short AI-generated content based on source material
+- Source information for the content
+- A useful alternative when no suitable route can be created
+
+The prototype does not need to provide the same quality of results outside the selected area. It will use an automatically collected and processed catalogue of candidate places and sources for that area, so the catalogue can grow without places being entered by hand, while staying stable enough for testing.
+
+Possible extensions, if time permits, include using the device's current location, point-to-point routes, and reading stop content aloud. User accounts, worldwide coverage, user-contributed places, and social features are outside the initial scope.
+
+## Data and Important Decisions
+
+**Data in:**
+
+- Starting location
+- Available time
+- Selected topic
+- Source-supported place information and coordinates
+- Source material associated with each place
+- Walking routes and travel-time estimates
+
+**Data out:**
+
+- An ordered walking route
+- Estimated walking and stop time
+- Selected stops displayed on a map
+- Short AI-generated stories, facts, or prompts
+- References to the source material
+- Alternative suggestions when a route cannot be created
+
+Important development decisions include how candidate places are collected and verified, how AI determines their relevance to a topic, how the route and time constraints are checked, and how generated descriptions are kept consistent with their sources.
+
+The prototype should not require an account unless later features introduce saved routes or personal information.
 
 ## Success Criteria
 
-The first version of Jaunt is successful if it is able to reliably turn a user's starting point, available time and optional topic into a walk that is practical to complete and gives the user a reason to get out and explore. Success will be evaluated through real-world testing of generated Jaunts. Testers should be able to follow the route from their phone, complete the full experience reasonably close to their stated time, and encounter real and relevant stops with context along the way. 
+Jaunt will be evaluated through developer testing and external user testing in inner Sydney. A successful prototype should demonstrate that:
 
-Testing should include both developer and external users, with feedback focused on whether the route was easy to follow, the stops and their AI-generated context felt worthwhile and trustworthy, and how actual completion time compared to the estimated time. Lastly, and most importantly, whether the walk felt worth getting out the door for. 
+- A user can select a starting point, available time, and optional topic and receive a suitable result.
+- The route can be viewed and followed from a phone.
+- The complete walk can be finished reasonably close to the requested time.
+- Displayed stops are real and relevant to the selected topic.
+- AI-generated content is consistent with the supplied source material.
+- Users understand why each stop was included.
+- The application responds honestly when it cannot create a suitable route.
+- Testers feel that the walk was worth taking and would consider using Jaunt again.
 
-A successful prototype should demonstrate that users would consider using Jaunt again when they want to go for a walk but do not have somewhere to go. 
-
-## Scope
-
-The first version (V1) will focus on proving the core experience: That a purposeful and engaging walk can be created from a users location available time and interests without requiring them to plan the route themselves. 
-
-V1 aims to support: 
-* A starting point entered by the user, with current location supported is feasible. 
-* A total available time for the Jaunt 
-* A small number of topics, initially history, architecture and public art, alongside a "surprise me" option. 
-* A generated walking route displayed on an interactive walking map. 
-* A default loop that returns user to their starting point, with point-to-point routes supported if achievable within project. 
-* A small number of real stops selected because they contribute something relevant to chosen topic. 
-* Short, AI-generated, source-based context or stories for each stop, available as text. 
-* The ability to have this content read out loud if feasible within project. 
-* An alternative suggestion when the requested time/topic/location cannot support a worthwhile Jaunt. 
-
-The first version does not need to work equally well everywhere. Development and testing will focus on a defined area where sufficient source information is available. 
+Testing will compare estimated and actual completion times and gather feedback about route clarity, stop relevance, trustworthiness, and the overall experience.
 
 ## Vision
 
-Jaunt could develop from a simple route generator into a way of discovering the places around you through walking. Rather than relying only on conventional attractions or manually curated walking tours, Jaunt could combine reliable public information with local knowledge to create many different walks around the same neighbourhood. 
+In the future, Jaunt could support more locations, topics, route types, and audio experiences. It could also allow people with local knowledge to contribute overlooked places and stories, subject to suitable verification.
 
-Over time, users could contribute places, details and stories they think are worth noticing. Jaunt could use these contributions alongside other sources to create new routes. This would allow knowledge that normally only lives with people who know an area to become a part of someone else's walk. 
-
-The long-term goal is for "have a Jaunt" to become an easy answer to having some spare time, needing a break, wanting to get outside, or wanting to explore somewhere unfamiliar. Just tell Jaunt how much time you have, and it gives you something worth walking for. 
+The long-term goal is for "have a Jaunt" to become an easy answer when someone has spare time, needs a break, wants to go outside, or wants to explore somewhere unfamiliar. Tell Jaunt how much time you have, and it gives you something worth walking for.
