@@ -104,6 +104,8 @@ AI is responsible for the actual judgment of which combination of stops makes th
 
 If any check fails, Python re-prompts AI with the specific reason (unknown ID, wrong count, or doesn't fit even at the best ordering) and asks for a different combination from the same shortlist. After a small fixed number of attempts — two retries is a reasonable V1 default — Jaunt falls back to the brief's honest "no suitable route" response rather than retrying indefinitely.
 
+**Time-budget usage, not just time-budget compliance.** The feasibility check above only verifies that a selection *fits* within the requested time — it does not judge whether the selection makes *sensible use* of it. Sprint 3's own manual demo surfaced this directly: a 2-stop selection using only 15 minutes of a 60-minute request came back "feasible," which is technically correct but not a good final result — the user asked for something closer to 60 minutes of walk, not the cheapest option that clears the bar. This is deliberately left as an AI selection concern, not added to Python's feasibility check: Python's job is to reject the impossible and the invalid, not to second-guess AI's taste, and "makes good use of the available time" is a judgment call about the *quality* of a route in the same way "relevant and interesting" is — exactly the kind of decision Sprint 4 already assigns to AI rather than to mechanical rules. Sprint 4's instructions to AI should explicitly include this preference.
+
 ## Module structure
 
 Fewer files than earlier drafts, but each is still traceable to one of the brief's named "Important development decisions":
@@ -132,7 +134,7 @@ Flask + Leaflet showing the pilot-area catalogue stops near a clicked start poin
 `planner.py`: build the shortlisting pipeline and request the real distance/duration matrix for the start point plus shortlist, then build the brute-force ordering-and-feasibility helper described above. This helper can be fully unit-tested at this point using a hand-built fake matrix — no AI needed yet, since it's pure logic once the matrix exists.
 
 **Sprint 4 — AI final stop selection.**
-`ai.py` (part 1): Python supplies AI with the shortlist, their content/topics, and the real matrix built in Sprint 3; AI selects the final 2–5 stops, including the "surprise me" case. Python validates the selection using Sprint 3's helper (real IDs, stop count, time-feasibility) and retries or falls back as described above.
+`ai.py` (part 1): Python supplies AI with the shortlist, their content/topics, and the real matrix built in Sprint 3; AI selects the final 2–5 stops, including the "surprise me" case. Python validates the selection using Sprint 3's helper (real IDs, stop count, time-feasibility) and retries or falls back as described above. AI's selection should also aim to make sensible use of the requested time, not just stay under it — see "Time-budget usage, not just time-budget compliance" above.
 
 **Sprint 5 — AI content generation.**
 `ai.py` (part 2): each selected stop's stored source excerpt becomes a short story, fact, or prompt. Testing focus includes spot-checking generated text against its source, since content consistency is a named success criterion.
