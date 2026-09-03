@@ -36,6 +36,8 @@ A mapping service calculates a practical walking route connecting the selected s
 
 The proposed route and its stops are displayed on an interactive map before the user begins. Each stop includes short AI-generated text based on source material connected to that specific place. This may be a historical fact, an architectural detail, information about public art, or a prompt encouraging the user to notice something or do something in their surroundings.
 
+Because Jaunt is used while walking, it is designed mobile-first: the phone browser is the primary interface, and desktop support is secondary.
+
 The result is not simply a list of nearby attractions. It is an ordered walking experience designed around the user's available time and interests.
 
 ## Intended Users
