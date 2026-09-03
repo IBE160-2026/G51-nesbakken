@@ -151,3 +151,15 @@ Estimated runway unchanged: roughly 9–10 weeks (early September through Novemb
 - AI provider and API key handling (needed by Sprint 4, worth deciding before then)
 - Attribution requirements in the UI for OSM, the routing provider, and Wikipedia
 - Exact pilot neighbourhood for Sprint 1 (Newtown vs. Redfern vs. another), and the final inner-Sydney bounding box coordinates
+
+## Sprint 1 results and known limitations
+
+Sprint 1 is complete, run against live data for the Newtown pilot area (24 candidate elements from Overpass). Final catalogue: 11 `ready`, 7 `limited`, 6 `rejected`. Routing confirmed via OpenRouteService's foot-walking profile (5.0 km/h implied speed on a real two-point test, sent via the `Authorization` header rather than a URL parameter). 34/34 offline unit tests passing.
+
+Known limitations accepted for the pilot:
+
+- **Resume cache does not detect schema changes.** `import_places.py` skips rebuilding any record already marked `ready` (or already marked a resolved duplicate), to avoid redundant network calls on rerun. This assumes the record's *shape* hasn't changed since it was last saved. If the catalogue schema changes (e.g. the `source_type` field added mid-sprint), old cached `ready` records written before that change will be missing the new field, and the resume logic will not notice or fix this — it reuses the stale dict as-is. This was hit directly during Sprint 1: rerunning after adding `source_type` produced a `KeyError` on the one `ready` record left over from the previous schema version. The fix for a schema change is to delete `data/sydney_places.json` and run a clean import, not to rely on resume. There is no automatic migration, and none is planned for V1.
+- **English-only Wikipedia enrichment.** Only `wikipedia` tags with an `en:` prefix (or no prefix, assumed English) are followed; other languages are marked `limited` with an explicit reason rather than queried.
+- **Approximate deduplication.** Records are only treated as duplicates if they share an identical normalized name within 75 metres of a better-sourced record. This will miss duplicates using different names for the same physical place, and could in principle merge two distinct places that happen to share both a name and close proximity — accepted as good enough for a pilot, not exact entity resolution.
+- **OSM-tag-sourced content is terse.** Where enrichment falls back to OSM's own descriptive tags (`artist_name`, `start_date`, `inscription`, `subject`), the resulting excerpt is a short factual fragment (e.g. "By Jasmine Sarin, 2021"), not prose — real and sourced, but much thinner than a Wikipedia or Wikidata excerpt. Expected to be sufficient input for Sprint 5's AI content generation, but not yet tested against that.
+- **Wikidata fallback is minimal.** Only the English short `description` field is used — no sitelink-following to other-language Wikipedia articles, and no broader Wikidata claims (e.g. inception date, creator) beyond the description string.

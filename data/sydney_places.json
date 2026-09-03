@@ -1,0 +1,589 @@
+[
+  {
+    "id": "node/5301587126",
+    "name": "The Trail",
+    "latitude": -33.9076787,
+    "longitude": 151.183279,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Michael Snape",
+      "artwork_type": "sculpture",
+      "material": "iron",
+      "name": "The Trail",
+      "tourism": "artwork",
+      "website": "https://www.cityartsydney.com.au/artwork/the-trail/",
+      "wheelchair": "limited"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/node/5301587126",
+    "source_excerpt": "By Michael Snape.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "node/6836068686",
+    "name": "Street art",
+    "latitude": -33.8952518,
+    "longitude": 151.1806035,
+    "osm_type": "node",
+    "osm_tags": {
+      "name": "Street art",
+      "tourism": "artwork"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "no usable Wikipedia, Wikidata, or OSM source found"
+  },
+  {
+    "id": "node/6836072185",
+    "name": "I Have A Dream",
+    "latitude": -33.8966424,
+    "longitude": 151.1794615,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Andrew Aiken and Juilee Pryor",
+      "artwork_type": "mural",
+      "name": "I Have A Dream",
+      "start_date": "1991",
+      "tourism": "artwork",
+      "website": "https://archives.cityofsydney.nsw.gov.au/nodes/view/587185"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/node/6836072185",
+    "source_excerpt": "By Andrew Aiken and Juilee Pryor, 1991.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "node/6836072186",
+    "name": "Street art",
+    "latitude": -33.8931316,
+    "longitude": 151.1798754,
+    "osm_type": "node",
+    "osm_tags": {
+      "artwork_type": "mural",
+      "name": "Street art",
+      "tourism": "artwork"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "no usable Wikipedia, Wikidata, or OSM source found"
+  },
+  {
+    "id": "node/6910779485",
+    "name": "War Memorial",
+    "latitude": -33.8983681,
+    "longitude": 151.1783771,
+    "osm_type": "node",
+    "osm_tags": {
+      "historic": "memorial",
+      "memorial": "war_memorial",
+      "name": "War Memorial",
+      "website": "https://www.cityofsydney.nsw.gov.au/monuments-and-memorials/newtown-superior-public-school-honour-roll"
+    },
+    "topics": [
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "no usable Wikipedia, Wikidata, or OSM source found"
+  },
+  {
+    "id": "node/9509587217",
+    "name": "Gurugal - Yagu – Barrabugu",
+    "latitude": -33.8951865,
+    "longitude": 151.1797041,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Jasmine Sarin",
+      "artwork_type": "sculpture",
+      "name": "Gurugal - Yagu – Barrabugu",
+      "start_date": "2021",
+      "survey:date": "2022-02-16",
+      "tourism": "artwork",
+      "website": "https://www.innerwest.nsw.gov.au/live/living-arts/public-art-and-placemaking/public-art-projects/gadigal-wangal-wayfinding-project/jasmine-sarin"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/node/9509587217",
+    "source_excerpt": "By Jasmine Sarin, 2021.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "node/9509591917",
+    "name": null,
+    "latitude": -33.8954557,
+    "longitude": 151.1791796,
+    "osm_type": "node",
+    "osm_tags": {
+      "historic": "memorial",
+      "memorial": "obelisk",
+      "survey:date": "2022-02-16"
+    },
+    "topics": [
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "rejected",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "missing name, coordinates, or a matching topic"
+  },
+  {
+    "id": "node/10966768781",
+    "name": null,
+    "latitude": -33.8993603,
+    "longitude": 151.1708007,
+    "osm_type": "node",
+    "osm_tags": {
+      "artwork_type": "sculpture",
+      "tourism": "artwork"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "rejected",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "missing name, coordinates, or a matching topic"
+  },
+  {
+    "id": "node/11164343937",
+    "name": "St. Peter’s Plaza",
+    "latitude": -33.9073401,
+    "longitude": 151.1812505,
+    "osm_type": "node",
+    "osm_tags": {
+      "historic": "memorial",
+      "memorial": "plaque",
+      "name": "St. Peter’s Plaza"
+    },
+    "topics": [
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "no usable Wikipedia, Wikidata, or OSM source found"
+  },
+  {
+    "id": "node/11984853363",
+    "name": null,
+    "latitude": -33.9081077,
+    "longitude": 151.1821627,
+    "osm_type": "node",
+    "osm_tags": {
+      "description": "Former industrial machinery",
+      "historic": "machine"
+    },
+    "topics": [
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "rejected",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "missing name, coordinates, or a matching topic"
+  },
+  {
+    "id": "node/12732191633",
+    "name": null,
+    "latitude": -33.8997355,
+    "longitude": 151.1838931,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Will Coles",
+      "artwork_type": "sculpture",
+      "material": "concrete",
+      "panoramax": "9446698d-8efd-4f98-a510-45a9a4284cf7",
+      "tourism": "artwork"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "rejected",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "missing name, coordinates, or a matching topic"
+  },
+  {
+    "id": "node/12771442785",
+    "name": null,
+    "latitude": -33.8975775,
+    "longitude": 151.178516,
+    "osm_type": "node",
+    "osm_tags": {
+      "artwork_type": "statue",
+      "tourism": "artwork"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "rejected",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": "missing name, coordinates, or a matching topic"
+  },
+  {
+    "id": "node/12771471818",
+    "name": "Come Out to Play",
+    "latitude": -33.8971631,
+    "longitude": 151.1786346,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Will Coles",
+      "artwork_type": "sculpture",
+      "name": "Come Out to Play",
+      "panoramax": "62ff4a41-c3b8-48e5-ab9f-86fb700ca73c",
+      "tourism": "artwork"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/node/12771471818",
+    "source_excerpt": "By Will Coles.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "node/13424720510",
+    "name": "Uplift",
+    "latitude": -33.8962271,
+    "longitude": 151.1767136,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Noni Cragg",
+      "artwork_subject": "street_art",
+      "artwork_type": "mural",
+      "name": "Uplift",
+      "start_date": "2023",
+      "tourism": "artwork",
+      "website": "https://www.innerwest.nsw.gov.au/live/living-arts/perfect-match-street-art/audio-descriptions/uplift"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/node/13424720510",
+    "source_excerpt": "By Noni Cragg, 2023.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "node/13848938835",
+    "name": "Progress Pride Beacon",
+    "latitude": -33.8975165,
+    "longitude": 151.1786106,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Supersense",
+      "artwork_type": "sculpture",
+      "material": "aluminium",
+      "name": "Progress Pride Beacon",
+      "tourism": "artwork"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/node/13848938835",
+    "source_excerpt": "By Supersense.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "node/13876170704",
+    "name": "Block Party",
+    "latitude": -33.8960387,
+    "longitude": 151.1743698,
+    "osm_type": "node",
+    "osm_tags": {
+      "artist_name": "Sharon Billinge",
+      "artwork_subject": "street_art",
+      "artwork_type": "mural",
+      "name": "Block Party",
+      "start_date": "2023",
+      "tourism": "artwork",
+      "website": "https://www.innerwest.nsw.gov.au/block-party"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/node/13876170704",
+    "source_excerpt": "By Sharon Billinge, 2023.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "way/172735167",
+    "name": "Newtown Baptist Church",
+    "latitude": -33.8950595,
+    "longitude": 151.1806345,
+    "osm_type": "way",
+    "osm_tags": {
+      "amenity": "place_of_worship",
+      "building": "church",
+      "check_date": "2025-08-18",
+      "denomination": "baptist",
+      "name": "Newtown Baptist Church",
+      "religion": "christian",
+      "wheelchair": "limited",
+      "wikidata": "Q56257206"
+    },
+    "topics": [
+      "architecture",
+      "history"
+    ],
+    "source_type": "wikidata",
+    "source_title": "Newtown Baptist Church",
+    "source_url": "https://www.wikidata.org/wiki/Q56257206",
+    "source_excerpt": "church in Newtown, New South Wales",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:28Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "way/172735168",
+    "name": "St Stephen’s Anglican Church",
+    "latitude": -33.8945184,
+    "longitude": 151.1800436,
+    "osm_type": "way",
+    "osm_tags": {
+      "addr:housenumber": "189",
+      "addr:postcode": "2042",
+      "addr:street": "Church Street",
+      "amenity": "place_of_worship",
+      "building": "church",
+      "check_date": "2025-08-18",
+      "denomination": "anglican",
+      "name": "St Stephen’s Anglican Church",
+      "religion": "christian",
+      "wheelchair": "limited",
+      "wikidata": "Q58202839"
+    },
+    "topics": [
+      "architecture",
+      "history"
+    ],
+    "source_type": "wikidata",
+    "source_title": "St Stephen's Anglican Church, Newtown",
+    "source_url": "https://www.wikidata.org/wiki/Q58202839",
+    "source_excerpt": "church building in New South Wales, Australia",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:29Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "way/172735169",
+    "name": "Saint Stephen’s Hall",
+    "latitude": -33.894858,
+    "longitude": 151.1805088,
+    "osm_type": "way",
+    "osm_tags": {
+      "building": "church",
+      "name": "Saint Stephen’s Hall"
+    },
+    "topics": [
+      "architecture",
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
+    "imported_at": "2026-09-03T00:35:30Z",
+    "rejection_reason": "no usable Wikipedia, Wikidata, or OSM source found"
+  },
+  {
+    "id": "way/210940706",
+    "name": "Erskineville Village Anglican Church",
+    "latitude": -33.8999745,
+    "longitude": 151.1832079,
+    "osm_type": "way",
+    "osm_tags": {
+      "building": "church",
+      "building:levels": "2",
+      "denomination": "anglican",
+      "name": "Erskineville Village Anglican Church"
+    },
+    "topics": [
+      "architecture",
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
+    "imported_at": "2026-09-03T00:35:30Z",
+    "rejection_reason": "no usable Wikipedia, Wikidata, or OSM source found"
+  },
+  {
+    "id": "way/548526874",
+    "name": "Newtown Mission",
+    "latitude": -33.8964166,
+    "longitude": 151.1806282,
+    "osm_type": "way",
+    "osm_tags": {
+      "amenity": "place_of_worship",
+      "building": "church",
+      "building:levels": "2",
+      "check_date": "2025-01-20",
+      "name": "Newtown Mission",
+      "religion": "christian",
+      "roof:shape": "gabled",
+      "website": "https://www.newtownmission.org.au/",
+      "wheelchair": "yes",
+      "wikidata": "Q58204980",
+      "wikipedia": "en:Newtown Mission Uniting Church"
+    },
+    "topics": [
+      "architecture",
+      "history"
+    ],
+    "source_type": "wikipedia",
+    "source_title": "Newtown Mission Uniting Church",
+    "source_url": "https://en.wikipedia.org/wiki/Newtown_Mission_Uniting_Church",
+    "source_excerpt": "The Newtown Mission Uniting Church is a heritage-listed Uniting church at 280a King Street, Newtown, City of Sydney, New South Wales, Australia. It was designed by George Allen Mansfield and built in 1859 by Thomas Abbott. It was added to the New South Wales State Heritage Register on 2 April 1999.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:30Z",
+    "rejection_reason": null
+  },
+  {
+    "id": "way/618106058",
+    "name": "St Michael's Catholic Church",
+    "latitude": -33.8918716,
+    "longitude": 151.1652249,
+    "osm_type": "way",
+    "osm_tags": {
+      "addr:housenumber": "69",
+      "addr:postcode": "2048",
+      "addr:street": "Clarendon Road",
+      "addr:suburb": "Stanmore",
+      "amenity": "place_of_worship",
+      "building": "church",
+      "building:levels": "1",
+      "check_date": "2026-03-25",
+      "denomination": "catholic",
+      "name": "St Michael's Catholic Church",
+      "religion": "christian",
+      "website": "https://www.stbrendan.org.au/"
+    },
+    "topics": [
+      "architecture",
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
+    "imported_at": "2026-09-03T00:35:31Z",
+    "rejection_reason": "no usable Wikipedia, Wikidata, or OSM source found"
+  },
+  {
+    "id": "way/1037466794",
+    "name": null,
+    "latitude": -33.9001592,
+    "longitude": 151.1720014,
+    "osm_type": "way",
+    "osm_tags": {
+      "building": "church"
+    },
+    "topics": [
+      "architecture",
+      "history"
+    ],
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "rejected",
+    "imported_at": "2026-09-03T00:35:31Z",
+    "rejection_reason": "missing name, coordinates, or a matching topic"
+  },
+  {
+    "id": "way/1209015877",
+    "name": "Water Falls",
+    "latitude": -33.9098776,
+    "longitude": 151.1837555,
+    "osm_type": "way",
+    "osm_tags": {
+      "artist_name": "Jennifer Turpin & Michaelie Crawford",
+      "artwork_type": "installation",
+      "name": "Water Falls",
+      "tourism": "artwork",
+      "website": "https://www.cityartsydney.com.au/artwork/water-falls/"
+    },
+    "topics": [
+      "public_art"
+    ],
+    "source_type": "osm_tags",
+    "source_title": null,
+    "source_url": "https://www.openstreetmap.org/way/1209015877",
+    "source_excerpt": "By Jennifer Turpin & Michaelie Crawford.",
+    "status": "ready",
+    "imported_at": "2026-09-03T00:35:31Z",
+    "rejection_reason": null
+  }
+]
