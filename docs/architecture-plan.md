@@ -75,7 +75,7 @@ Both the AI selection step and the routing distance matrix need a small input, n
 4. Filtered to the requested (or, for "surprise me," best-represented) broad topic
 5. Capped to a shortlist of roughly **10–15 candidates**
 
-Before AI is called, `planner.py` requests one real distance/duration matrix covering the start point plus the full shortlist (up to 16 nodes, ~120 pairs at the cap) from the routing provider. That matrix — not an estimate — is what makes AI's selection judgment meaningful: AI is given the shortlisted stops, their content and topics, and the real walking times between them, so it can weigh relevance and feasibility together rather than guessing at distance. This matters because a distance matrix grows quadratically — 15 candidates is 105 pairs, 50 candidates is already 1,225 — so capping the shortlist keeps the call cheap regardless. The same matrix is fetched once and reused, unchanged, both by AI to inform its choice and by Python to validate AI's answer and compute the final ordering.
+Before AI is called, `planner.py` requests one real distance/duration matrix covering the start point plus the full shortlist (up to 16 nodes, ~120 pairs at the cap) from the routing provider. That matrix is what Python uses to deterministically enumerate every feasible 2–5 stop combination and compute each one's best order and exact total time — AI never receives the raw matrix or does any routing arithmetic itself (an earlier design gave AI the matrix directly and asked it to compute feasibility; live testing across two models showed that arithmetic was unreliable — see docs/ai-development-log.md). AI is instead given a small, ranked menu of already-feasible options — each with its stops, content, topics, and computed totals — and picks the one that best matches the requested topic. This matters because a distance matrix grows quadratically — 15 candidates is 105 pairs, 50 candidates is already 1,225 — so capping the shortlist keeps both the matrix fetch and the combination enumeration cheap regardless.
 
 ## V1 time-budget and stop-count defaults
 
@@ -90,21 +90,22 @@ These are starting defaults, not permanent — expect to adjust them after the r
 
 ## Route ordering
 
-Once AI has selected a combination of 2–5 stops, `planner.py` determines the final order by **brute-force permutation** — trying every possible order (starting and ending at the start point) and keeping the shortest, using the matrix already fetched for the shortlist. At this size (at most 5! = 120 orderings) brute force is cheap to run, simpler to justify ("every option was checked") than a greedy heuristic, and already optimal, so there's no accuracy trade-off to make by keeping it simple.
+For every 2–5 stop combination Python considers (see "Deriving a feasible option menu" below), the final order is determined by **brute-force permutation** — trying every possible order (starting and ending at the start point) and keeping the shortest, using the matrix already fetched for the shortlist. At this size (at most 5! = 120 orderings) brute force is cheap to run, simpler to justify ("every option was checked") than a greedy heuristic, and already optimal, so there's no accuracy trade-off to make by keeping it simple.
 
-This same computation doubles as the feasibility check: if the *shortest* possible ordering of AI's selection, plus fixed dwell time per stop, still exceeds the requested time, the selection is infeasible regardless of order and is rejected — see below.
+This same computation doubles as the feasibility check: if the *shortest* possible ordering of a combination, plus fixed dwell time per stop, still exceeds the requested time, that combination is infeasible and is never offered to AI.
 
-## Validating AI's stop selection
+## Deriving a feasible option menu, and validating AI's choice
 
-AI is responsible for the actual judgment of which combination of stops makes the most relevant and interesting walk — that is the core product decision, and Python should not second-guess it on taste. But Python is the safety net around that judgment, using the same real matrix data:
+An earlier version of this design asked AI to propose a combination of stops and then validated it after the fact (real IDs, stop count, time-feasibility). Live testing across two models showed AI could not reliably do the underlying routing arithmetic itself, so Python now determines feasibility *before* AI is ever called — see docs/ai-development-log.md for the live evidence and the redesign.
 
-1. **ID check** — every stop AI selected must be one of the IDs in the shortlist Python supplied. Anything else is rejected outright.
-2. **Count check** — the selection must fall within the 2–5 stop range.
-3. **Time-feasibility check** — using the fetched matrix, Python computes the shortest possible ordering of the selected stops (see Route ordering, above) and checks that walking time plus fixed dwell time fits within the requested time.
+1. Every 2–5 stop combination from the shortlist is checked for feasibility (see Route ordering, above) — cheap enough to run exhaustively at the shortlist's capped size (at most 1,573 combinations at a 12-candidate shortlist).
+2. Feasible combinations are ranked by how fully they use the requested time and capped to a bounded menu (15 options in V1), so AI's input stays small regardless of how many combinations exist. Ranking never excludes the only feasible option(s), even when their usage is low.
+3. AI is given this menu — each option's stops, content, topics, and computed total/usage — and picks the `option_key` of the one that best matches the requested topic. AI is responsible for the actual judgment of relevance and interest; Python does not second-guess it on taste, and AI does no routing arithmetic of its own.
+4. Python validates only that AI's returned `option_key` is one it actually offered. Since every offered option is already proven feasible, no further arithmetic validation is needed.
 
-If any check fails, Python re-prompts AI with the specific reason (unknown ID, wrong count, or doesn't fit even at the best ordering) and asks for a different combination from the same shortlist. After a small fixed number of attempts — two retries is a reasonable V1 default — Jaunt falls back to the brief's honest "no suitable route" response rather than retrying indefinitely.
+If AI returns an unlisted key, or the request itself fails for a retryable reason, Python re-prompts with the specific reason and tries again. After a small fixed number of attempts — two retries is a reasonable V1 default — Jaunt falls back to the brief's honest "no suitable route" response rather than retrying indefinitely. A request with zero feasible combinations is detected immediately and never reaches AI at all. A non-retryable failure (invalid credentials, exhausted quota, permission errors) stops immediately rather than repeating a request that cannot succeed.
 
-**Time-budget usage, not just time-budget compliance.** The feasibility check above only verifies that a selection *fits* within the requested time — it does not judge whether the selection makes *sensible use* of it. Sprint 3's own manual demo surfaced this directly: a 2-stop selection using only 15 minutes of a 60-minute request came back "feasible," which is technically correct but not a good final result — the user asked for something closer to 60 minutes of walk, not the cheapest option that clears the bar. This is deliberately left as an AI selection concern, not added to Python's feasibility check: Python's job is to reject the impossible and the invalid, not to second-guess AI's taste, and "makes good use of the available time" is a judgment call about the *quality* of a route in the same way "relevant and interesting" is — exactly the kind of decision Sprint 4 already assigns to AI rather than to mechanical rules. Sprint 4's instructions to AI should explicitly include this preference.
+**Time-budget usage, not just time-budget compliance.** Feasibility alone only verifies that a combination *fits* within the requested time — it doesn't judge whether it makes *sensible use* of it. Sprint 3's own manual demo surfaced this directly: a 2-stop selection using only 15 minutes of a 60-minute request came back "feasible," which is technically correct but not a good final result. Python's menu ranking (step 2 above) favours fuller time usage, while AI still makes the final relevance-based pick among the ranked options — this ranking is a provisional heuristic, not a permanent minimum threshold.
 
 ## Module structure
 
@@ -113,12 +114,12 @@ Fewer files than earlier drafts, but each is still traceable to one of the brief
 | Brief's decision point | Module | Job |
 |---|---|---|
 | How candidate places are collected, verified, and classified | `import_places.py` | Offline, rerunnable: bulk Overpass query for the import boundary, normalize and deduplicate, follow Wikidata/Wikipedia links, assign topics via the tag rules above, write `data/sydney_places.json` incrementally (skipping already-completed records on rerun, so one failed enrichment call doesn't require repeating the whole import), and print a summary of ready/limited/rejected/failed counts |
-| How the route and time constraints are checked | `planner.py` | Loads the catalogue, narrows candidates to a bounded shortlist, requests a real distance/duration matrix covering the start point and shortlist, validates AI's selection (real IDs, stop count, time-feasibility) with retry/fallback, and computes the final stop ordering by brute-force permutation over AI's selection |
-| How AI determines relevance to a topic; how descriptions stay consistent with sources | `ai.py` | Given the shortlist, their content/topics, and the real distance/duration matrix, AI makes the final selection of 2–5 stops that best forms a relevant, interesting, and time-feasible walk — Jaunt's core judgment call. Also handles grounded content generation from stored source excerpts |
-| — | `services.py` | The one live-at-runtime external call: routing (distance matrix + final route geometry) |
+| How the route and time constraints are checked | `planner.py` | Loads the catalogue, narrows candidates to a bounded shortlist, requests a real distance/duration matrix, deterministically enumerates and ranks every feasible 2–5 stop combination into a bounded option menu (brute-force ordering per combination), and validates that AI's chosen `option_key` was actually offered, with retry/fallback |
+| How AI determines relevance to a topic; how descriptions stay consistent with sources | `ai.py` | Given a bounded menu of already-feasible route options (each with its stops, content/topics, and computed totals) from `planner.py`, AI picks the option that best forms a relevant and interesting walk for the requested topic — Jaunt's core judgment call, with no routing arithmetic involved. Also handles grounded content generation from stored source excerpts |
+| — | `services.py` | The routing live-at-runtime external call (the other is `ai.py`'s OpenAI call): distance matrix + final route geometry |
 | — | `app.py` + `static/`/`templates/` | Flask endpoint, map-click start point, Leaflet rendering |
 | — | `data/sydney_places.json` | The imported catalogue |
-| — | `tests/` | Unit tests for `planner.py`'s time-budget logic and `ai.py`'s ID-allowlist enforcement, run against fixed/mocked responses — not live services |
+| — | `tests/` | Unit tests for `planner.py`'s combination-enumeration/time-budget logic and `ai.py`'s option-key handling, run against fixed/mocked responses — not live services |
 
 ## Incremental development plan
 
@@ -134,13 +135,15 @@ Flask + Leaflet showing the pilot-area catalogue stops near a clicked start poin
 `planner.py`: build the shortlisting pipeline and request the real distance/duration matrix for the start point plus shortlist, then build the brute-force ordering-and-feasibility helper described above. This helper can be fully unit-tested at this point using a hand-built fake matrix — no AI needed yet, since it's pure logic once the matrix exists.
 
 **Sprint 4 — AI final stop selection.**
-`ai.py` (part 1): Python supplies AI with the shortlist, their content/topics, and the real matrix built in Sprint 3; AI selects the final 2–5 stops, including the "surprise me" case. Python validates the selection using Sprint 3's helper (real IDs, stop count, time-feasibility) and retries or falls back as described above. AI's selection should also aim to make sensible use of the requested time, not just stay under it — see "Time-budget usage, not just time-budget compliance" above.
+`ai.py` (part 1): Python derives a bounded, ranked menu of already-feasible 2–5 stop combinations from the shortlist and matrix built in Sprint 3 (see "Deriving a feasible option menu" above); AI picks the option that best matches the requested topic, including the "surprise me" case. Python validates only that AI's chosen `option_key` was actually offered, and retries or falls back as described above. This replaced an initial version where AI proposed raw candidate ids and computed feasibility itself — live testing across two models showed that arithmetic was unreliable; see docs/ai-development-log.md.
 
 **Sprint 5 — AI content generation.**
 `ai.py` (part 2): each selected stop's stored source excerpt becomes a short story, fact, or prompt. Testing focus includes spot-checking generated text against its source, since content consistency is a named success criterion.
 
 **Sprint 6 — Expand the catalogue, then final routing and real-world test.**
 Now that the pipeline is proven on the pilot area, rerun `import_places.py` against the full inner-Sydney boundary. Then: real route geometry for the finalized stop order, full error/timeout handling for the routing call, required attribution (OSM, routing provider, Wikipedia) in the UI, and a real-world walking test comparing estimated vs. actual time.
+
+Once real route geometry is available, consider whether the chosen stop order backtracks along the same street for a meaningful stretch (a "there and back" feel) and, if so, prefer an equally- or near-equally-fast ordering that doesn't. This isn't solvable before Sprint 6: `plan_route()` only has point-to-point *durations* from the ORS matrix, not actual polylines, so there's no way to detect path overlap without the geometry this sprint adds. Raised during Sprint 4 manual testing - see docs/ai-development-log.md.
 
 **Sprint 7 (stretch, if time allows before November).**
 Device geolocation, point-to-point routes, typed-address geocoding, read-aloud via the browser's `SpeechSynthesis`.
@@ -165,3 +168,13 @@ Known limitations accepted for the pilot:
 - **Approximate deduplication.** Records are only treated as duplicates if they share an identical normalized name within 75 metres of a better-sourced record. This will miss duplicates using different names for the same physical place, and could in principle merge two distinct places that happen to share both a name and close proximity — accepted as good enough for a pilot, not exact entity resolution.
 - **OSM-tag-sourced content is terse.** Where enrichment falls back to OSM's own descriptive tags (`artist_name`, `start_date`, `inscription`, `subject`), the resulting excerpt is a short factual fragment (e.g. "By Jasmine Sarin, 2021"), not prose — real and sourced, but much thinner than a Wikipedia or Wikidata excerpt. Expected to be sufficient input for Sprint 5's AI content generation, but not yet tested against that.
 - **Wikidata fallback is minimal.** Only the English short `description` field is used — no sitelink-following to other-language Wikipedia articles, and no broader Wikidata claims (e.g. inception date, creator) beyond the description string.
+
+## Sprint 3 results and known limitations
+
+Sprint 3 is complete: `planner.py` implements candidate shortlisting, and `services.py` fetches a real OpenRouteService duration matrix. `planner.py` then determines the best stop order by brute-force permutation and checks feasibility against the requested time budget. 68/68 tests pass. The live ORS matrix endpoint was also exercised directly (not just via mocked tests) by running `python3 planner.py` against real Newtown data, confirming the matrix request and response shape work end to end outside the test suite.
+
+Known limitations accepted at the end of Sprint 3:
+
+- **Feasibility does not imply good budget use.** A manual run against real data produced a "feasible" 2-stop, 60-minute-budget route that used only about 15 minutes (26% budget usage) — technically correct, since it fits under the maximum, but not a route a user asked for a 60-minute walk would want. `check_feasibility()` now reports `unused_minutes` and `budget_usage_ratio` alongside `feasible`, but `feasible` deliberately keeps its narrow meaning (fits within the maximum time) rather than being redefined to also mean "uses the time well."
+- **No minimum budget-usage threshold has been chosen.** Budget usage is measured and returned, but nothing currently rejects or flags a low-usage-but-feasible selection — that judgment is left to Sprint 4's AI stop selection, as described above under "Time-budget usage, not just time-budget compliance."
+- **Duplicate-stop selections are rejected**, and the documented 30–120 minute request range is validated in exactly one place, `check_feasibility()`, rather than being re-checked by each caller.

@@ -1,16 +1,22 @@
 """Sprint 3: candidate shortlisting and the ordering/feasibility helper.
+Sprint 4: plan_route() ties shortlisting, the routing matrix, and AI
+selection together.
 
-No AI yet - this is the deterministic half of route planning. Sprint 4 will
-have AI choose a final subset of stops from the shortlist this module
-produces; this module then checks whether that choice is actually walkable
-in the requested time and finds the best order for it.
+This module owns all deterministic arithmetic: narrowing candidates,
+requesting the real matrix, and (since the Sprint 4 redesign - see
+docs/ai-development-log.md) enumerating every feasible stop combination
+itself rather than asking AI to compute feasibility. AI (ai.py) only judges
+relevance and interest among options this module has already proven
+feasible.
 """
 
 import itertools
 import json
 import os
 
+import ai
 from import_places import haversine_meters
+from services import fetch_duration_matrix
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_DIR, "data", "sydney_places.json")
@@ -23,6 +29,13 @@ MIN_STOPS = 2
 MAX_STOPS = 5
 MIN_REQUESTED_MINUTES = 30
 MAX_REQUESTED_MINUTES = 120
+
+# Sprint 4 retry policy - see docs/ai-development-log.md.
+MAX_AI_RETRIES = 2
+# How many top-ranked feasible combinations are offered to AI per request -
+# keeps AI's input small (see docs/architecture-plan.md) without excluding
+# the only feasible option(s) when few or none rank highly on usage.
+AI_OPTION_MENU_SIZE = 15
 
 
 def load_ready_places(data_path=DATA_PATH):
@@ -173,24 +186,217 @@ def check_feasibility(
     }
 
 
-def _print_route_summary(shortlist, requested_minutes, result):
+def _plan_failure(reason, attempts, attempts_log=None):
+    return {
+        "feasible": False,
+        "reason": reason,
+        "order": None,
+        "total_minutes": None,
+        "unused_minutes": None,
+        "budget_usage_ratio": None,
+        "shortlist": None,
+        "selected_ids": None,
+        "attempts": attempts,
+        "attempts_log": attempts_log or [],
+    }
+
+
+def _enumerate_feasible_combinations(
+    shortlist, matrix, requested_minutes, dwell_minutes_per_stop
+):
+    """Every feasible 2-5 stop combination from the shortlist, each already
+    checked (via check_feasibility() - unchanged) for its best order and
+    exact total time. This is the full feasible universe AI can be offered
+    to choose among by relevance, rather than being asked to discover a
+    feasible combination itself by guessing at arithmetic - see "Redesign
+    after live testing" in docs/ai-development-log.md for why.
+
+    At the shortlist cap (12), this is at most 1,573 combinations, each a
+    cheap check_feasibility() call - negligible compute, no change to any
+    arithmetic already covered by Sprint 3's tests.
+    """
+    feasible = []
+    for size in range(MIN_STOPS, MAX_STOPS + 1):
+        for combo in itertools.combinations(range(1, len(shortlist) + 1), size):
+            result = check_feasibility(
+                0, list(combo), matrix, requested_minutes, dwell_minutes_per_stop
+            )
+            if result["feasible"]:
+                feasible.append(result)
+    return feasible
+
+
+def _build_ai_options(shortlist, feasible_combos):
+    """Ranks feasible combinations by budget usage (closest to fully using
+    the requested time first) and caps the menu at AI_OPTION_MENU_SIZE, so
+    AI's input stays small regardless of how many combinations exist (see
+    docs/architecture-plan.md). This is a plain top-N slice of every
+    feasible combination, not a minimum-usage filter - it never excludes
+    the only feasible option(s) just because their usage is low.
+
+    Returns (ai_options, combos_by_key): ai_options is the provider-agnostic
+    list handed to ai.select_stops(); combos_by_key maps each option_key
+    back to its full check_feasibility() result, for resolving whichever
+    key AI picks.
+    """
+    ranked = sorted(feasible_combos, key=lambda c: c["budget_usage_ratio"], reverse=True)
+    menu = ranked[:AI_OPTION_MENU_SIZE]
+
+    ai_options = []
+    combos_by_key = {}
+    for i, combo in enumerate(menu):
+        option_key = f"option_{i + 1}"
+        combos_by_key[option_key] = combo
+        ai_options.append({
+            "option_key": option_key,
+            "stops": [
+                {
+                    "id": shortlist[idx - 1]["id"],
+                    "name": shortlist[idx - 1]["name"],
+                    "topics": shortlist[idx - 1].get("topics", []),
+                    "source_excerpt": shortlist[idx - 1].get("source_excerpt"),
+                }
+                for idx in combo["order"]
+            ],
+            "total_minutes": round(combo["total_minutes"], 1),
+            "budget_usage_ratio": round(combo["budget_usage_ratio"], 3),
+        })
+    return ai_options, combos_by_key
+
+
+def plan_route(
+    start_lat,
+    start_lon,
+    topic,
+    requested_minutes,
+    dwell_minutes_per_stop=DWELL_MINUTES_PER_STOP,
+):
+    """Sprint 4: shortlist real candidates, fetch a real duration matrix,
+    deterministically enumerate every feasible 2-5 stop combination, and let
+    AI choose the most relevant and interesting one from that pre-validated
+    menu.
+
+    Earlier Sprint 4 asked AI to propose raw candidate ids and compute
+    feasibility itself; live testing across two models showed this
+    arithmetic is unreliable (see "Redesign after live testing" in
+    docs/ai-development-log.md). Python now owns all arithmetic -
+    shortlisting, routing, and feasibility - via _enumerate_feasible_
+    combinations(); AI's only job is the relevance/interest judgement among
+    options Python has already proven walkable in the requested time. A
+    genuinely impossible request (no feasible combination at all) is
+    detected immediately, without spending any AI calls on it.
+
+    Retries (up to MAX_AI_RETRIES) are now a safety net for the AI call
+    failing or returning an option_key that wasn't offered - not, as
+    before, a way to coach AI toward a mathematically valid answer, since
+    every offered option is already guaranteed valid. "attempts_log"
+    records every attempt's outcome, for diagnosing a failed request.
+    """
+    shortlist = shortlist_candidates(start_lat, start_lon, topic)
+    if len(shortlist) < MIN_STOPS:
+        return _plan_failure(
+            f"only {len(shortlist)} candidate place(s) found near this start "
+            f"point - at least {MIN_STOPS} are needed",
+            attempts=0,
+        )
+
+    points = [(start_lat, start_lon)] + [
+        (p["latitude"], p["longitude"]) for p in shortlist
+    ]
+    matrix = fetch_duration_matrix(points)
+
+    feasible_combos = _enumerate_feasible_combinations(
+        shortlist, matrix, requested_minutes, dwell_minutes_per_stop
+    )
+    if not feasible_combos:
+        return _plan_failure(
+            f"no combination of {MIN_STOPS}-{MAX_STOPS} stops from the "
+            f"shortlist fits within {requested_minutes} min",
+            attempts=0,
+        )
+
+    ai_options, combos_by_key = _build_ai_options(shortlist, feasible_combos)
+
+    feedback = None
+    attempts_used = 0
+    attempts_log = []
+
+    for _ in range(1 + MAX_AI_RETRIES):
+        attempts_used += 1
+        try:
+            selected_option = ai.select_stops(
+                ai_options, topic, requested_minutes, feedback=feedback
+            )
+        except ai.AiFatalError as exc:
+            # Invalid credentials, permission errors, or exhausted quota -
+            # retrying with an unmodified request cannot fix any of these,
+            # so stop now instead of repeating a doomed request.
+            attempts_log.append({
+                "attempt": attempts_used, "selected_option": None,
+                "outcome": "ai_fatal_error", "reason": str(exc),
+            })
+            return _plan_failure(str(exc), attempts=attempts_used, attempts_log=attempts_log)
+        except ai.AiSelectionError as exc:
+            feedback = str(exc)
+            attempts_log.append({
+                "attempt": attempts_used, "selected_option": None,
+                "outcome": "ai_error", "reason": str(exc),
+            })
+            continue
+
+        if selected_option not in combos_by_key:
+            reason = f"'{selected_option}' is not one of the offered option keys"
+            feedback = (
+                f"your previous answer was '{selected_option}': {reason}. "
+                f"Choose one of: {', '.join(combos_by_key)}."
+            )
+            attempts_log.append({
+                "attempt": attempts_used, "selected_option": selected_option,
+                "outcome": "unknown_option", "reason": reason,
+            })
+            continue
+
+        attempts_log.append({
+            "attempt": attempts_used, "selected_option": selected_option,
+            "outcome": "accepted", "reason": None,
+        })
+        result = combos_by_key[selected_option]
+        return {
+            **result,
+            "shortlist": shortlist,
+            "selected_ids": [shortlist[i - 1]["id"] for i in result["order"]],
+            "attempts": attempts_used,
+            "attempts_log": attempts_log,
+        }
+
+    return _plan_failure(
+        "AI did not return a usable option after all attempts",
+        attempts=attempts_used,
+        attempts_log=attempts_log,
+    )
+
+
+def _print_route_summary(shortlist, requested_minutes, result, start_lat, start_lon):
     """Demo-only: turns a check_feasibility() result into something a human
-    can read and verify, instead of raw indices and a dict dump."""
+    can read and verify, instead of raw indices and a dict dump. Prints the
+    start point's exact coordinates (not just the word "Start") so they can
+    be copied straight into Google Maps/Maps.me for manual time checks."""
     print(f"\nRequested time budget: {requested_minutes} min")
 
     if result["order"] is None:
         print(f"No route could be planned: {result['reason']}")
         return
 
+    start_label = f"Start: {start_lat:.6f}, {start_lon:.6f}"
     stop_names = [shortlist[i - 1]["name"] for i in result["order"]]
     dwell_minutes = DWELL_MINUTES_PER_STOP * len(result["order"])
     walking_minutes = result["total_minutes"] - dwell_minutes
 
     print("Route:")
-    print("  Start")
+    print(f"  {start_label}")
     for name in stop_names:
         print(f"  -> {name}")
-    print("  -> Start")
+    print(f"  -> {start_label}")
     print(f"\nWalking time:  {walking_minutes:.1f} min")
     print(f"Dwell time:    {dwell_minutes:.1f} min")
     print(f"Total time:    {result['total_minutes']:.1f} min")
@@ -201,26 +407,37 @@ def _print_route_summary(shortlist, requested_minutes, result):
         print(f"Reason: {result['reason']}")
 
 
+def _print_attempts_log(attempts_log):
+    """Demo-only: shows what AI proposed on every attempt and why Python
+    accepted or rejected it, not just the final outcome - the intermediate
+    attempts are otherwise invisible once plan_route() returns."""
+    if not attempts_log:
+        print("\nNo AI attempts were made.")
+        return
+
+    print("\nAI attempt log:")
+    for entry in attempts_log:
+        option_display = entry["selected_option"] or "(request failed)"
+        print(f"  #{entry['attempt']} [{entry['outcome']}] chose: {option_display}")
+        if entry["reason"]:
+            print(f"        reason: {entry['reason']}")
+
+
 if __name__ == "__main__":
-    from services import fetch_duration_matrix
-
     # A real Newtown start point, an explicit topic, and a 60-minute budget.
+    # This now calls plan_route() end-to-end: shortlist -> real ORS matrix ->
+    # real OpenAI selection -> validation/retry -> final route. Requires both
+    # OPENROUTESERVICE_API_KEY and OPENAI_API_KEY (plus OPENAI_MODEL) set in
+    # .env.
     start_lat, start_lon = -33.8983, 151.1793
-    topic = "public_art"
-    requested_minutes = 60
+    topic = "surprise_me"
+    requested_minutes = 40
 
-    shortlist = shortlist_candidates(start_lat, start_lon, topic)
-    print(f"Shortlist for topic={topic!r} within {SHORTLIST_RADIUS_METERS}m: {len(shortlist)} candidates")
-    for place in shortlist:
-        print(f"  - {place['name']} {place['topics']}")
+    result = plan_route(start_lat, start_lon, topic, requested_minutes)
+    shortlist = result["shortlist"] or shortlist_candidates(start_lat, start_lon, topic)
 
-    points = [(start_lat, start_lon)] + [
-        (p["latitude"], p["longitude"]) for p in shortlist
-    ]
-    matrix = fetch_duration_matrix(points)
-    print(f"\nFetched a real {len(matrix)}x{len(matrix)} duration matrix (seconds).")
-
-    if len(shortlist) >= MIN_STOPS:
-        example_indices = list(range(1, 1 + MIN_STOPS))
-        result = check_feasibility(0, example_indices, matrix, requested_minutes)
-        _print_route_summary(shortlist, requested_minutes, result)
+    _print_attempts_log(result["attempts_log"])
+    _print_route_summary(shortlist, requested_minutes, result, start_lat, start_lon)
+    print(f"\nAI attempts used: {result['attempts']}")
+    if result["selected_ids"]:
+        print(f"Selected ids: {result['selected_ids']}")

@@ -1,4 +1,5 @@
-"""The one live-at-runtime external call: routing.
+"""The routing live-at-runtime external call (the other is ai.py's OpenAI
+call, added in Sprint 4).
 
 Sprint 3 only needs the distance/duration matrix (for shortlist feasibility
 checks). Final route geometry for the chosen stops is added in Sprint 6.
