@@ -3,3 +3,13 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# macOS Finder metadata - not project data
+.DS_Store
+.Rhistory
+data/raw/
+
+# Recovered Claude/Codex session exports - kept locally as evidence,
+# never pushed
+Claude sessions.txt
+IBE160:docs:claude-sessions:.txt.txt

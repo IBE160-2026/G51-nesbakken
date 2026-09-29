@@ -114,6 +114,8 @@ Fewer files than earlier drafts, but each is still traceable to one of the brief
 | Brief's decision point | Module | Job |
 |---|---|---|
 | How candidate places are collected, verified, and classified | `import_places.py` | Offline, rerunnable: bulk Overpass query for the import boundary, normalize and deduplicate, follow Wikidata/Wikipedia links, assign topics via the tag rules above, write `data/sydney_places.json` incrementally (skipping already-completed records on rerun, so one failed enrichment call doesn't require repeating the whole import), and print a summary of ready/limited/rejected/failed counts |
+| A second `public_art` source (Sprint 5) | `import_street_art.py` | Offline, rerunnable: Inner West Council's "Perfect Match" street art dataset (.xlsx), geocoded via Nominatim, merged into the same `data/sydney_places.json` by reusing `import_places.py`'s save/dedup functions rather than duplicating them |
+| A `heritage` topic (Sprint 6) | `import_heritage.py` | Offline, rerunnable: a small hand-curated list of NSW ArcGIS Heritage MapServer ids (State + local), coordinates from ArcGIS directly, source text read from a manually-maintained seed file rather than fetched automatically |
 | How the route and time constraints are checked | `planner.py` | Loads the catalogue, narrows candidates to a bounded shortlist, requests a real distance/duration matrix, deterministically enumerates and ranks every feasible 2–5 stop combination into a bounded option menu (brute-force ordering per combination), and validates that AI's chosen `option_key` was actually offered, with retry/fallback |
 | How AI determines relevance to a topic; how descriptions stay consistent with sources | `ai.py` | Given a bounded menu of already-feasible route options (each with its stops, content/topics, and computed totals) from `planner.py`, AI picks the option that best forms a relevant and interesting walk for the requested topic — Jaunt's core judgment call, with no routing arithmetic involved. Also handles grounded content generation from stored source excerpts |
 | — | `services.py` | The routing live-at-runtime external call (the other is `ai.py`'s OpenAI call): distance matrix + final route geometry |
@@ -137,18 +139,24 @@ Flask + Leaflet showing the pilot-area catalogue stops near a clicked start poin
 **Sprint 4 — AI final stop selection.**
 `ai.py` (part 1): Python derives a bounded, ranked menu of already-feasible 2–5 stop combinations from the shortlist and matrix built in Sprint 3 (see "Deriving a feasible option menu" above); AI picks the option that best matches the requested topic, including the "surprise me" case. Python validates only that AI's chosen `option_key` was actually offered, and retries or falls back as described above. This replaced an initial version where AI proposed raw candidate ids and computed feasibility itself — live testing across two models showed that arithmetic was unreliable; see docs/ai-development-log.md.
 
-**Sprint 5 — AI content generation.**
+**Sprint 5 — Second candidate-place source: Inner West Council street art.**
+Inserted after Sprint 4, not part of the original plan: the OSM-only catalogue produced very few `public_art` stops. `import_street_art.py` adds Inner West Council's "Perfect Match" street art dataset as an independent second source for the same topic, merged into the existing `data/sydney_places.json` (same schema, same `ready`/`limited`/`rejected` conventions). See docs/ai-development-log.md and "Sprint 5 results" below.
+
+**Sprint 6 — A new topic: `heritage`, from NSW official heritage data.**
+Also inserted after Sprint 4: a broader architecture/history topic (not just churches), sourced from NSW's official Heritage MapServer (State Heritage Register + locally-listed LEP items). `import_heritage.py` uses a small, hand-curated set of 29 items rather than automated bulk retrieval, since the official descriptive-text application turned out to sit behind a WAF that blocks non-browser clients — see docs/ai-development-log.md and "Sprint 6 results" below.
+
+**Sprint 7 — AI content generation.**
 `ai.py` (part 2): each selected stop's stored source excerpt becomes a short story, fact, or prompt. Testing focus includes spot-checking generated text against its source, since content consistency is a named success criterion.
 
-**Sprint 6 — Expand the catalogue, then final routing and real-world test.**
-Now that the pipeline is proven on the pilot area, rerun `import_places.py` against the full inner-Sydney boundary. Then: real route geometry for the finalized stop order, full error/timeout handling for the routing call, required attribution (OSM, routing provider, Wikipedia) in the UI, and a real-world walking test comparing estimated vs. actual time.
+**Sprint 8 — Expand the catalogue, then final routing and real-world test.**
+Now that the pipeline is proven on the pilot area, rerun the importers against the full inner-Sydney boundary. Then: real route geometry for the finalized stop order, full error/timeout handling for the routing call, required attribution (OSM, routing provider, Wikipedia, NSW Heritage, Inner West Council) in the UI, and a real-world walking test comparing estimated vs. actual time.
 
-Once real route geometry is available, consider whether the chosen stop order backtracks along the same street for a meaningful stretch (a "there and back" feel) and, if so, prefer an equally- or near-equally-fast ordering that doesn't. This isn't solvable before Sprint 6: `plan_route()` only has point-to-point *durations* from the ORS matrix, not actual polylines, so there's no way to detect path overlap without the geometry this sprint adds. Raised during Sprint 4 manual testing - see docs/ai-development-log.md.
+Once real route geometry is available, consider whether the chosen stop order backtracks along the same street for a meaningful stretch (a "there and back" feel) and, if so, prefer an equally- or near-equally-fast ordering that doesn't. This isn't solvable before Sprint 8: `plan_route()` only has point-to-point *durations* from the ORS matrix, not actual polylines, so there's no way to detect path overlap without the geometry this sprint adds. Raised during Sprint 4 manual testing - see docs/ai-development-log.md.
 
-**Sprint 7 (stretch, if time allows before November).**
+**Sprint 9 (stretch, if time allows before November).**
 Device geolocation, point-to-point routes, typed-address geocoding, read-aloud via the browser's `SpeechSynthesis`.
 
-Estimated runway unchanged: roughly 9–10 weeks (early September through November).
+Estimated runway extended by two sprints from the original plan (roughly 9–10 weeks) to accommodate the two inserted data-source sprints — now closer to 11–12 weeks.
 
 ## Still-open decisions
 
@@ -178,3 +186,25 @@ Known limitations accepted at the end of Sprint 3:
 - **Feasibility does not imply good budget use.** A manual run against real data produced a "feasible" 2-stop, 60-minute-budget route that used only about 15 minutes (26% budget usage) — technically correct, since it fits under the maximum, but not a route a user asked for a 60-minute walk would want. `check_feasibility()` now reports `unused_minutes` and `budget_usage_ratio` alongside `feasible`, but `feasible` deliberately keeps its narrow meaning (fits within the maximum time) rather than being redefined to also mean "uses the time well."
 - **No minimum budget-usage threshold has been chosen.** Budget usage is measured and returned, but nothing currently rejects or flags a low-usage-but-feasible selection — that judgment is left to Sprint 4's AI stop selection, as described above under "Time-budget usage, not just time-budget compliance."
 - **Duplicate-stop selections are rejected**, and the documented 30–120 minute request range is validated in exactly one place, `check_feasibility()`, rather than being re-checked by each caller.
+
+## Sprint 5 results and known limitations
+
+Sprint 5 is complete: `import_street_art.py` adds Inner West Council's "Perfect Match" street art dataset as a second, independent source for `public_art`, merged into the same `data/sydney_places.json` OSM already writes to. Final catalogue after fixes from an independent Codex review: 121 `ready`, 4 `limited`, 48 `rejected` (of 173 source rows), 44 `ready` records inside the Newtown pilot bounding box. 142/142 tests passing at the time (112 pre-existing + 30 new).
+
+Known limitations accepted at the end of Sprint 5:
+
+- **Row-number-based ids are not stable across a reordered or edited source sheet.** The council spreadsheet's own "Number" column has duplicate values and literal `"##"` error cells, so the importer uses each artwork's row number in the sheet as its id instead. This is stable across reruns of the same file, but would silently produce a different record if the source sheet is ever re-sorted or has rows inserted above an existing entry. Not fixed - flagged for review if the source file is ever updated that way.
+- **Cross-source duplicate detection is a small, manually reviewed list, not automatic.** The same physical mural can exist in both OSM and the council dataset with coordinates too far apart (up to ~200m, from address-level geocoding vs. a precise OSM pin) for the existing 75m dedup radius to catch. Two confirmed pairs are handled via an explicit `CROSS_SOURCE_DUPLICATES` mapping rather than widening the radius globally, which risked false positives elsewhere. A third pair might exist unnoticed.
+- **Geocoding depends on Nominatim's address matching**, with a fallback from the sheet's "Full Address" to its "Street Address" column when the first attempt fails (venue-name prefixes often trip up the first). 21 of 173 addresses still fail both attempts and are reported, not guessed.
+
+## Sprint 6 results and known limitations
+
+Sprint 6 is complete: `import_heritage.py` adds a new `heritage` topic from NSW's official Heritage MapServer (ArcGIS), covering architecture/history more broadly than churches - pubs, a theatre, rail infrastructure, civic and commercial buildings, and named houses/terraces. Unlike the other two importers, this one does not fetch source text automatically: NSW's official Statement-of-Significance text lives only in an interactive web app (`hms.heritage.nsw.gov.au`) behind a WAF that returns HTTP 403 to any client identifying itself honestly as a script, confirmed directly rather than assumed. Spoofing a browser identity to get past it was explicitly rejected. Instead, 29 items were hand-selected from the official ArcGIS structured data (for geographic spread and type variety) and their Statement of Significance manually copied, verbatim, into a small seed file (`data/heritage_source_text.json`) that a person maintains directly.
+
+Final result: all 29 approved items are `ready` (7 State Heritage Register, 22 local LEP items), all inside the Newtown pilot bounding box, all with coordinates from ArcGIS directly (no geocoding needed) and real verbatim source text. 155/155 tests passing.
+
+Known limitations accepted at the end of Sprint 6:
+
+- **The pipeline cannot grow itself.** Adding another heritage stop means manually picking an ArcGIS id and manually copying its Statement of Significance - there is no automated path from "more candidates exist" to "more ready records," unlike the other two importers. This was a deliberate trade-off to avoid working around an access control, not an oversight.
+- **Only 29 of roughly 174 individually-listed heritage items in the pilot bbox are covered.** The 29 were chosen for variety and spread, not because the other ~145 are unsuitable - most are simply unnamed/generic entries ("Terrace group", "Commercial building") that would need their own Statement of Significance read before being worth adding.
+- **HMS access is inherently fragile and outside this project's control.** If NSW ever changes or removes the public `ViewItem`/`SectionContainer` pages, the seed file's `hms_url` links (used for manual retrieval and citation) could break with no warning; there is no automated check for this.

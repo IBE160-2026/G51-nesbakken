@@ -570,3 +570,353 @@ The path to a working Sprint 4 was not linear, and the sequence matters more tha
 **Near-100% budget usage is not automatically the ideal result.** Routing estimates and real walking/dwell time both vary - see "ORS estimates vs. other routing providers" above - so a route using nearly the entire requested time leaves no margin for that variation. An appropriate comfort margin (e.g. an upper usage target below 100%) should be evaluated against real-world test data in Sprint 6, not introduced as an unsupported guess now.
 
 **Routing-provider accuracy is a separate, already-tracked question.** The ORS-vs-Google/Maps.me differences observed during manual testing were checked and found to be internally consistent on Jaunt's side (the duration matrix and ORS's own turn-by-turn directions agree exactly) - there is no evidence of a Jaunt calculation bug. Whether ORS's estimates track real walking time closely enough is a routing-provider-accuracy question for the Sprint 6 real-world test, not a Sprint 4 defect.
+
+---
+
+## Sprint 5 – A second public_art source: Inner West Council's "Perfect Match" street art
+
+### Goal
+
+The OSM-only catalogue had very few `public_art` stops. Inner West Council
+publishes its own "Perfect Match" street art dataset (council/artist fields
+plus a friend's personal visit notes, as an .xlsx export) covering Newtown
+and neighbouring suburbs, with a real artist statement for most artworks -
+exactly the kind of quotable, attributable source material the project
+requires. The goal was to bring this in as a second source for the same
+`public_art` topic, alongside OSM, without inventing or rewriting any of it.
+
+### AI contribution
+
+Before writing any code, Claude inspected the source file directly (raw XML
+inside the .xlsx, before openpyxl was even installed) rather than trusting
+the file's summary description. This surfaced several real data problems
+not mentioned in the original request:
+
+- the sheet's own "Number" column - the obvious choice for a record id - has
+  three duplicated values and four rows containing the literal text "##"
+  (an Excel overflow artifact), so it can't be used as an id;
+- 10 rows have no usable artwork title: 5 blank cells, 3 with the literal
+  placeholder text "TBC", and 2 using the council's own "*Title" marker for
+  "no title recorded". The first 8 were found on first inspection; the "*Title"
+  pair was missed initially - it was imported as if it were a real artwork
+  name - and only caught by scanning for repeated/odd titles after the first
+  import run;
+- two Statement cells are placeholder text ("TBC", "CARPARK"), not real
+  artist statements;
+- the first geocoding pass (using the "Full Address" column directly)
+  failed for 42 of ~165 addresses - mostly because Full Address often
+  prefixes the real street address with a venue name Nominatim's geocoder
+  couldn't resolve (e.g. "IGA Wall, 259 King St, Newtown"). The sheet has a
+  separate "Street Address" column that is usually the same address with
+  the venue name already stripped, so Claude added it as an automatic
+  fallback query when the first attempt fails - not a different or guessed
+  address, the council's own alternate column for the same location. This
+  cut failures from 42 to 21.
+
+Claude then implemented `import_street_art.py`, reusing `import_places.py`'s
+existing `load_existing()`, `save_records()`, and `mark_duplicates()`
+directly (imported, not copied) so the two scripts share one atomic-save and
+resume convention rather than two.
+
+### My decisions
+
+I decided the street art records should merge into the same
+`data/sydney_places.json` file OSM already writes to, rather than a separate
+file, since both `planner.py` and `app.py` already read a single path and
+the id namespaces (`node/`, `way/`, `perfect_match/`) can't collide. The
+trade-off Claude flagged: `import_places.py`'s `mark_duplicates()` now runs
+across both sources whenever either script is rerun, which could catch a
+genuine cross-source duplicate (the same real mural in both datasets) or
+could be an unwanted coupling. I accepted this as a reasonable trade-off for
+a much simpler integration, but see "known limitation" below - it doesn't
+fully work.
+
+I decided to add `openpyxl` as a real dependency rather than requiring a
+manual CSV export step, since a manual export step conflicts with the
+product brief's "automatically collected" V1 principle and would need
+re-doing by hand if the source file is ever updated.
+
+I decided to import all suburbs in the dataset (not just the 36 Newtown
+rows), since `planner.shortlist_candidates()` already filters candidates by
+distance from whatever start point is given - out-of-range records are
+simply unused, not wrongly surfaced - and this needs no suburb-matching code
+at all.
+
+Records marked "No Longer Visible" by the friend's personal tracking must
+not become `ready` stops. I forced these to `status: "rejected"` with an
+explicit `rejection_reason`, reusing the catalogue's existing three-value
+status vocabulary rather than adding a fourth status. The friend's own
+tracking fields (Status, Visited Date, Photo, KM Walked) are kept in a
+separate `field_notes` object with their own source label, are never used as
+`source_excerpt`, and are outside `app.py`'s `PUBLIC_FIELDS` allowlist, so
+they can never reach the frontend even by accident.
+
+### Result
+
+(Superseded by the fixes below - see "Independent review" for the numbers
+actually shipped.) 123 of 173 artwork rows became `ready`, 4 `limited` (real
+title, no usable statement), 46 `rejected` (10 missing/placeholder title, 14
+"No Longer Visible", 21 failed geocoding after both address attempts, 1
+cross-source duplicate of an existing OSM record caught by the automatic
+`mark_duplicates()` pass). 46 ready records fall inside the existing Newtown
+pilot bounding box. The 21 addresses that still failed geocoding (mostly
+street-corner descriptions like "Corner of Pidcock and Mallet St" and bare
+landmark names like "Town Square" with no street number) are listed by the
+script rather than guessed at.
+
+`shortlist_candidates(start_lat, start_lon, "public_art")` from the same
+Newtown start point `planner.py`'s own manual demo uses now returns a mix of
+OSM and council-sourced stops, confirming the two sources integrate without
+any change to `planner.py` or `app.py`.
+
+### Known limitation found during verification
+
+`mark_duplicates()` did not catch a real duplicate: "I Have a Dream" (Andrew
+Aiken, 1991) exists in both datasets, but the council's address-geocoded
+coordinate and OSM's precisely-placed node are 201m apart - well outside the
+75m dedup radius, which was tuned for OSM's own node-vs-way duplicates, not
+for comparing a precise pin against a geocoded street address. This was
+initially left as a known issue rather than patched with an arbitrary radius
+increase - see "Independent review" below for how it was actually resolved.
+
+### Independent review
+
+I asked Codex to review the importer independently before treating Sprint 5
+as closed. It found three real bugs by reproducing each one rather than just
+reading the code, plus the documentation inconsistency above (this section's
+title count was fixed to 10 as a result):
+
+1. **A `ready` record never re-checked the spreadsheet.** `build_record()`
+   returned a cached `ready` record immediately, without looking at the
+   current spreadsheet row at all. If the friend later marked a
+   previously-`ready` artwork "No Longer Visible", rerunning the importer
+   would not pick that up - the artwork would stay a walkable stop forever.
+   Codex reproduced this directly.
+2. **A failed geocode was cached permanently.** `geocode_address()` cached
+   every outcome, including an HTTP error or network failure, keyed by the
+   query string. Codex simulated an HTTP 503 followed by a rerun and showed
+   the "retry" only ever read the cached failure - no second request was
+   ever made, so a purely transient failure could never recover.
+3. **The same real mural could be offered twice in one walk.** The known
+   limitation above is real and does affect route correctness, not just
+   catalogue tidiness: `shortlist_candidates()` for a Newtown start point
+   returns both records. Codex's suggested fix - a small, explicitly
+   reviewed mapping of confirmed cross-source duplicates, not a wider
+   automatic radius - matched what the limitation note above had already
+   flagged as the right trade-off, so it was implemented rather than left
+   open.
+
+### Changes made
+
+- `build_record()` no longer short-circuits on a cached `ready` record. Every
+  street-art record is rebuilt from the spreadsheet on every run. This costs
+  nothing extra over the network: geocoding was already cached separately by
+  address, so a previously-successful lookup is still reused without a new
+  request.
+- `geocode_address()` now only writes to the cache on a successful lookup.
+  An HTTP error, network exception, or a clean "no results" answer is never
+  cached, so it is retried on the next run rather than frozen as permanent.
+- Before finalising which artworks appear twice, I asked Claude to search
+  for *all* cross-source name matches between the two "ready" sets, not just
+  the one found by accident during manual testing. This turned up a second
+  real duplicate ("Block Party", Sharon Billinge, 2023, 160m apart) that had
+  been missed. Both pairs were confirmed by matching artist and year before
+  being added to a small, explicit `CROSS_SOURCE_DUPLICATES` mapping, applied
+  as a reviewed override after the automatic `mark_duplicates()` pass. The
+  OSM record is kept in each pair, since it has a more precisely placed
+  coordinate than this dataset's geocoded address.
+- Added `tests/test_import_street_art.py`, including regression tests that
+  reproduce all three bugs directly (a record built `ready` then rebuilt
+  from a row later marked "No Longer Visible"; a mocked HTTP 503 followed by
+  a mocked-success retry; the manual duplicate override).
+
+After the fixes: 123 ready / 4 limited / 46 rejected became 121 ready / 4
+limited / 48 rejected once the two confirmed cross-source duplicates were
+also rejected. All 112 pre-existing tests plus the new importer tests pass.
+
+### Reflection
+
+The original "not a bug" framing for the duplicate-mural issue was wrong in
+an important way: it correctly identified that a global radius increase
+would be the wrong fix, but incorrectly concluded that meant no fix should
+be attempted now. A small, explicitly reviewed list was available the whole
+time and required no risky heuristic - the actual work was searching
+properly for every cross-source match instead of only the one already
+noticed. Codex's review was valuable specifically because it reproduced each
+bug rather than trusting the code's own comments and docstrings, which is
+what caught the stale-cache and permanent-failure-cache bugs that reading
+the code alone (including my own review while writing it) had missed.
+
+---
+
+## Sprint 6 – A `heritage` topic: NSW official heritage data, curated rather than scraped
+
+### Goal
+
+Add a third topic - broader architecture/history than just churches - using
+NSW's official Heritage MapServer (state and locally-listed heritage items),
+covering Newtown and neighbouring suburbs.
+
+### Research, before writing any code
+
+I asked Claude to research the available NSW ArcGIS heritage layers before
+proposing anything. It queried the live services directly rather than
+assuming field names or coverage, and found real problems in the data that
+weren't obvious from the layer names:
+
+- The Local Environmental Plan layer's own `H_ID` field is not globally
+  unique - the same code means a different real place under different
+  councils' plans. `HeritageItemID` is the reliable identifier.
+- Several genuine single items are mapped as multiple points sharing one
+  `HeritageItemID` (e.g. "Brick paving", 13 points for one linear feature) -
+  needs deduplication, not treated as 13 separate stops.
+- The State-significance rows inside the Local Environmental Plan layer
+  mostly just restate what the State Heritage Register layer already has
+  more cleanly - using both without filtering would double up the same real
+  building.
+- Some `H_NAME` values contain mojibake from NSW's own data export pipeline
+  (double-encoded smart quotes). Not something to guess a fix for.
+
+### The key finding: official descriptive text is not scrapable without misrepresenting the client
+
+The ArcGIS layers themselves carry no Statement of Significance, Description,
+or History text - only identifying/administrative fields. That text lives
+in a separate interactive application (`hms.heritage.nsw.gov.au`), and
+Claude confirmed directly (not assumed) that it sits behind a WAF that
+returns HTTP 403 to any request identifying itself honestly as a script -
+including this project's own identifying User-Agent - and only serves
+content to a request presenting a spoofed real-browser User-Agent. Claude
+flagged this explicitly rather than quietly building around it, and also
+checked for an official structured/bulk alternative (data.nsw.gov.au, SEED,
+and the published Data Dictionary PDF for the EPI Heritage layer) before
+concluding there isn't one - the descriptive text genuinely only exists
+inside the WAF-protected application.
+
+### My decision
+
+I told Claude not to spoof a browser identity or otherwise work around the
+WAF, for this project or otherwise. Automated bulk scraping of official text
+behind an access control it clearly doesn't want scripts to have is a
+different thing from querying the same department's open ArcGIS REST API,
+which welcomes scripted access and answered every request normally.
+
+Instead of automated retrieval, the pipeline uses a small, human-curated
+seed file (`data/heritage_source_text.json`) that a person fills in by hand
+from the public HMS page, one item at a time. Claude tested its own
+browsing tool against two of the approved pages first and got the same 403
+both times, confirming this isn't a workaround-able quirk of one automated
+method - so all 29 approved items currently need manual retrieval, which is
+reported clearly rather than left silently empty with no explanation.
+
+I also decided the source-text field should mean one specific thing
+(verbatim Statement of Significance) rather than silently falling back to
+Description or History when significance is missing - consistency of
+meaning across records matters more than maximising how many end up
+`ready`.
+
+### Result
+
+(Superseded by "Sprint 6 completion" below.) `import_heritage.py` covers 29
+hand-reviewed candidates (7 State Heritage Register, 22 local items), chosen
+from the full official candidate pool (~174 individual items in the pilot
+bbox after filtering out conservation areas and archaeological sites) for
+geographic spread and type variety - pubs, a theatre, rail infrastructure,
+churches, named houses/terraces, and commercial/industrial buildings, not
+just churches. Coordinates and names come directly from ArcGIS (Layers 4 and
+5); no geocoding needed. All 29 landed inside the existing Newtown pilot
+bounding box on the live run, and all 29 approved ids were still present in
+ArcGIS (nothing delisted or renumbered since research). At this point all 29
+were `limited`, pending manual Statement of Significance retrieval into the
+seed file - correct and honest given no text had been supplied yet, not a
+bug.
+
+### Reflection
+
+This sprint's interesting decision wasn't technical - it would have been
+easy to spoof a User-Agent and call it done, since the data itself really is
+public and non-authenticated. The reason not to is that "the content is
+public" and "the server is willing to serve it to an honest request" are
+different facts, and the second one was tested and came back no. Treating an
+access control as an obstacle to code around, rather than as a signal to
+stop and ask, would have quietly baked a misrepresentation into the
+project's own data pipeline.
+
+### Sprint 6 completion
+
+I manually opened each of the 29 approved items' HMS pages myself and
+transcribed their Statement of Significance verbatim into
+`data/heritage_source_text.json` - the manual step the WAF decision above
+made necessary. Pasting real multi-paragraph text directly into JSON by hand
+produced two real problems along the way, both found by checking actual
+file/tool state rather than assumed:
+
+- The first save attempt didn't reach disk (an unsaved editor buffer) -
+  confirmed by inspecting the raw file content, not by trusting "I've saved
+  it."
+- The second attempt produced invalid JSON (literal newlines/tabs inside
+  string values). Fixed by parsing with `json.loads(..., strict=False)` and
+  re-serializing - which properly escapes those characters without touching
+  a single character of the transcribed wording - then verified with a
+  field-by-field diff against the pre-repair parse showing zero content
+  drift.
+
+All 29 Statements of Significance are now supplied, and before any
+cross-source duplicate handling, all 29 heritage records were `ready`.
+**The manual transcription itself has not been independently checked against
+the live HMS pages** - I typed what I read, but no second pass has confirmed
+character-for-character accuracy. Worth a spot-check before treating this
+catalogue as fully verified.
+
+An independent review then found two real gaps, addressed directly rather
+than deferred:
+
+1. **Two confirmed cross-source duplicates with OSM**, found by comparing
+   the heritage and OSM catalogues directly: "Uniting Church and Pipe Organ"
+   (`heritage/5045004`) is the same building as OSM's "Newtown Mission"
+   (`way/548526874`), and "St Stephen's Anglican Church and Cemetery"
+   (`heritage/5045479`) is the same building as OSM's "St Stephen's Anglican
+   Church" (`way/172735168`). Neither pair is caught by the existing 75m
+   name-matching dedup (the names differ), and the general threshold was
+   deliberately not widened, for the same reason as Sprint 5's identical
+   OSM/street-art gap: it risks false positives elsewhere. Instead, a small
+   reviewed `CROSS_SOURCE_DUPLICATES` mapping in `import_heritage.py` -
+   following Sprint 5's own convention - rejects the OSM side of each pair.
+   Unlike Sprint 5 (where OSM was kept for its more precise coordinate), the
+   **heritage record is kept here**: it carries the official NSW Statement of
+   Significance, a heritage-authority assessment, rather than a
+   general-purpose Wikipedia/Wikidata summary, and keeping the heritage
+   record preserves the `heritage` topic itself. The two OSM records
+   (`way/548526874`, `way/172735168`) are now `rejected` with reason
+   `"duplicate of heritage/... (reviewed cross-source match)"`; the two
+   heritage records remain `ready` under the `heritage` topic.
+2. **A whitespace-only or non-string statement could have counted as
+   "present."** `build_record()` now requires `statement_of_significance` to
+   be a string with at least one non-whitespace character before marking a
+   record `ready` - stripping is used only to check this, never to modify
+   what's actually stored in `source_excerpt`.
+3. **A partial ArcGIS response could have overwritten a good catalogue with
+   a stale one.** If any approved id isn't returned by ArcGIS on a given run,
+   `main()` now aborts with a clear list of the missing ids before
+   `save_records()` is ever called, instead of silently saving whatever
+   partial set came back as though the import had fully succeeded.
+
+Also fixed: two existing street-art tests were silently making real network
+calls to Nominatim (found by temporarily forcing `requests.get` to raise
+inside the whole test module and seeing exactly which tests broke, rather
+than guessing). Both needed a geocode result and had an incomplete cache;
+both now mock the response instead, with no change to what each test
+actually verifies.
+
+Final state: 29/29 heritage records `ready`, 226 total catalogue records,
+167/167 tests passing (added: source-text validation, the cross-source
+duplicate override, the abort-on-missing-ids path, and direct query-string
+coverage confirming State queries use `HOITEMID` against Layer 5 and Local
+queries use `HeritageItemID` against Layer 4 with the researched
+`LAY_CLASS`/`SIG` filters).
+
+No upstream NSW wording was corrected or cleaned up in this pass - any typo
+or unusual phrasing inside a transcribed Statement of Significance is left
+exactly as the source states it, on the same "verbatim or don't use it"
+principle as everywhere else in this project. Deterministic ordering for
+multi-point local items (beyond "keep the first point seen") was considered
+and deliberately left for a later pass, not implemented here.

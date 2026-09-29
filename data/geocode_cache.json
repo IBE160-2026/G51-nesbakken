@@ -1,0 +1,774 @@
+{
+  "Jack Shanahan Reserve, Hercules St, Dulwich Hill, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "2 McGill St, Lewisham, NSW, Australia": {
+    "latitude": -33.8940415,
+    "longitude": 151.1437057
+  },
+  "Queen St, Petersham, NSW, Australia": {
+    "latitude": -33.8888737,
+    "longitude": 151.1566956
+  },
+  "331 Trafalgar St, Petersham, NSW, Australia": {
+    "latitude": -33.8941209,
+    "longitude": 151.1582748
+  },
+  "16 Douglas St, Stanmore, NSW, Australia": {
+    "latitude": -33.893782,
+    "longitude": 151.1645932
+  },
+  "Stanmore Public Library, Stanmore Reserve, Douglas Street, Stanmore, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "203 Trafalgar St, Stanmore, NSW, Australia": {
+    "latitude": -33.8944723,
+    "longitude": 151.159579
+  },
+  "66-72 Salisbury Rd, Camperdown, NSW, Australia": {
+    "latitude": -33.8914432,
+    "longitude": 151.1718744
+  },
+  "43-53 Bridge Rd, Stanmore, NSW, Australia": {
+    "latitude": -33.8908481,
+    "longitude": 151.1708114
+  },
+  "Chrissy Cotter Gallery, 31A Pidcock St, Camperdown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "111 Camden St, Newtown, NSW, Australia": {
+    "latitude": -33.9024278,
+    "longitude": 151.1773287
+  },
+  "35 Camdon St, Newtown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Walnore Ave and Alice Lane, Newtown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "91 Lord St, Newtown, NSW, Australia": {
+    "latitude": -33.9080191,
+    "longitude": 151.176453
+  },
+  "King St, Newtown, NSW, Australia": {
+    "latitude": -33.8982025,
+    "longitude": 151.1783569
+  },
+  "206 Edgeware Rd, Newtown, NSW, Australia": {
+    "latitude": -33.9047895,
+    "longitude": 151.1734813
+  },
+  "McNeilly Park, Jersey St, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Rallis Timber, 21-29 Marrickville Rd, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Railway Parade, Marrickville, NSW, Australia": {
+    "latitude": -33.9084864,
+    "longitude": 151.1743426
+  },
+  "Sydenham Pit & Drainage Pumping Station No.001, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "91 Sydenham Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9105727,
+    "longitude": 151.1641329
+  },
+  "16 Frampton Ave, Marrickville, NSW, Australia": {
+    "latitude": -33.9104701,
+    "longitude": 151.1601223
+  },
+  "199 Victoria Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9093867,
+    "longitude": 151.1622481
+  },
+  "13 Victoria St, Lewisham, NSW, Australia": {
+    "latitude": -33.8963555,
+    "longitude": 151.1438887
+  },
+  "89 Palace St, Petersham, NSW, Australia": {
+    "latitude": -33.8929911,
+    "longitude": 151.1542517
+  },
+  "Petersham Customer Service Centre, Level 1, 12-14 Fisher St, Petersham, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "50 Livingstone Rd, Petersham, NSW, Australia": {
+    "latitude": -33.8993321,
+    "longitude": 151.1536796
+  },
+  "2 Durham St, Stanmore, NSW, Australia": {
+    "latitude": -33.8928407,
+    "longitude": 151.1685024
+  },
+  "51 Percival Rd, Stanmore, NSW, Australia": {
+    "latitude": -33.8933813,
+    "longitude": 151.1644569
+  },
+  "Corner of Pidcock and Mallet St, Camperdown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "112 Lennox St, Newtown, NSW, Australia": {
+    "latitude": -33.8961079,
+    "longitude": 151.1775989
+  },
+  "Asylum Seeker Centre, 43 Bedford St, Newtown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "The Urban Hotel, 52-60 Enmore rd, Newtown, NSW, Australia": {
+    "latitude": -33.8987957,
+    "longitude": 151.176325
+  },
+  "Alfalfa House Community Food Co-op, 113 Enmore Rd, Newtown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Botany View Hotel, 597 King St, Newtown, NSW, Australia": {
+    "latitude": -33.9058534,
+    "longitude": 151.1807446
+  },
+  "10 Pearl St, Newtown, NSW, Australia": {
+    "latitude": -33.9049404,
+    "longitude": 151.1772073
+  },
+  "108 Edgeware Rd, Enmore, NSW, Australia": {
+    "latitude": -33.9030739,
+    "longitude": 151.1723825
+  },
+  "107 Illawarra Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9206283,
+    "longitude": 151.1441784
+  },
+  "32-40 Cook Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9047154,
+    "longitude": 151.1666084
+  },
+  "109 Sydneham Rd, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Camelot lounge, 103 Railway Pde, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "May Lane, St Peters, NSW, Australia": {
+    "latitude": -33.9082905,
+    "longitude": 151.1807392
+  },
+  "283 Liverpool Rd, Ashfield, NSW, Australia": {
+    "latitude": -33.8881403,
+    "longitude": 151.1240992
+  },
+  "Station St, Ashfield, NSW, Australia": {
+    "latitude": -33.8872266,
+    "longitude": 151.1255372
+  },
+  "56 Audley Street, Petersham, NSW, Australia": {
+    "latitude": -33.897505,
+    "longitude": 151.1544102
+  },
+  "133 Stanmore Road, NSW, Australia": {
+    "latitude": -33.8976683,
+    "longitude": 151.1662163
+  },
+  "163 Denison Street, Camperdown, NSW, Australia": {
+    "latitude": -33.8884031,
+    "longitude": 151.1739924
+  },
+  "Camperdown Commons, NSW, Australia": {
+    "latitude": -33.8881431,
+    "longitude": 151.1767425
+  },
+  "2 Lennox Street Newtown, NSW, Australia": {
+    "latitude": -33.8952627,
+    "longitude": 151.1806676
+  },
+  "8 Lennox Street, Newtown, NSW, Australia": {
+    "latitude": -33.8953259,
+    "longitude": 151.1805528
+  },
+  "Adjacent Becher House 39 Bedford Street, Newtown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "80 Station Street Newtown, NSW, Australia": {
+    "latitude": -33.8993057,
+    "longitude": 151.1767642
+  },
+  "38 Goodsell Street (May Lane), St Peters, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Corner Sheperd and Chapel Street, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Addison Road Community Centre Hut 1, 142 Addison Road (Sister Cities), Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "105 Victoria Road Marrickville NSW 2204 (The Factory Theatre), NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "112 Unwins Bridge Road, St Peters, NSW, Australia": {
+    "latitude": -33.9101861,
+    "longitude": 151.1754291
+  },
+  "55 White Street, Lilyfield, NSW, Australia": {
+    "latitude": -33.8782723,
+    "longitude": 151.1672191
+  },
+  "Community Garden,194 Denison Road Dulwich Hill, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Petersham Train Tunnel, Audley St and Trafalgar St, Petersham, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "8 Surrey Street, Stanmore, NSW, Australia": {
+    "latitude": -33.8934139,
+    "longitude": 151.1665083
+  },
+  "Camperdown Memorial Rest Park, Newtown, NSW, Australia": {
+    "latitude": -33.894501,
+    "longitude": 151.1781324
+  },
+  "38 Lennox Street Newtown, NSW, Australia": {
+    "latitude": -33.8961079,
+    "longitude": 151.1775989
+  },
+  "Mary St, Newtown, NSW, Australia": {
+    "latitude": -33.8959633,
+    "longitude": 151.1798412
+  },
+  "52 Simmons Street, Newtown, NSW, Australia": {
+    "latitude": -33.8990596,
+    "longitude": 151.1736396
+  },
+  "30 Margaret Street, Newtown, NSW, Australia": {
+    "latitude": -33.901818,
+    "longitude": 151.1745118
+  },
+  "Sydney Park Hotel, 631 King St, Newtown, NSW, Australia": {
+    "latitude": -33.9066606,
+    "longitude": 151.1811941
+  },
+  "381 King St, Newtown, NSW, Australia": {
+    "latitude": -33.8994005,
+    "longitude": 151.1775612
+  },
+  "51 Philpott Street Marrickville, NSW, Australia": {
+    "latitude": -33.902378,
+    "longitude": 151.1671928
+  },
+  "1 Dudley Street, Marrickville, NSW, Australia": {
+    "latitude": -33.9114238,
+    "longitude": 151.1416055
+  },
+  "9/20-22 Station St, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Batch Brewing Company, 44 Sydenham Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.91193,
+    "longitude": 151.1647009
+  },
+  "Two Providores, 23-35 Fitzroy Street, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "AMP Marrickville Metro, Victoria Ave, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "36 cove st, Birchgrove, NSW, Australia": {
+    "latitude": -33.8517761,
+    "longitude": 151.1795047
+  },
+  "95 Edwin St, Croydon, NSW, Australia": {
+    "latitude": -33.8819831,
+    "longitude": 151.1178233
+  },
+  "Styles Street Children's Long Community Day Care Centre, Leichhardt, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "13 Macauley St, Leichhardt, NSW, Australia": {
+    "latitude": -33.8809849,
+    "longitude": 151.1555199
+  },
+  "Fox Lane, Ashfield, NSW, Australia": {
+    "latitude": -33.8881917,
+    "longitude": 151.1247608
+  },
+  "Emanuel Tsardoulias Community Library, Dulwich Hill, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Eve Sharpe Reserve, Stanmore, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Taste Organic, Enmore, NSW, Australia": {
+    "latitude": -33.8991067,
+    "longitude": 151.1727632
+  },
+  "123 Corunna Rd, Stanmore, NSW, Australia": {
+    "latitude": -33.8887107,
+    "longitude": 151.1696189
+  },
+  "111 Australia St, Camperdown, NSW, Australia": {
+    "latitude": -33.8925508,
+    "longitude": 151.1765952
+  },
+  "29 Bedford St, Newtown, NSW, Australia": {
+    "latitude": -33.8974163,
+    "longitude": 151.1775035
+  },
+  "IGA Wall, 259 King St, Newtown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "112 New Canterbury Road, Petersham, NSW, Australia": {
+    "latitude": -33.8959453,
+    "longitude": 151.1555002
+  },
+  "34 Bishopgate St, Camperdown, NSW, Australia": {
+    "latitude": -33.8936907,
+    "longitude": 151.1757192
+  },
+  "123 Australia St, Camperdown, NSW, Australia": {
+    "latitude": -33.8900815,
+    "longitude": 151.1755236
+  },
+  "Camperdown Commons, 31A Mallett St, Camperdown, NSW, Australia": {
+    "latitude": -33.8881431,
+    "longitude": 151.1767425
+  },
+  "407-409 King St, Newtown, NSW, Australia": {
+    "latitude": -33.9000573,
+    "longitude": 151.1777969
+  },
+  "251 Addison Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9030621,
+    "longitude": 151.1655599
+  },
+  "MUD Australia, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Mothership Studios, Marrickville, NSW, Australia": {
+    "latitude": -33.9122465,
+    "longitude": 151.1635403
+  },
+  "Create or Die, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "1 Grove St, St Peters, NSW, Australia": {
+    "latitude": -33.9142022,
+    "longitude": 151.171279
+  },
+  "12 Cove St, Birchgrove, NSW, Australia": {
+    "latitude": -33.8517761,
+    "longitude": 151.1795047
+  },
+  "185 Church St, Camperdown, NSW, Australia": {
+    "latitude": -33.889749,
+    "longitude": 151.17863
+  },
+  "River Canoe Club, Marrickville, NSW, Australia": {
+    "latitude": -33.9237567,
+    "longitude": 151.1554907
+  },
+  "Marrickville Golf Club, Wharf St, Marrickville, NSW, Australia": {
+    "latitude": -33.9128506,
+    "longitude": 151.1356227
+  },
+  "7 Booth St, Balmain, NSW, Australia": {
+    "latitude": -33.8593115,
+    "longitude": 151.1822048
+  },
+  "398 Young St, Annandale, NSW, Australia": {
+    "latitude": -33.876655,
+    "longitude": 151.1700609
+  },
+  "402 Young St, Annandale, NSW, Australia": {
+    "latitude": -33.8816708,
+    "longitude": 151.1677761
+  },
+  "404 Young St, Annandale, NSW, Australia": {
+    "latitude": -33.8835866,
+    "longitude": 151.1668986
+  },
+  "76 Flood St, Leichhardt, NSW, Australia": {
+    "latitude": -33.878958,
+    "longitude": 151.1500877
+  },
+  "Watertank, Petersham park. Petersham, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "1 Baltic St, Newtown, NSW, Australia": {
+    "latitude": -33.8956291,
+    "longitude": 151.1741357
+  },
+  "108 Camden St, Newtown, NSW, Australia": {
+    "latitude": -33.9024278,
+    "longitude": 151.1773287
+  },
+  "Salmon Playground, Newtown, NSW, Australia": {
+    "latitude": -33.9010813,
+    "longitude": 151.1778003
+  },
+  "Cnr Roberts Ln & Roberts St, St Peters, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "57 Carrington Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9159911,
+    "longitude": 151.1583774
+  },
+  "45 Sydney St, Marrickville, NSW, Australia": {
+    "latitude": -33.9123328,
+    "longitude": 151.1631672
+  },
+  "137 Victoria Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9065755,
+    "longitude": 151.1644483
+  },
+  "WestConnex, St Peters - Procycles, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "WestConnex, St Peters - Unique Plaster, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "WestConnex, St Peters - City Star Motors/Antoniou Fillo Pastry, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "276 Marrickville Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.910893,
+    "longitude": 151.156872
+  },
+  "24 Kays Ave, Marrickville, NSW, Australia": {
+    "latitude": -33.9114071,
+    "longitude": 151.1436521
+  },
+  "27 Albion St, Annandale, NSW, Australia": {
+    "latitude": -33.8872288,
+    "longitude": 151.1634259
+  },
+  "15 Reuss St, Leichhardt, NSW, Australia": {
+    "latitude": -33.8860643,
+    "longitude": 151.1536623
+  },
+  "Wanderers Clubhouse, Blackmore Oval, Canal Rd, Leichhardt, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "107 Windsor Rd, Dulwich Hill, NSW, Australia": {
+    "latitude": -33.8990168,
+    "longitude": 151.1381565
+  },
+  "17 Morton Ave, Lewisham, NSW, Australia": {
+    "latitude": -33.9000324,
+    "longitude": 151.1465194
+  },
+  "71 Wardell Rd, Lewisham, NSW, Australia": {
+    "latitude": -33.8989592,
+    "longitude": 151.149211
+  },
+  "130 Denison St, Camperdown, NSW, Australia": {
+    "latitude": -33.8884031,
+    "longitude": 151.1739924
+  },
+  "1 Lincoln St, Stanmore, NSW, Australia": {
+    "latitude": -33.8928786,
+    "longitude": 151.1694549
+  },
+  "77 Lennox St, Newtown, NSW, Australia": {
+    "latitude": -33.8961079,
+    "longitude": 151.1775989
+  },
+  "Studio ARTES, 45 Unwins Bridge Rd, Sydenham, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "95 Curtis Rd, Balmain, NSW, Australia": {
+    "latitude": -33.8547522,
+    "longitude": 151.179033
+  },
+  "379 Darling St, Balmain, NSW, Australia": {
+    "latitude": -33.8582093,
+    "longitude": 151.1862047
+  },
+  "672 Darling St, Rozelle, NSW, Australia": {
+    "latitude": -33.8640541,
+    "longitude": 151.1698201
+  },
+  "12 Tebbutt St, Leichhardt, NSW, Australia": {
+    "latitude": -33.8887427,
+    "longitude": 151.1470415
+  },
+  "12 Chester St, Annandale, NSW, Australia": {
+    "latitude": -33.8850912,
+    "longitude": 151.174879
+  },
+  "346 Young St, Annandale, NSW, Australia": {
+    "latitude": -33.8835866,
+    "longitude": 151.1668986
+  },
+  "Town Square, Summer Hill, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "69 Palace St, Petersham, NSW, Australia": {
+    "latitude": -33.8927769,
+    "longitude": 151.1545171
+  },
+  "83 Percival Rd, Stanmore, NSW, Australia": {
+    "latitude": -33.8934262,
+    "longitude": 151.1642661
+  },
+  "1 Myrtle St, Stanmore, NSW, Australia": {
+    "latitude": -33.8925045,
+    "longitude": 151.1639819
+  },
+  "93 Lennox St, Newtown, NSW, Australia": {
+    "latitude": -33.8962018,
+    "longitude": 151.1767979
+  },
+  "89 Albermarle St, Newtown, NSW, Australia": {
+    "latitude": -33.8956327,
+    "longitude": 151.1760327
+  },
+  "84 Dickson St, Newtown, NSW, Australia": {
+    "latitude": -33.9049294,
+    "longitude": 151.1791205
+  },
+  "1 Metropolitan Rd, Enmore, NSW, Australia": {
+    "latitude": -33.8995943,
+    "longitude": 151.1718779
+  },
+  "26 Liberty St, Enmore, NSW, Australia": {
+    "latitude": -33.8959758,
+    "longitude": 151.1711412
+  },
+  "89 Juilett St, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Addison Road Community Centre, 142 Addison Rd, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Reverse Garbage, 30 Carrington Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9200608,
+    "longitude": 151.1553286
+  },
+  "Marrickville Metro - Main Smidmore street entry, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "2 Victoria St, Lewisham, NSW, Australia": {
+    "latitude": -33.8935668,
+    "longitude": 151.1474524
+  },
+  "1 Goodsell St, St Peters, NSW, Australia": {
+    "latitude": -33.9077301,
+    "longitude": 151.1803624
+  },
+  "Amenities Block, Tempe Recreation Reserve, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "260 Unwins Bridge Rd, Sydenham, NSW, Australia": {
+    "latitude": -33.9153196,
+    "longitude": 151.1681558
+  },
+  "The East Village Hotel, 82-84 Darling St, Balmain East, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Emma Dean Salon, 654 Darling St, Rozelle, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Lambert Park, Marion St, Leichhardt, NSW, Australia": {
+    "latitude": -33.8842706,
+    "longitude": 151.1472088
+  },
+  "196A Denison Rd, Dulwich Hill, NSW, Australia": {
+    "latitude": -33.9003122,
+    "longitude": 151.141504
+  },
+  "58-60 Crystal St, Petersham, NSW, Australia": {
+    "latitude": -33.8885077,
+    "longitude": 151.1589195
+  },
+  "177 Trafalgar St, Stanmore, NSW, Australia": {
+    "latitude": -33.8944723,
+    "longitude": 151.159579
+  },
+  "229 Denison St, Newtown, NSW, Australia": {
+    "latitude": -33.8956867,
+    "longitude": 151.1770199
+  },
+  "286 Unwins Bridge Rd, Sydenham, NSW, Australia": {
+    "latitude": -33.9154631,
+    "longitude": 151.1678644
+  },
+  "Hello Aunty, 278 Illawarra Rd, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "7 Eliza St, Newtown, NSW, Australia": {
+    "latitude": -33.89634,
+    "longitude": 151.1788062
+  },
+  "Stanmore Reserve, Douglas Street, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "31A Pidcock St, Camperdown, NSW, Australia": {
+    "latitude": -33.8877522,
+    "longitude": 151.1764839
+  },
+  "35 Camden St, Newtown, NSW, Australia": {
+    "latitude": -33.9024278,
+    "longitude": 151.1773287
+  },
+  "Walnore Ave and Alice Lane,, Newtown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Jersey St, Marrickville, NSW, Australia": {
+    "latitude": -33.9125737,
+    "longitude": 151.1489301
+  },
+  "21-29 Marrickville Rd, NSW, Australia": {
+    "latitude": -33.9139691,
+    "longitude": 151.162804
+  },
+  "Level 1, 12-14 Fisher St,, Petersham, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Pidcock and Mallet St,, Camperdown, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "43 Bedford St, Newtown, NSW, Australia": {
+    "latitude": -33.896836,
+    "longitude": 151.1746516
+  },
+  "113 Enmore Rd, Newtown, NSW, Australia": {
+    "latitude": -33.8986702,
+    "longitude": 151.1740911
+  },
+  "109 Sydenham Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9069721,
+    "longitude": 151.1585601
+  },
+  "103 Railway Pde, Marrickville, NSW, Australia": {
+    "latitude": -33.9084864,
+    "longitude": 151.1743426
+  },
+  "194 Denison Road, Dulwich Hill, NSW, Australia": {
+    "latitude": -33.9003122,
+    "longitude": 151.141504
+  },
+  "Audley St and Trafalgar S, Petersham, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "23 - 35 Fitzroy Street, Marrickville, NSW, Australia": {
+    "latitude": -33.9089335,
+    "longitude": 151.1663126
+  },
+  "Victoria Ave, Marrickville, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "62-64 Styles Street, Leichhardt, NSW, Australia": {
+    "latitude": -33.8829018,
+    "longitude": 151.164763
+  },
+  "362/372 New Canterbury Rd, Dulwich Hill, NSW, Australia": {
+    "latitude": -33.9024852,
+    "longitude": 151.1442023
+  },
+  "Eve Sharp Reserve, Liberty St, Stanmore, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "259 King St, Newtown, NSW, Australia": {
+    "latitude": -33.895618,
+    "longitude": 151.1804327
+  },
+  "80-82 chapel St, Marrickville, NSW, Australia": {
+    "latitude": -33.9077358,
+    "longitude": 151.1655996
+  },
+  "7 farr St, Marrickville, NSW, Australia": {
+    "latitude": -33.9078625,
+    "longitude": 151.1616036
+  },
+  "Petersham Park, NSW, Australia": {
+    "latitude": -33.891553,
+    "longitude": 151.1505697
+  },
+  "140 Princes Hwy, St Peters, NSW, Australia": {
+    "latitude": -33.9132723,
+    "longitude": 151.1792894
+  },
+  "59 Campbell St, St Peters, NSW, Australia": {
+    "latitude": -33.9116862,
+    "longitude": 151.1780707
+  },
+  "81-83 & 85 Crown St, St Peters, NSW, Australia": {
+    "latitude": -33.9118382,
+    "longitude": 151.1806208
+  },
+  "142 Addison Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.9025209,
+    "longitude": 151.1614379
+  },
+  "Marrickville Metro,1 Smidmore Street, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "Holebeach Ave,, Tempe, NSW, Australia": {
+    "latitude": null,
+    "longitude": null
+  },
+  "82 Darling St, Balmain East, NSW, Australia": {
+    "latitude": -33.857618,
+    "longitude": 151.1924966
+  },
+  "654 Darling St, Rozelle, NSW, Australia": {
+    "latitude": -33.8642564,
+    "longitude": 151.1694914
+  },
+  "278 Illawarra Rd, Marrickville, NSW, Australia": {
+    "latitude": -33.911703,
+    "longitude": 151.1548938
+  }
+}
