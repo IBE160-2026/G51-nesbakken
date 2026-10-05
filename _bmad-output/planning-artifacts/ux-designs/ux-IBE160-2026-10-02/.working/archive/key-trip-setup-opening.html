@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Key Screens: Trip Setup Opening (Starting Point + Time)</title>
+<style>
+/*
+  KEY SCREENS — TRIP SETUP OPENING: STARTING POINT + AVAILABLE TIME
+  These are the very first two screens of the flow, BEFORE topic selection
+  (key-topic-selection-v3.html). Per .memlog.md this UX session's decisions,
+  in order of relevance to this file:
+
+  - Map-based starting point, visible/interactive immediately, no gate
+    before it (memlog decision, starting-point section). Default view is
+    zoomed to frame the ENTIRE Newtown pilot area (small, bounded) rather
+    than a generic/world view, so GPS is not required to see the relevant
+    area — this is a NEW framing decision for this file, consistent with
+    "must not feel like just Google Maps" and the FR-24 current-location
+    addition (memlog line 64).
+  - Two explicit alternative input paths alongside map-tap: named-start
+    chips (memlog line 21 "two explicit input paths... pick on the map" +
+    line 24 "V1 ships map-tap + predefined named starts only") and a
+    "Use my current location" action (PRD FR-24, memlog line 64).
+  - Typed address/place search is explicitly Post-V1 (memlog line 24) — a
+    code comment marks the reserved space; no visible search field exists.
+  - Time-selection is a scroller/wheel-picker, 5-minute increments, within
+    the PRD FR-2 30-120 minute range (memlog line 25).
+  - Jaunty prominence principle confirmed on key-topic-selection-v3.html
+    (memlog line 62): sparse screen = more prominent Jaunty, content-rich
+    screen = smaller/corner Jaunty. Screen 1 here has a full interactive
+    map as its primary content, so per the task brief Jaunty is explicitly
+    a SMALL OVERLAY with a speech bubble (not a central figure). Screen 2
+    (just a picker, very sparse) keeps him proportionally larger/more
+    central, consistent with the same principle.
+
+  ASSET — NO NEW JAUNTY ART, ONLY RE-SCALED REAL CROPS.
+  Jaunty is never hand-drawn here. Both poses used are the SAME two crops
+  already pixel-measured with Pillow and visually verified in
+  key-topic-selection-v3.html (that file's own header comment documents
+  the Pillow bbox measurements against imports/jaunty-mascot-sheet-v2-eyes-
+  transparent.png, confirmed 1536x1024 RGBA with a real alpha channel —
+  re-confirmed again for this file). This file reuses those exact bboxes,
+  only changing the DISPLAY width (background-size/background-position
+  scaled by a constant factor from v3's own working values) to get smaller
+  or larger on-screen sizes — never re-guessing coordinates or redrawing
+  any path. Scaling background-size and background-position by the same
+  factor preserves the crop exactly (no stretch/distortion):
+    - col1,row0 "wave" (greeting) pose — v3 base: 168px wide ->
+      background-size 799.26x532.84, background-position -316.93,-10.44.
+      Screen 1 overlay here uses the SAME crop at 84px (factor 0.5):
+      background-size 399.63x266.42, background-position -158.465,-5.22.
+      Screen 2 persistent figure here uses the SAME crop at 150px
+      (factor 150/168 = 25/28): background-size 713.63x475.75,
+      background-position -282.97,-9.32.
+  Only the wave (greeting) pose is used in this file, at two sizes, so
+  Jaunty keeps the same "greeting" read across both brand-new screens.
+  Verified by direct crop + view (see /tmp/wave_check.png inspection this
+  session) and by rendering this exact file with Playwright/Chromium
+  headless and visually inspecting the screenshot before finishing.
+
+  Hex palette — all inherited from direction-quiet-streets.html /
+  key-topic-selection-v3.html, no new hex values introduced:
+    --paper:        #FAFAF8   page background (outside phone frames)
+    --ink:          #16302A   primary text / warm ink
+    --ink-soft:     #5C6D64   secondary / understated text
+    --screen-bg:    #F6F4EC   phone screen background, warm cream
+    --sage:         #AFC29A   secondary brand color / park fill
+    --forest:       #1E4A3A   primary brand color / route / primary actions
+    --pill-bg:      #EDEAE2   unselected chip fill
+    --road-main:    #E3DED0   arterial road fill (King St)
+    --block:        #E7E1D2   building block fill
+    --water:        #A6C2C6   canal fill
+    --sheet-bg:     #FFFFFF   card/bubble/sheet surfaces
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 80px;
+  color: #16302A;
+}
+.heading { max-width: 620px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #5C6D64; }
+
+.row { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.phone-col .label { font-size: 12px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; }
+
+.phone {
+  width: 300px;
+  height: 615px;
+  background: #16302A;
+  border-radius: 42px;
+  padding: 11px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 16px 18px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F6F4EC;
+  z-index: 4;
+}
+.header .back { font-size: 19px; color: #16302A; width: 22px; }
+.header .spacer { width: 22px; }
+.header .title { font-size: 13.5px; font-weight: 700; text-align: center; }
+.recap {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #5C6D64;
+  background: #EDEAE2;
+  padding: 5px 12px;
+  border-radius: 14px;
+  letter-spacing: 0.01em;
+}
+
+/* ---- Jaunty: real PNG crops, same sheet, scaled per on-screen size ---- */
+.jaunty {
+  background-image: url('../imports/jaunty-mascot-sheet-v2-eyes-transparent.png');
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+  /* explicit stack level so this always paints above .jaunty-backing
+     (see bugfix comment below), regardless of DOM order */
+  z-index: 1;
+}
+/* wave pose, 84px wide — Screen 1 small map overlay (0.5x of v3's 168px base) */
+.jaunty-wave-sm {
+  width: 84px;
+  height: 88.69px;
+  background-size: 399.63px 266.42px;
+  background-position: -158.465px -5.22px;
+}
+/* wave pose, 150px wide — Screen 2 persistent figure (sparse screen = larger) */
+.jaunty-wave-md {
+  width: 150px;
+  height: 158.37px;
+  background-size: 713.63px 475.75px;
+  background-position: -282.97px -9.32px;
+}
+
+/* ===================== SCREEN 1 — STARTING POINT ===================== */
+.map-wrap {
+  flex: 1;
+  position: relative;
+  background: #F6F4EC;
+  overflow: hidden;
+}
+.map-wrap > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.street-label { font-size: 7.5px; fill: #8C9284; font-weight: 600; }
+.street-label.main { fill: #6E7A6C; font-size: 8px; }
+.pilot-label { font-size: 7.5px; fill: #8C9284; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+
+/* Jaunty + speech bubble, floating overlay near the top of the map —
+   explicitly small per the task brief, not a central figure, since the
+   map itself is this screen's primary content. */
+.jaunty-overlay {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.jaunty-overlay .bubble {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 16px;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.25);
+  margin-top: 6px;
+  max-width: 168px;
+  line-height: 1.35;
+}
+
+/* BUG FIX (reported: "the line goes through him"): the minor street-grid
+   line and the dashed pilot-area boundary in the map SVG sit directly
+   behind the Jaunty overlay. His wave-pose PNG crop is correctly on top
+   (opaque parts of him already occlude the map fine — this was never a
+   z-index/stacking problem), but the crop has real negative space in the
+   pose (above the head, between the legs, beside the raised arm), and a
+   light map line crossing that space read as a line cutting through his
+   body. Fix: a plain backing shape in the same cream as the map/screen
+   background, placed as the first child so it paints behind the .jaunty
+   image only (not the bubble), masking whatever map line sits behind the
+   gaps. It's invisible against the plain map fill and only its soft
+   shadow shows, giving Jaunty a gentle lift off the map. No new character
+   artwork — the PNG crop and its positioning are untouched. */
+.jaunty-backing {
+  position: absolute;
+  top: -5px;
+  left: -4px;
+  width: 92px;
+  height: 98px;
+  background: #F6F4EC;
+  border-radius: 50%;
+  box-shadow: 0 6px 14px -6px rgba(22,48,42,0.22);
+}
+
+/* generic location-pin icon (not the character) — used both on the map
+   for named-start spots and inline on the "use current location" button */
+.pin-dot { flex-shrink: 0; }
+
+.start-panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: #FFFFFF;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(22,48,42,0.18);
+  padding: 14px 18px 20px;
+  z-index: 3;
+}
+.start-panel .panel-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #5C6D64;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 9px;
+}
+.chip-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 1px 1px 2px;
+  scrollbar-width: none;
+  margin-bottom: 10px;
+}
+.chip-scroll::-webkit-scrollbar { display: none; }
+.start-chip {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 16px;
+  background: #EDEAE2;
+  color: #16302A;
+  white-space: nowrap;
+}
+
+/* Address/place search is intentionally NOT rendered here: per .memlog.md
+   (typed search stays Post-V1, confirmed), this space is reserved so a
+   future search field can be added above or beside the chip row without
+   restructuring this panel. */
+
+.locate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: #1E4A3A;
+  color: #F6F4EC;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 13px 8px;
+  border-radius: 18px;
+}
+
+/* ===================== SCREEN 2 — AVAILABLE TIME ===================== */
+.content-time {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 24px 28px;
+}
+.jaunty-greet { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.bubble-main {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.18);
+}
+
+.picker-card {
+  width: 100%;
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 10px 0 14px;
+  box-shadow: 0 6px 20px -10px rgba(22,48,42,0.15);
+}
+.picker-wrap {
+  position: relative;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.picker-highlight {
+  position: absolute;
+  left: 14px; right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 50px;
+  background: #EDEAE2;
+  border-radius: 14px;
+  z-index: 0;
+}
+.picker-list {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+.picker-row {
+  font-size: 15px;
+  font-weight: 600;
+  color: #B7BDAE;
+}
+.picker-row.near { color: #8C9284; font-size: 16px; }
+.picker-row.selected {
+  font-size: 27px;
+  font-weight: 800;
+  color: #1E4A3A;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.picker-row.selected .unit { font-size: 13px; font-weight: 700; color: #5C6D64; }
+.picker-range-note {
+  text-align: center;
+  font-size: 10.5px;
+  color: #8C9284;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.continue-btn {
+  width: 100%;
+  text-align: center;
+  background: #1E4A3A;
+  color: #F6F4EC;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 14px 8px;
+  border-radius: 18px;
+}
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Trip Setup Opening — Starting Point &amp; Available Time</h1>
+  <p>The first two screens of Trip Setup, before Topic Selection. Screen 1: the map is live and interactive immediately, framed to the whole bounded Newtown pilot area so no GPS is needed to see it, with named-start chips and a current-location action as fast alternatives to tapping the map (no address search — that stays Post-V1). Screen 2: a fast 5-minute-increment time picker, Jaunty kept proportionally larger since the screen is sparse. Jaunty is a real cropped region of imports/jaunty-mascot-sheet-v2-eyes-transparent.png in both — never redrawn.</p>
+</div>
+
+<div class="row">
+
+  <div class="phone-col">
+    <div class="label">Screen 1 — Starting point</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="spacer"></div>
+          <div class="title">Start your Jaunt</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="map-wrap">
+          <svg viewBox="0 0 300 460" preserveAspectRatio="xMidYMid slice">
+            <rect width="300" height="460" fill="#F6F4EC"/>
+
+            <!-- canal, upper-left, matching Quiet Streets' water treatment -->
+            <path d="M 0 30 C 36 55, 18 85, 0 100 L 0 0 Z" fill="#A6C2C6"/>
+
+            <!-- Camperdown Park / Cemetery green space -->
+            <polygon points="18,210 92,196 114,258 52,278" fill="#AFC29A"/>
+            <polygon points="195,300 250,292 262,335 210,348" fill="#AFC29A"/>
+
+            <!-- flat building blocks scattered across the wider pilot view -->
+            <g fill="#E7E1D2">
+              <rect x="135" y="40" width="22" height="15"/>
+              <rect x="163" y="40" width="22" height="15"/>
+              <rect x="191" y="40" width="22" height="15"/>
+              <rect x="225" y="135" width="24" height="16"/>
+              <rect x="253" y="135" width="24" height="16"/>
+              <rect x="55" y="135" width="24" height="15"/>
+              <rect x="83" y="135" width="24" height="15"/>
+              <rect x="140" y="230" width="24" height="16"/>
+              <rect x="168" y="230" width="24" height="16"/>
+              <rect x="40" y="320" width="24" height="16"/>
+              <rect x="68" y="320" width="24" height="16"/>
+              <rect x="220" y="390" width="24" height="16"/>
+              <rect x="248" y="390" width="24" height="16"/>
+            </g>
+
+            <!-- minor street grid, zoomed further out so more of it is visible -->
+            <g stroke="#EDEAE2" stroke-width="7" stroke-linecap="round">
+              <line x1="0" y1="60" x2="300" y2="60"/>
+              <line x1="0" y1="150" x2="300" y2="150"/>
+              <line x1="0" y1="245" x2="300" y2="245"/>
+              <line x1="0" y1="335" x2="300" y2="335"/>
+              <line x1="0" y1="405" x2="300" y2="405"/>
+              <line x1="45" y1="0" x2="45" y2="460"/>
+              <line x1="120" y1="0" x2="120" y2="460"/>
+              <line x1="205" y1="0" x2="205" y2="460"/>
+              <line x1="270" y1="0" x2="270" y2="460"/>
+            </g>
+            <!-- King St, the main arterial running diagonally through the area -->
+            <line x1="0" y1="440" x2="300" y2="30" stroke="#E3DED0" stroke-width="11" stroke-linecap="round"/>
+
+            <text class="street-label main" x="150" y="230" transform="rotate(-37 150 230)">King St</text>
+            <text class="street-label" x="128" y="260">Bedford St</text>
+            <text class="street-label" x="8" y="195">Church St</text>
+            <text class="street-label" x="210" y="380">Australia St</text>
+
+            <!-- dashed boundary = the bounded pilot-area framing itself -->
+            <rect x="8" y="8" width="284" height="444" rx="18" fill="none" stroke="#8C9284" stroke-width="1.4" stroke-dasharray="5 5" opacity="0.55"/>
+            <text class="pilot-label" x="150" y="450" text-anchor="middle">Newtown pilot area</text>
+
+            <!-- generic location-pin markers for the named-start spots
+                 (plain pictogram shape, not the Jaunty character) -->
+            <g fill="#1E4A3A">
+              <path d="M 95 236 C 95 220, 112 220, 112 236 C 112 248, 103.5 258, 103.5 258 C 103.5 258, 95 248, 95 236 Z"/>
+              <circle cx="103.5" cy="235" r="4.5" fill="#F6F4EC"/>
+            </g>
+            <g fill="#1E4A3A">
+              <path d="M 150 300 C 150 284, 167 284, 167 300 C 167 312, 158.5 322, 158.5 322 C 158.5 322, 150 312, 150 300 Z"/>
+              <circle cx="158.5" cy="299" r="4.5" fill="#F6F4EC"/>
+            </g>
+            <g fill="#1E4A3A">
+              <path d="M 225 160 C 225 144, 242 144, 242 160 C 242 172, 233.5 182, 233.5 182 C 233.5 182, 225 172, 225 160 Z"/>
+              <circle cx="233.5" cy="159" r="4.5" fill="#F6F4EC"/>
+            </g>
+          </svg>
+
+          <div class="jaunty-overlay">
+            <!-- backing shape must come first in DOM order so it paints
+                 behind the jaunty image (see .jaunty-backing bugfix comment
+                 above) -->
+            <div class="jaunty-backing"></div>
+            <div class="jaunty jaunty-wave-sm"></div>
+            <div class="bubble">Where are we jaunting from?</div>
+          </div>
+
+          <div class="start-panel">
+            <div class="panel-label">Or pick a spot</div>
+            <div class="chip-scroll">
+              <div class="start-chip">Newtown Station</div>
+              <div class="start-chip">King St</div>
+              <div class="start-chip">Camperdown Park</div>
+            </div>
+            <div class="locate-btn">
+              <svg class="pin-dot" width="14" height="14" viewBox="0 0 14 14">
+                <path d="M7 0C3.7 0 1 2.6 1 5.9 1 9.8 7 14 7 14S13 9.8 13 5.9C13 2.6 10.3 0 7 0Z" fill="#F6F4EC"/>
+                <circle cx="7" cy="5.8" r="2.2" fill="#1E4A3A"/>
+              </svg>
+              Use my current location
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone-col">
+    <div class="label">Screen 2 — Available time</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown Station</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content-time">
+          <div class="jaunty-greet">
+            <div class="jaunty jaunty-wave-md"></div>
+            <div class="bubble-main">How much time have you got?</div>
+          </div>
+
+          <div class="picker-card">
+            <div class="picker-wrap">
+              <div class="picker-highlight"></div>
+              <div class="picker-list">
+                <div class="picker-row">50</div>
+                <div class="picker-row near">55</div>
+                <div class="picker-row selected">60<span class="unit">min</span></div>
+                <div class="picker-row near">65</div>
+                <div class="picker-row">70</div>
+              </div>
+            </div>
+            <div class="picker-range-note">Swipe to adjust · 30–120 min, 5-min steps</div>
+          </div>
+
+          <div class="continue-btn">Continue</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

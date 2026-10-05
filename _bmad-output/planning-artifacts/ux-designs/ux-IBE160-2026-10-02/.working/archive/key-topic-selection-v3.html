@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Key Screen: Topic Selection v3 (real transparent v2-eyes asset)</title>
+<style>
+/*
+  KEY SCREEN — TOPIC SELECTION v3 (Discovery iteration, not Finalize)
+  Replaces key-topic-selection-v2.html for review; v1 and v2 are both kept
+  on disk unchanged for comparison. v3 fixes two problems identified in v2:
+
+  1) ASSET SWAP — REAL TRANSPARENT, EYES-BAKED-IN SHEET, NO COMPOSITING.
+     v2 used imports/jaunt-mascot-sheet.png, which had a near-white (not
+     transparent) square background behind every pose — v2 worked around
+     this with a rounded-corner + shadow "frame" to hide the seam — and had
+     no eyes drawn into the art at all, so v2 compositied two fake cream dot
+     <div>s on top of each crop at hand-measured coordinates.
+     v3 instead uses:
+       imports/jaunty-mascot-sheet-v2-eyes-transparent.png
+     confirmed on disk at 1536x1024px. This sheet (a) has a genuinely
+     transparent background — verified with Pillow by reading the alpha
+     channel; no white box, no frame/shadow trick needed — and (b) already
+     has two correctly drawn eyes (white oval + dark pupil, no mouth) baked
+     into the real art for every pose. No eye <div>s are composited anywhere
+     in this file; every pixel of Jaunty, eyes included, comes straight out
+     of the PNG crop.
+
+  2) MEASURED GRID — VERIFIED WITH PILLOW, NOT ASSUMED SQUARE.
+     The sheet is a 3x3 grid, but cells are NOT perfect squares: nominal
+     cell size is 512 x 341.33px (1536/3 x 1024/3), i.e. each row band is
+     about 2/3 of the column width. Pillow was used to read the alpha
+     channel and find the TIGHT content bounding box inside each of the 9
+     nominal cells (not guessed from the preview thumbnail). Measured
+     content bboxes (absolute pixel coords, x0,y0,x1,y1) and the pose each
+     one actually shows, confirmed by viewing the image directly:
+       col0,row0 (179,71)-(479,340)   plain walk, no accessory
+       col1,row0 (630,41)-(911,340)   raised-arm wave + spark lines (greeting)
+       col2,row0 (1067,71)-(1358,340) dynamic running pose
+       col0,row1 (179,341)-(447,671)  fist-up / excited pose, spark lines
+       col1,row1 (642,341)-(920,664)  olive/green backpack, plain walk
+       col2,row1 (1084,341)-(1360,671) olive cap, dynamic running pose
+       col0,row2 (171,693)-(465,981)  yellow backpack + wave + spark lines
+       col1,row2 (628,709)-(918,986)  blue backpack + dynamic running pose
+       col2,row2 (1081,698)-(1365,986) orange/red cap + yellow backpack + fist-up
+     This confirms the brief's pose-by-pose description was accurate.
+
+     Poses used in this file, each cropped with a 7%-of-bbox pad added on
+     every side (so spark lines/limbs aren't clipped at the edge), then
+     scaled via background-size/background-position math (no distortion —
+     crop aspect ratio preserved 1:1 into the display box):
+       - Screen 1 main greeting figure -> col1,row0 (wave pose), 168px wide.
+       - Screen 2 small persistent figure -> col0,row0 (plain walk), 64px
+         wide, placed in the header next to the recap pill.
+       - Small icon on "Wild Jaunt" button -> col0,row1 (fist-up / excited,
+         spark lines, no accessories) — chosen over the running pose and the
+         accessory poses because its simple two-limb silhouette stays
+         legible at ~30px, where backpacks/caps/extra spark clutter would
+         just blur into a blob. Reads as the most "fun/playful" option that
+         still holds up that small.
+
+  3) SCREEN STRUCTURE (unchanged from v2's correction, confirmed again):
+     Screen 1 (at rest): recap pill, Jaunty (wave pose) with a greeting
+     bubble, two equal-weight CTAs ("Choose Topic" / "Wild Jaunt"), and the
+     landmark<->hidden-gem preference slider underneath both, labeled
+     optional, defaulting to centered "Balanced".
+     Screen 2 is a genuinely separate screen/phone frame, reached only by
+     tapping "Choose Topic" — not an in-place expand. Jaunty (plain walk)
+     now persists here, smaller, near the top beside the recap pill (he was
+     missing entirely from v2's screen 2, which was wrong). Below: the
+     topic pill scroller (History pre-selected) and the same preference
+     slider repeated. "Wild Jaunt" does not appear anywhere on screen 2.
+
+  4) COPY — NOW LOCKED (per task brief):
+     Bubble text is "A topic in mind, or feeling spontaneous?", verbatim.
+
+  Hex palette — all inherited from direction-quiet-streets.html /
+  key-route-review-quiet-streets-v2.html, no new hex values introduced:
+    --paper:        #FAFAF8   page background (outside the phone frames)
+    --ink:          #16302A   primary text / warm ink
+    --ink-soft:     #5C6D64   secondary / understated text
+    --screen-bg:    #F6F4EC   phone screen background, warm cream
+    --sage:         #AFC29A   secondary brand color — Wild Jaunt fill, slider track
+    --forest:       #1E4A3A   primary brand color — Choose Topic fill, slider handle, selected pill
+    --pill-bg:      #EDEAE2   unselected topic pill fill / recap pill fill
+    --sheet-bg:     #FFFFFF   bubble / card surfaces
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 80px;
+  color: #16302A;
+}
+.heading { max-width: 600px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #5C6D64; }
+
+.row { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.phone-col .label { font-size: 12px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; }
+
+.phone {
+  width: 300px;
+  height: 615px;
+  background: #16302A;
+  border-radius: 42px;
+  padding: 11px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 16px 18px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F6F4EC;
+  z-index: 3;
+}
+.header .back { font-size: 19px; color: #16302A; width: 22px; }
+.header .spacer { width: 22px; }
+.recap {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #5C6D64;
+  background: #EDEAE2;
+  padding: 5px 12px;
+  border-radius: 14px;
+  letter-spacing: 0.01em;
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 6px 22px 26px;
+}
+
+/* ---- Jaunty: real PNG crops from the transparent, eyes-baked-in sheet ----
+   Background-size scales the whole 1536x1024 sheet up so that 1 real px in
+   the source maps to a fixed display scale; background-position then shifts
+   that scaled sheet so the padded content bbox for the chosen pose lands at
+   (0,0) of the element box. All three poses below keep the crop's native
+   aspect ratio, so there is no squashing/stretching of the art. Values were
+   computed from the Pillow-measured bboxes in the comment above (7% pad on
+   every side) and checked against this file's own rendered screenshot. */
+.jaunty {
+  background-image: url('../imports/jaunty-mascot-sheet-v2-eyes-transparent.png');
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+}
+/* col1,row0 wave pose -> Screen 1 main greeting figure, 168px wide */
+.jaunty-wave {
+  width: 168px;
+  height: 177.37px;
+  background-size: 799.26px 532.84px;
+  background-position: -316.93px -10.44px;
+}
+/* col0,row0 plain walk -> Screen 2 small persistent figure, 64px wide */
+.jaunty-walk {
+  width: 64px;
+  height: 62.98px;
+  background-size: 314.71px 209.81px;
+  background-position: -38.07px -10.62px;
+}
+/* col0,row1 fist-up/excited pose -> small icon on the Wild Jaunt button */
+.jaunty-icon {
+  width: 30px;
+  height: 35.92px;
+  background-size: 146.66px 97.77px;
+  background-position: -14.89px -30.35px;
+}
+
+.jaunty-greet { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.bubble {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.18);
+}
+
+/* CTA row: Choose Topic + Wild Jaunt, equal weight (screen 1 only) */
+.cta-row { display: flex; gap: 10px; width: 100%; }
+.cta-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 13px 8px;
+  border-radius: 18px;
+  text-align: center;
+}
+.cta-btn.primary { background: #1E4A3A; color: #F6F4EC; }
+.cta-btn.secondary { background: #AFC29A; color: #16302A; }
+
+/* Screen 2 page title */
+.page-title { font-size: 15px; font-weight: 700; text-align: center; margin-bottom: -6px; }
+
+/* Topic scroller (screen 2) */
+.scroller-wrap { width: 100%; }
+.scroller-label { font-size: 10.5px; font-weight: 700; color: #5C6D64; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 7px; }
+.topic-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: none;
+}
+.topic-scroll::-webkit-scrollbar { display: none; }
+.topic-pill {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: #EDEAE2;
+  color: #16302A;
+  white-space: nowrap;
+}
+.topic-pill.selected { background: #1E4A3A; color: #F6F4EC; }
+
+/* Landmark <-> hidden gem preference slider (appears on both screens) */
+.pref-control { width: 100%; }
+.pref-caption { font-size: 10.5px; font-weight: 700; color: #5C6D64; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; text-align: center; }
+.pref-caption .opt { font-weight: 500; text-transform: none; color: #8C9284; }
+.pref-track-wrap { position: relative; padding-top: 18px; }
+.pref-balanced-tag {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #1E4A3A;
+  background: #FFFFFF;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.pref-track { position: relative; height: 5px; background: #AFC29A; border-radius: 4px; }
+.pref-handle {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 18px; height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #1E4A3A;
+  box-shadow: 0 2px 6px rgba(22,48,42,0.3);
+}
+.pref-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: #8C9284; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Topic Selection v3 — real transparent, eyes-baked-in Jaunty</h1>
+  <p>Jaunty now comes entirely from imports/jaunty-mascot-sheet-v2-eyes-transparent.png: a genuinely transparent sheet (no white-box seam) with eyes already drawn into the art (no composited dot divs). Screen 2 now keeps a smaller Jaunty (plain walk) near the recap, and still has no Wild Jaunt button.</p>
+</div>
+
+<div class="row">
+
+  <div class="phone-col">
+    <div class="label">Screen 1 — at rest</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content">
+          <div class="jaunty-greet">
+            <div class="jaunty jaunty-wave"></div>
+            <div class="bubble">A topic in mind, or feeling spontaneous?</div>
+          </div>
+
+          <div class="cta-row">
+            <div class="cta-btn primary">Choose Topic</div>
+            <div class="cta-btn secondary">
+              <div class="jaunty jaunty-icon"></div>
+              Wild Jaunt
+            </div>
+          </div>
+
+          <div class="pref-control">
+            <div class="pref-caption">Landmarks or hidden gems? <span class="opt">optional</span></div>
+            <div class="pref-track-wrap">
+              <div class="pref-balanced-tag">Balanced</div>
+              <div class="pref-track">
+                <div class="pref-handle"></div>
+              </div>
+            </div>
+            <div class="pref-labels"><span>Well-known</span><span>Hidden gems</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone-col">
+    <div class="label">Screen 2 — after tapping "Choose Topic" (separate screen)</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="jaunty jaunty-walk"></div>
+        </div>
+
+        <div class="content">
+          <!-- No Wild Jaunt button on this screen by design: the user has
+               already committed to a topic path by navigating here, so the
+               instant-surprise option no longer applies. Jaunty (plain walk)
+               persists above, smaller, in the header next to the recap. -->
+          <div class="page-title">Pick a topic</div>
+
+          <div class="scroller-wrap">
+            <div class="scroller-label">Swipe to pick one</div>
+            <div class="topic-scroll">
+              <div class="topic-pill selected">History</div>
+              <div class="topic-pill">Architecture</div>
+              <div class="topic-pill">Public Art</div>
+              <div class="topic-pill">Heritage</div>
+            </div>
+          </div>
+
+          <div class="pref-control">
+            <div class="pref-caption">Landmarks or hidden gems? <span class="opt">optional</span></div>
+            <div class="pref-track-wrap">
+              <div class="pref-balanced-tag">Balanced</div>
+              <div class="pref-track">
+                <div class="pref-handle"></div>
+              </div>
+            </div>
+            <div class="pref-labels"><span>Well-known</span><span>Hidden gems</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

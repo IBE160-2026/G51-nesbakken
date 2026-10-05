@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Quiet Streets v2 (refined)</title>
+<style>
+/*
+  QUIET STREETS — v2 REFINEMENT (Discovery iteration, not Finalize)
+  Base direction: direction-quiet-streets.html (winning direction). This file
+  applies 4 specific refinements the user requested on top of that base; the
+  core palette, phone-frame pattern and typography are otherwise inherited
+  unchanged from the original direction file.
+
+  WHAT CHANGED VS direction-quiet-streets.html:
+  1) Buildings: were flat taupe blocks that nearly vanished into the warm
+     map background (--block: #E7E1D2 on --map-bg: #F6F4EC). Now rendered as
+     distinct muted-GREY rowhouse clusters (two alternating greys, thin gaps
+     between units) so real urban texture reads clearly, while stops/route
+     remain the only saturated, colored elements.
+       --block-a:  #C7C4B6   building unit, lighter muted grey
+       --block-b:  #BDBAAC   building unit, darker muted grey (alternating)
+  2) Park: the real Camperdown Cemetery footprint polygon (--park: #AFC29A)
+     is kept as the literal geometry (unchanged device from the base
+     direction). Small tree-cluster blobs — the device from the eliminated
+     "Pocket Park" direction — are layered on top, but placed inside an SVG
+     <clipPath> built from that SAME polygon, so clusters can never spill
+     outside the park's real shape (mirrors "style the route, don't replace
+     the geometry").
+       --tree-dark:  #5C7A52   tree-blob cluster, deeper muted green
+       --tree-light: #93AE80   tree-blob cluster, lighter leaf green
+  3) Route: was a smooth freeform bezier that cut through blocks. Now an
+     orthogonal polyline that only travels along the drawn street grid
+     (verticals at x=50/125/230, horizontals at y=70/165/270/375) and turns
+     exclusively at real intersections — same brand color, unchanged:
+       --route: #1E4A3A
+  4) Stop photos (expanded sheet, NEW): St Stephen's Church and Mural Lane
+     get a 44x44 inline-SVG illustrative thumbnail standing in for a photo;
+     King St Terraces and Camperdown Cemetery intentionally have NO
+     thumbnail element at all (not a placeholder box) — their text simply
+     takes the full row width, so both states are visible side by side.
+  5) Current-position marker: unchanged from the base direction — Jaunty's
+     head only (circle, two dot eyes, no mouth, small sage cap), in brand
+     dark green.
+
+  Full hex palette (inherited from direction-quiet-streets.html unless noted):
+    --paper:        #FAFAF8   page background
+    --ink:          #16302A   primary text
+    --ink-soft:     #5C6D64   secondary text
+    --map-bg:       #F6F4EC   map canvas
+    --road:         #EDEAE2   minor roads
+    --road-main:    #E3DED0   King St arterial / diagonal
+    --block-a:      #C7C4B6   [CHANGED] building unit, light muted grey
+    --block-b:      #BDBAAC   [CHANGED] building unit, dark muted grey
+    --park:         #AFC29A   real park/cemetery polygon fill (unchanged)
+    --tree-dark:    #5C7A52   [NEW] clipped tree-cluster, deep green
+    --tree-light:   #93AE80   [NEW] clipped tree-cluster, light green
+    --water:        #A6C2C6   canal ribbon
+    --route:        #1E4A3A   brand dark forest green (unchanged)
+    --marker-fill:  #1E4A3A
+    --marker-ring:  #AFC29A
+    --sheet-bg:     #FFFFFF
+    --sheet-handle: #DDD8C8
+    --pin-you:      #1E4A3A
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 80px;
+  color: #16302A;
+}
+.heading { max-width: 500px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #5C6D64; }
+
+.row { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.phone-col .label { font-size: 12px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; }
+
+.phone {
+  width: 300px;
+  height: 615px;
+  background: #16302A;
+  border-radius: 42px;
+  padding: 11px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 16px 18px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F6F4EC;
+  z-index: 3;
+}
+.header .back { font-size: 19px; color: #16302A; width: 22px; }
+.header .title { font-size: 13.5px; font-weight: 700; text-align: center; }
+.header .title .sub { display: block; font-size: 10.5px; font-weight: 500; color: #5C6D64; margin-top: 1px; }
+.time-pill {
+  background: #1E4A3A;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 18px;
+}
+
+.map-wrap { flex: 1; position: relative; background: #F6F4EC; }
+.map-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.street-label { font-size: 8px; fill: #8C9284; font-weight: 600; }
+.street-label.main { fill: #6E7A6C; font-size: 8.5px; }
+
+.bottom-bar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 18px 20px; display: flex; justify-content: center;
+}
+.view-list-pill {
+  background: #1E4A3A; color: #fff; font-size: 12.5px; font-weight: 700;
+  padding: 12px 24px; border-radius: 28px; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 10px 24px -8px rgba(22,48,42,0.45);
+}
+
+/* Expanded bottom sheet (secondary state) */
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 62%;
+  background: #FFFFFF;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(22,48,42,0.18);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 18px 18px;
+  overflow-y: auto;
+}
+.sheet .handle { width: 36px; height: 4px; background: #DDD8C8; border-radius: 4px; margin: 2px auto 12px; flex-shrink: 0; }
+.sheet h2 { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.sheet .meta { font-size: 11px; color: #5C6D64; margin-bottom: 12px; }
+.stop-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #F0EDE2; }
+.stop-row:last-child { border-bottom: none; }
+.stop-num {
+  width: 22px; height: 22px; border-radius: 50%; background: #1E4A3A; color: #fff;
+  font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.stop-row.start .stop-num { background: #AFC29A; color: #16302A; }
+/* NEW: photo thumbnail — only present on rows that have one; rows without it
+   simply omit this element, so .stop-info (flex:1) fills the full width. */
+.stop-thumb { width: 44px; height: 44px; border-radius: 9px; flex-shrink: 0; display: block; overflow: hidden; margin-top: 1px; }
+.stop-info { flex: 1; min-width: 0; }
+.stop-info .name { font-size: 12.5px; font-weight: 700; }
+.stop-info .desc { font-size: 11px; color: #5C6D64; margin-top: 2px; line-height: 1.4; }
+.stop-info .walk { font-size: 10px; color: #8C9284; margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Quiet Streets — v2 Refinement</h1>
+  <p>Winning direction, refined: muted-grey buildings keep real urban texture visible, the Camperdown Cemetery tree clusters stay clipped inside the park's real footprint, the route now turns only at real street corners, and the expanded stop list shows a mix of stop photos and no-photo rows.</p>
+</div>
+
+<div class="row">
+
+  <div class="phone-col">
+    <div class="label">Route Review</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="title">Newtown History Loop<span class="sub">4 stops · 1.9 km</span></div>
+          <div class="time-pill">~52 min</div>
+        </div>
+
+        <div class="map-wrap">
+          <svg viewBox="0 0 300 440" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <clipPath id="cemeteryClip-a">
+                <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345"/>
+              </clipPath>
+            </defs>
+
+            <rect width="300" height="440" fill="#F6F4EC"/>
+
+            <!-- water: Johnstons Creek canal ribbon -->
+            <path d="M 0 40 C 40 60, 20 90, 0 110 L 0 0 Z" fill="#A6C2C6"/>
+
+            <!-- street grid (drawn first, buildings/park sit on top like a real map) -->
+            <g stroke="#EDEAE2" stroke-width="8" stroke-linecap="round">
+              <line x1="0" y1="70" x2="300" y2="70"/>
+              <line x1="0" y1="165" x2="300" y2="165"/>
+              <line x1="0" y1="270" x2="300" y2="270"/>
+              <line x1="0" y1="375" x2="300" y2="375"/>
+              <line x1="50" y1="0" x2="50" y2="440"/>
+              <line x1="125" y1="0" x2="125" y2="440"/>
+              <line x1="230" y1="0" x2="230" y2="440"/>
+            </g>
+            <line x1="4" y1="420" x2="290" y2="20" stroke="#E3DED0" stroke-width="12" stroke-linecap="round"/>
+
+            <!-- CHANGE 1: muted-grey building texture (rowhouse clusters, two
+                 alternating greys with gaps between units) instead of flat
+                 near-invisible taupe blocks -->
+            <g>
+              <!-- top strip -->
+              <rect x="5" y="10" width="34" height="30" fill="#C7C4B6"/>
+              <rect x="42" y="10" width="30" height="30" fill="#BDBAAC"/>
+              <rect x="76" y="8" width="28" height="32" fill="#C7C4B6"/>
+              <rect x="150" y="10" width="30" height="28" fill="#BDBAAC"/>
+              <rect x="184" y="8" width="28" height="30" fill="#C7C4B6"/>
+              <rect x="216" y="10" width="30" height="28" fill="#BDBAAC"/>
+              <rect x="250" y="8" width="28" height="32" fill="#C7C4B6"/>
+
+              <!-- left block, between Church St and King St Terraces corridor -->
+              <rect x="4" y="78" width="40" height="24" fill="#C7C4B6"/>
+              <rect x="4" y="105" width="40" height="24" fill="#BDBAAC"/>
+              <rect x="4" y="132" width="40" height="24" fill="#C7C4B6"/>
+
+              <!-- right block, near Mural Lane -->
+              <rect x="238" y="80" width="26" height="22" fill="#C7C4B6"/>
+              <rect x="266" y="80" width="28" height="22" fill="#BDBAAC"/>
+              <rect x="238" y="106" width="26" height="22" fill="#BDBAAC"/>
+              <rect x="266" y="106" width="28" height="22" fill="#C7C4B6"/>
+              <rect x="238" y="132" width="26" height="22" fill="#C7C4B6"/>
+              <rect x="266" y="132" width="28" height="22" fill="#BDBAAC"/>
+
+              <!-- mid blocks along King St corridor -->
+              <rect x="136" y="182" width="38" height="30" fill="#C7C4B6"/>
+              <rect x="178" y="182" width="40" height="30" fill="#BDBAAC"/>
+              <rect x="136" y="218" width="38" height="30" fill="#BDBAAC"/>
+              <rect x="178" y="218" width="40" height="30" fill="#C7C4B6"/>
+
+              <!-- block left of Church stop -->
+              <rect x="4" y="184" width="38" height="30" fill="#C7C4B6"/>
+              <rect x="4" y="220" width="38" height="30" fill="#BDBAAC"/>
+
+              <!-- block east of Mural corridor -->
+              <rect x="238" y="184" width="26" height="30" fill="#BDBAAC"/>
+              <rect x="268" y="184" width="28" height="30" fill="#C7C4B6"/>
+              <rect x="238" y="220" width="26" height="30" fill="#C7C4B6"/>
+              <rect x="268" y="220" width="28" height="30" fill="#BDBAAC"/>
+
+              <!-- lower blocks, away from the cemetery footprint -->
+              <rect x="60" y="284" width="26" height="30" fill="#C7C4B6"/>
+              <rect x="90" y="284" width="26" height="30" fill="#BDBAAC"/>
+              <rect x="60" y="320" width="26" height="30" fill="#BDBAAC"/>
+              <rect x="90" y="320" width="26" height="30" fill="#C7C4B6"/>
+
+              <rect x="136" y="284" width="20" height="28" fill="#C7C4B6"/>
+              <rect x="160" y="284" width="20" height="28" fill="#BDBAAC"/>
+              <rect x="136" y="318" width="20" height="28" fill="#BDBAAC"/>
+              <rect x="160" y="318" width="20" height="28" fill="#C7C4B6"/>
+
+              <rect x="4" y="286" width="36" height="30" fill="#C7C4B6"/>
+              <rect x="4" y="322" width="36" height="30" fill="#BDBAAC"/>
+
+              <rect x="4" y="386" width="36" height="28" fill="#BDBAAC"/>
+              <rect x="60" y="386" width="26" height="26" fill="#C7C4B6"/>
+              <rect x="90" y="386" width="26" height="26" fill="#BDBAAC"/>
+              <rect x="136" y="386" width="22" height="26" fill="#C7C4B6"/>
+              <rect x="162" y="386" width="22" height="26" fill="#BDBAAC"/>
+            </g>
+
+            <!-- CHANGE 2: park = real Camperdown Cemetery footprint polygon,
+                 tree clusters strictly clipped to that same polygon -->
+            <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345" fill="#AFC29A"/>
+            <g clip-path="url(#cemeteryClip-a)">
+              <circle cx="205" cy="315" r="11" fill="#5C7A52"/>
+              <circle cx="222" cy="308" r="8" fill="#93AE80"/>
+              <circle cx="238" cy="320" r="10" fill="#5C7A52"/>
+              <circle cx="255" cy="310" r="9" fill="#93AE80"/>
+              <circle cx="266" cy="330" r="8" fill="#5C7A52"/>
+              <circle cx="212" cy="345" r="9" fill="#93AE80"/>
+              <circle cx="235" cy="355" r="11" fill="#5C7A52"/>
+              <circle cx="255" cy="350" r="8" fill="#93AE80"/>
+              <circle cx="222" cy="380" r="10" fill="#5C7A52"/>
+              <circle cx="245" cy="388" r="9" fill="#93AE80"/>
+              <circle cx="265" cy="370" r="9" fill="#5C7A52"/>
+              <circle cx="198" cy="370" r="8" fill="#93AE80"/>
+            </g>
+
+            <text class="street-label main" x="150" y="210" transform="rotate(-35 150 210)">King St</text>
+            <text class="street-label" x="140" y="280">Bedford St</text>
+            <text class="street-label" x="10" y="235">Church St</text>
+
+            <!-- CHANGE 3: route follows the street grid, turning only at
+                 real intersections (no freeform cut-through) -->
+            <path d="M 125 375
+                     L 125 270
+                     L 50 270
+                     L 50 165
+                     L 125 165
+                     L 230 165
+                     L 230 375
+                     L 125 375"
+                  fill="none" stroke="#1E4A3A" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <circle cx="50" cy="270" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+            <text x="50" y="274" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">1</text>
+            <text x="4" y="258" font-size="9" font-weight="700" fill="#16302A">St Stephen's Church</text>
+
+            <circle cx="125" cy="165" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+            <text x="125" y="169" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">2</text>
+            <text x="50" y="152" font-size="9" font-weight="700" fill="#16302A">King St Terraces</text>
+
+            <circle cx="230" cy="165" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+            <text x="230" y="169" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">3</text>
+            <text x="186" y="152" font-size="9" font-weight="700" fill="#16302A">Mural Lane</text>
+
+            <circle cx="230" cy="375" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+            <text x="230" y="379" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">4</text>
+            <text x="168" y="425" font-size="9" font-weight="700" fill="#16302A">Camperdown Cemetery</text>
+
+            <!-- CHANGE 5 (carried over unchanged): current position = Jaunty's
+                 head only — circle, two dot eyes, no mouth, small sage cap -->
+            <g transform="translate(125,375)">
+              <circle r="13" fill="#1E4A3A"/>
+              <path d="M -7 -9 A 10 6 0 0 1 7 -9 L 6.5 -12 A 11 7 0 0 0 -6.5 -12 Z" fill="#AFC29A"/>
+              <circle cx="-4" cy="1" r="1.5" fill="#fff"/>
+              <circle cx="4" cy="1" r="1.5" fill="#fff"/>
+            </g>
+            <text x="125" y="400" text-anchor="middle" font-size="8.5" font-weight="700" fill="#16302A">Start / Newtown Stn</text>
+          </svg>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="view-list-pill">View list ▲</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone-col">
+    <div class="label">Expanded sheet — stop photos</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="title">Newtown History Loop<span class="sub">4 stops · 1.9 km</span></div>
+          <div class="time-pill">~52 min</div>
+        </div>
+
+        <div class="map-wrap">
+          <svg viewBox="0 0 300 440" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <clipPath id="cemeteryClip-b">
+                <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345"/>
+              </clipPath>
+            </defs>
+            <rect width="300" height="440" fill="#F6F4EC"/>
+            <path d="M 0 40 C 40 60, 20 90, 0 110 L 0 0 Z" fill="#A6C2C6"/>
+            <g stroke="#EDEAE2" stroke-width="8" stroke-linecap="round">
+              <line x1="0" y1="70" x2="300" y2="70"/>
+              <line x1="0" y1="165" x2="300" y2="165"/>
+              <line x1="50" y1="0" x2="50" y2="440"/>
+              <line x1="125" y1="0" x2="125" y2="440"/>
+              <line x1="230" y1="0" x2="230" y2="440"/>
+            </g>
+            <g>
+              <rect x="5" y="10" width="34" height="30" fill="#C7C4B6"/>
+              <rect x="42" y="10" width="30" height="30" fill="#BDBAAC"/>
+              <rect x="76" y="8" width="28" height="32" fill="#C7C4B6"/>
+              <rect x="150" y="10" width="30" height="28" fill="#BDBAAC"/>
+              <rect x="184" y="8" width="28" height="30" fill="#C7C4B6"/>
+              <rect x="216" y="10" width="30" height="28" fill="#BDBAAC"/>
+              <rect x="250" y="8" width="28" height="32" fill="#C7C4B6"/>
+              <rect x="4" y="78" width="40" height="24" fill="#C7C4B6"/>
+              <rect x="4" y="105" width="40" height="24" fill="#BDBAAC"/>
+              <rect x="238" y="80" width="26" height="22" fill="#C7C4B6"/>
+              <rect x="266" y="80" width="28" height="22" fill="#BDBAAC"/>
+            </g>
+            <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345" fill="#AFC29A"/>
+            <g clip-path="url(#cemeteryClip-b)">
+              <circle cx="205" cy="315" r="11" fill="#5C7A52"/>
+              <circle cx="222" cy="308" r="8" fill="#93AE80"/>
+              <circle cx="238" cy="320" r="10" fill="#5C7A52"/>
+            </g>
+            <path d="M 125 375 L 125 270 L 50 270 L 50 165 L 125 165 L 230 165"
+                  fill="none" stroke="#1E4A3A" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="50" cy="270" r="9" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <circle cx="125" cy="165" r="9" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+          </svg>
+        </div>
+
+        <div class="sheet">
+          <div class="handle"></div>
+          <h2>Newtown History Loop</h2>
+          <div class="meta">4 stops · 1.9 km · ~52 min walking</div>
+
+          <div class="stop-row start">
+            <div class="stop-num">●</div>
+            <div class="stop-info">
+              <div class="name">Newtown Station</div>
+              <div class="desc">Start &amp; finish point</div>
+            </div>
+          </div>
+
+          <!-- CHANGE 4: photo thumbnail present -->
+          <div class="stop-row">
+            <div class="stop-num">1</div>
+            <svg class="stop-thumb" viewBox="0 0 44 44">
+              <defs><clipPath id="churchClip"><rect width="44" height="44" rx="9"/></clipPath></defs>
+              <g clip-path="url(#churchClip)">
+                <rect width="44" height="44" fill="#BFD8E0"/>
+                <rect x="0" y="27" width="44" height="17" fill="#9CAE8E"/>
+                <polygon points="10,14 22,4 34,14" fill="#B79D78"/>
+                <rect x="10" y="14" width="24" height="22" fill="#D8C4A0"/>
+                <path d="M15 19 a3 3 0 0 1 6 0 v5 h-6 z" fill="#7FA6B6"/>
+                <path d="M23 19 a3 3 0 0 1 6 0 v5 h-6 z" fill="#7FA6B6"/>
+                <rect x="19.5" y="25" width="5" height="11" fill="#5B4A36"/>
+                <line x1="22" y1="4" x2="22" y2="0.5" stroke="#5B4A36" stroke-width="1.3"/>
+                <line x1="20.2" y1="1.2" x2="23.8" y2="1.2" stroke="#5B4A36" stroke-width="1.3"/>
+              </g>
+            </svg>
+            <div class="stop-info">
+              <div class="name">St Stephen's Church</div>
+              <div class="desc">Gothic sandstone church, built 1874</div>
+              <div class="walk">6 min walk from start</div>
+            </div>
+          </div>
+
+          <!-- CHANGE 4: no photo — text takes the full row width, no placeholder box -->
+          <div class="stop-row">
+            <div class="stop-num">2</div>
+            <div class="stop-info">
+              <div class="name">King St Terraces</div>
+              <div class="desc">Row of restored Victorian terrace houses</div>
+              <div class="walk">9 min walk</div>
+            </div>
+          </div>
+
+          <!-- CHANGE 4: photo thumbnail present -->
+          <div class="stop-row">
+            <div class="stop-num">3</div>
+            <svg class="stop-thumb" viewBox="0 0 44 44">
+              <defs><clipPath id="muralClip"><rect width="44" height="44" rx="9"/></clipPath></defs>
+              <g clip-path="url(#muralClip)">
+                <rect width="44" height="44" fill="#EDE7D6"/>
+                <rect x="0" y="0" width="20" height="20" fill="#2F6F76"/>
+                <rect x="20" y="0" width="24" height="14" fill="#E0A23B"/>
+                <rect x="0" y="20" width="16" height="24" fill="#C8536B"/>
+                <rect x="16" y="18" width="28" height="26" fill="#2D3E63"/>
+                <circle cx="30" cy="30" r="6" fill="#E8D44D"/>
+              </g>
+            </svg>
+            <div class="stop-info">
+              <div class="name">Mural Lane</div>
+              <div class="desc">Laneway covered in rotating street art</div>
+              <div class="walk">4 min walk</div>
+            </div>
+          </div>
+
+          <!-- CHANGE 4: no photo — text takes the full row width, no placeholder box -->
+          <div class="stop-row">
+            <div class="stop-num">4</div>
+            <div class="stop-info">
+              <div class="name">Camperdown Cemetery</div>
+              <div class="desc">Colonial-era burial ground, est. 1848</div>
+              <div class="walk">11 min walk</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

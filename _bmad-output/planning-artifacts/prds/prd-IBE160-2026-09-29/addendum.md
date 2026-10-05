@@ -1,0 +1,38 @@
+# Jaunt V1 PRD — Addendum
+
+Supporting depth captured during PRD discovery that belongs to future development, downstream docs (UX, architecture), or is background rather than a V1 requirement. Not audit/decision-log content — see `.memlog.md` for that.
+
+## Post-V1 / Vision-tier feature ideas (from user's journey handover, 2026-09-29)
+
+Recorded here so they aren't lost, without expanding V1 scope:
+
+- **Optional audio narration** of stop content (read-aloud), building on the product brief's original "possible extension" of reading content aloud via the browser's `SpeechSynthesis`.
+- **Community-contributed stops and stories** — letting people add overlooked places, subject to verification (already named as a longer-term idea in `product-brief.md`'s Vision section). Includes a **"local legends" contributor persona**: a distinct role for locals to contribute content. Clarified by user (2026-10-01): it doesn't require deep/expert local knowledge, just some form of verification (mechanism undecided). Also includes **content feedback/flagging** — users reporting a problem with a stop (no longer there, not worthwhile, or, specifically for a local-legend-contributed stop, doesn't exist as described) — which is the catalogue's quality-maintenance mechanism for community content (the V1 catalogue itself is maintained by re-running the import pipeline, not by user reports). Also includes **user-uploaded stop photos** (noted by user, 2026-10-02): once user profiles/accounts exist (itself Post-V1), people could upload their own photos of a stop, extending V1's FR-22 (rights-cleared source images only).
+- **Weather-responsive rerouting** — e.g. suggesting a nearby indoor destination (museum, café) if it starts raining mid-walk. Clarified by user (2026-10-01): doesn't need a live weather API — the trigger is simply the user telling Jaunt it's started raining. Still requires mid-walk re-routing logic beyond the "shorten walk / change destination" idea below, so remains Post-V1.
+- **Mid-walk route changes** — shortening an active walk, changing destination, or requesting a new route if circumstances change, once V1's simpler Re-Jaunt (regenerate before starting) exists.
+- **Full user accounts and cross-device sync** — explicitly deferred by the user to V2/V3; V1 favourites/history should work without an account (see PRD FRs). Account-dependent ideas raised by the user (2026-10-03), recorded here rather than evaluated now:
+  - **Easier/synced favourites** once an account exists (vs. V1's local-only storage).
+  - **Distance-based badges/unlocks** — walking a cumulative number of kilometers unlocks cosmetic customization for Jaunty (new cap colours, backpacks, "pants combinations," etc.), extending the accessory-color pattern already established in the character art (several cap/backpack colour variants already exist in `imports/jaunty-mascot-sheet-v2-eyes.png`).
+  - **A user profile** storing a history of past Jaunts ("where the jaunties are saved").
+  - **Leaving recommendations** — user-to-user, distinct from the "local legends" catalogue-contribution idea above.
+  - **Rating stops** — thumbs up / mid / down, a finer-grained signal than the simple Favourite.
+  - **Saving a favourite full Jaunt route** (the whole generated route, not just individual stops) to revisit or reuse later.
+  - User noted there were more ideas they didn't fully recall when listing these — worth revisiting with them if this area gets picked up.
+- **Destination-based routing** — "give me an interesting walk that gets me to this destination within my available time" (e.g. routing to a chosen restaurant instead of a loop). Out of the assessed V1 (real planner rework — adds an endpoint constraint to the combination search); the user considers this an important long-term use case, stated prominently in `prd.md` §1 Vision, not buried as a minor idea.
+- **Free-text / multi-topic input** — letting users write in what they're interested in rather than choosing only from a fixed topic list (history / architecture / public art / surprise-me). Named by the user as a future direction for topic selection.
+- **Nature/photography topic** — possible future topic (for its photographic value); open question whether enough source material exists to ground AI content the way history/architecture/public art are grounded today. Not decided either way.
+- **A one-question quiz from Jaunty on the walk summary** — e.g. "What year was St Stephen's built?", grounded the same way stop content is (never inventing an answer), with a playful response either way. Deferred by Claude's call (2026-10-03, user explicitly handed over the decision) given it's genuinely new AI-generation scope stacked on an already-growing V1 addition list — charming, not free.
+
+## Jaunt character / guide concept
+
+User has a first draft of a "Jaunt character" that guides users through choices and delivers arrival notifications ("small notification inviting them to discover its story"). As of 2026-10-01, a first version of the Jaunt logo/character exists; the user is undecided whether it should have eyes, due to uncertainty about how that scales/reads on mobile. Not yet shared with this PRD process. Relevant to UX design (`bmad-ux`), including the eyes/mobile-scaling question — flagged here so it isn't lost, and so the PRD's FRs about notifications/guidance don't accidentally lock in UI details that belong in UX.
+
+## Geographic expansion — candidate locations and the hybrid-discovery assessment
+
+**Decision:** V1's FR-21 stretch goal (see `prd.md` §4.6) targets a second *Sydney* area only — not a Nice/Oslo/Molde demonstration, and not true live/runtime POI discovery. Deliberate given the course timeline, not a silent scope-down: the fuller automated-discovery hybrid the user asked about, and extending to a genuinely new language/city, remain real Post-V1 directions.
+
+User-named candidate locations: other parts of Sydney, Nice (France), Oslo (Norway), Molde (Norway), with preferred authoritative sources for non-Newtown locations (Wikipedia, Store norske leksikon or similar, official tourism sites, recognised heritage registers — explicitly not Reddit or similar for factual content).
+
+**Why:** live/runtime discovery (Google Places, Foursquare, live Overpass) doesn't clearly outperform the current approach yet — grounding-quality source text is thin, paywalled, or sparse at neighbourhood scale on all of them, and live Overpass has reliability limits for user-facing requests. Store norske leksikon supports lookup-by-name only, not geographic discovery; Visit Norway has no confirmed public discovery API; Nice has better structured open data than either Norwegian candidate, but still needs new non-English ingestion work (`import_places.py` hard-codes English-only today). Full research trail in `.memlog.md`.
+
+**Important distinction (clarified by user, 2026-10-01):** V1's heritage Topic is sourced manually only because that *particular* NSW Heritage MapServer source sits behind a WAF blocking scripted access — a limitation of one source, not a property of "heritage" as a Topic. A future area's heritage-relevant places should first be attempted via the same automated OSM+Wikidata path used for history/architecture, or another scriptable heritage register if one exists there, potentially combining a place from one source with descriptive content from another. Requiring a fresh hand-curated heritage list per new location is explicitly not the intended long-term pattern — manual curation is a fallback, not the default.

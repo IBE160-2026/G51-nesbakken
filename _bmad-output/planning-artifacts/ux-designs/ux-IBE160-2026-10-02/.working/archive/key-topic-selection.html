@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Key Screen: Trip Setup / Topic Selection</title>
+<style>
+/*
+  KEY SCREEN — TRIP SETUP: TOPIC SELECTION (Discovery iteration, not Finalize)
+  Third step in Trip Setup, shown after starting point and available time are
+  already chosen. Base direction inherited unchanged: direction-quiet-streets.html
+  (palette, phone-frame chrome, typography). Phone-frame + header pattern also
+  follows key-route-review-quiet-streets-v2.html.
+
+  DECISIONS THIS SCREEN REFLECTS (from the Trip Setup discovery discussion):
+  1. Prior choices (starting point + time) are acknowledged with a small,
+     understated recap line near the top ("Newtown · 60 min") — explicitly
+     NOT a progress stepper/bar, since none was specified for this flow.
+  2. Jaunty asks, in Jaunty's own voice, what the user feels like exploring —
+     kept to one short playful line, not a paragraph of dialogue.
+  3. Two roughly equal-weight actions: "Choose Topic" and "Wild Jaunt".
+     Wild Jaunt is the fun, low-commitment, one-tap option, so it carries a
+     small illustration of Jaunty mid-jump (the "character doing something"
+     device agreed on earlier for this exact button).
+  4. Beneath both buttons, a single landmark-vs-hidden-gem preference slider
+     ("Well-known" to "Hidden gems"), defaulting to a centered "Balanced"
+     position. It applies no matter which button above is tapped, and is
+     styled light/thin/optional-reading on purpose — tapping either button
+     without touching the slider is a fully valid path.
+  5. Secondary state (shown side by side, per key-screen convention): the
+     result of tapping "Choose Topic" — a horizontal swipe-through row of
+     word-labeled topic pills (History, Architecture, Public Art, Heritage).
+     OPEN VISUAL QUESTION (not decided): whether these pills eventually carry
+     small icons. This mock renders them as text-only on purpose, to flag
+     that icons are an optional future treatment, not a locked decision.
+  6. Jaunty is shown here at full "character" scale for the first time (vs.
+     the tiny map-marker head used in route-review mocks), since this is a
+     conversational greeting moment. Construction is unchanged from brand
+     spec: round head (circle) + torso curved like a "J" + legs splayed like
+     an "A", single flat fill, two simple dot eyes, explicitly NO mouth and
+     no other facial features.
+
+  Hex palette (inherited from direction-quiet-streets.html, no new colors
+  introduced):
+    --paper:        #FAFAF8   page background (outside the phone frames)
+    --ink:          #16302A   primary text
+    --ink-soft:     #5C6D64   secondary / understated text (recap line, captions)
+    --screen-bg:    #F6F4EC   phone screen background, warm cream
+    --sage:         #AFC29A  secondary brand color — Wild Jaunt fill, slider track, unselected ring
+    --forest:       #1E4A3A  primary brand color — Jaunty fill, Choose Topic fill, slider handle, selected pill
+    --pill-bg:      #EDEAE2  unselected topic pill fill (same warm neutral as minor roads elsewhere)
+    --dot-eye:      #F6F4EC  Jaunty's eyes, cream dots on the forest-green fill
+    --sheet-bg:     #FFFFFF  bubble / card surfaces
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 80px;
+  color: #16302A;
+}
+.heading { max-width: 560px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #5C6D64; }
+
+.row { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.phone-col .label { font-size: 12px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; }
+
+.phone {
+  width: 300px;
+  height: 615px;
+  background: #16302A;
+  border-radius: 42px;
+  padding: 11px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 16px 18px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F6F4EC;
+  z-index: 3;
+}
+.header .back { font-size: 19px; color: #16302A; width: 22px; }
+.header .spacer { width: 22px; }
+.recap {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #5C6D64;
+  background: #EDEAE2;
+  padding: 5px 12px;
+  border-radius: 14px;
+  letter-spacing: 0.01em;
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 6px 22px 26px;
+}
+
+/* Jaunty + speech bubble */
+.jaunty-greet { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.jaunty-greet.condensed { gap: 7px; }
+.bubble {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.18);
+}
+.jaunty-greet.condensed .bubble { font-size: 11.5px; padding: 7px 13px; }
+
+/* CTA row: Choose Topic + Wild Jaunt, equal weight */
+.cta-row { display: flex; gap: 10px; width: 100%; }
+.cta-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 13px 8px;
+  border-radius: 18px;
+  text-align: center;
+}
+.cta-btn.primary { background: #1E4A3A; color: #F6F4EC; }
+.cta-btn.secondary { background: #AFC29A; color: #16302A; }
+.cta-btn .caret { font-size: 10px; margin-left: 2px; }
+
+/* Topic scroller (secondary state) */
+.scroller-wrap { width: 100%; }
+.scroller-label { font-size: 10.5px; font-weight: 700; color: #5C6D64; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 7px; }
+.topic-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: none;
+}
+.topic-scroll::-webkit-scrollbar { display: none; }
+.topic-pill {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: #EDEAE2;
+  color: #16302A;
+  white-space: nowrap;
+}
+.topic-pill.selected { background: #1E4A3A; color: #F6F4EC; }
+
+/* Landmark <-> hidden gem preference slider */
+.pref-control { width: 100%; }
+.pref-caption { font-size: 10.5px; font-weight: 700; color: #5C6D64; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; text-align: center; }
+.pref-caption .opt { font-weight: 500; text-transform: none; color: #8C9284; }
+.pref-track-wrap { position: relative; padding-top: 18px; }
+.pref-balanced-tag {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #1E4A3A;
+  background: #FFFFFF;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.pref-track { position: relative; height: 5px; background: #AFC29A; border-radius: 4px; }
+.pref-handle {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 18px; height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #1E4A3A;
+  box-shadow: 0 2px 6px rgba(22,48,42,0.3);
+}
+.pref-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: #8C9284; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- Shared Jaunty figure library: defined once, reused via <use> across both
+     phone frames and inside the Wild Jaunt button, at different display sizes. -->
+<svg style="position:absolute; width:0; height:0;" aria-hidden="true">
+  <defs>
+    <!-- Full-character Jaunty: round head (circle) + J-curved torso + A-shaped
+         legs, single flat #1E4A3A fill, two cream dot eyes, no mouth. -->
+    <symbol id="jaunty-full" viewBox="0 0 140 190">
+      <circle cx="70" cy="30" r="22" fill="#1E4A3A"/>
+      <circle cx="61" cy="28" r="3" fill="#F6F4EC"/>
+      <circle cx="79" cy="28" r="3" fill="#F6F4EC"/>
+      <path d="M70 52 C 68 80, 56 92, 46 116" stroke="#1E4A3A" stroke-width="22" stroke-linecap="round" fill="none"/>
+      <path d="M46 116 L 30 176" stroke="#1E4A3A" stroke-width="16" stroke-linecap="round" fill="none"/>
+      <path d="M46 116 L 80 176" stroke="#1E4A3A" stroke-width="16" stroke-linecap="round" fill="none"/>
+      <path d="M38 146 L 63 146" stroke="#1E4A3A" stroke-width="10" stroke-linecap="round" fill="none"/>
+    </symbol>
+    <!-- Mini "Jaunty mid-jump" for the Wild Jaunt button: same letterform
+         construction, one leg kicked back, two small motion-arc flicks. -->
+    <symbol id="jaunty-jump" viewBox="0 0 40 46">
+      <circle cx="20" cy="9" r="7" fill="#1E4A3A"/>
+      <circle cx="17" cy="8" r="1.2" fill="#F6F4EC"/>
+      <circle cx="23" cy="8" r="1.2" fill="#F6F4EC"/>
+      <path d="M20 16 C 18 24, 12 27, 9 33" stroke="#1E4A3A" stroke-width="7" stroke-linecap="round" fill="none"/>
+      <path d="M9 33 L 4 41" stroke="#1E4A3A" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M9 33 L 17 29" stroke="#1E4A3A" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M26 6 Q 31 2 34 6" stroke="#1E4A3A" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <path d="M27 13 Q 33 12 35 16" stroke="#1E4A3A" stroke-width="2" stroke-linecap="round" fill="none"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="heading">
+  <h1>Trip Setup — Topic Selection</h1>
+  <p>Third step, after starting point and time are set. Jaunty greets the user and offers two equal-weight paths — pick a topic, or take a Wild Jaunt — plus an optional landmark/hidden-gem slider underneath. Shown here in its initial state and in the state after "Choose Topic" is tapped.</p>
+</div>
+
+<div class="row">
+
+  <div class="phone-col">
+    <div class="label">Initial — Jaunty asks</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content">
+          <div class="jaunty-greet">
+            <svg width="98" height="133"><use href="#jaunty-full"/></svg>
+            <div class="bubble">What are you curious about today?</div>
+          </div>
+
+          <div class="cta-row">
+            <div class="cta-btn primary">Choose Topic</div>
+            <div class="cta-btn secondary">
+              <svg width="20" height="23"><use href="#jaunty-jump"/></svg>
+              Wild Jaunt
+            </div>
+          </div>
+
+          <div class="pref-control">
+            <div class="pref-caption">Landmarks or hidden gems? <span class="opt">optional</span></div>
+            <div class="pref-track-wrap">
+              <div class="pref-balanced-tag">Balanced</div>
+              <div class="pref-track">
+                <div class="pref-handle"></div>
+              </div>
+            </div>
+            <div class="pref-labels"><span>Well-known</span><span>Hidden gems</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone-col">
+    <div class="label">After tapping "Choose Topic" (secondary state)</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content">
+          <div class="jaunty-greet condensed">
+            <svg width="56" height="76"><use href="#jaunty-full"/></svg>
+            <div class="bubble">What are you curious about today?</div>
+          </div>
+
+          <div class="cta-row">
+            <div class="cta-btn primary">Choose Topic <span class="caret">▲</span></div>
+            <div class="cta-btn secondary">
+              <svg width="20" height="23"><use href="#jaunty-jump"/></svg>
+              Wild Jaunt
+            </div>
+          </div>
+
+          <div class="scroller-wrap">
+            <div class="scroller-label">Swipe to pick one</div>
+            <div class="topic-scroll">
+              <div class="topic-pill selected">History</div>
+              <div class="topic-pill">Architecture</div>
+              <div class="topic-pill">Public Art</div>
+              <div class="topic-pill">Heritage</div>
+            </div>
+          </div>
+
+          <div class="pref-control">
+            <div class="pref-caption">Landmarks or hidden gems? <span class="opt">optional</span></div>
+            <div class="pref-track-wrap">
+              <div class="pref-balanced-tag">Balanced</div>
+              <div class="pref-track">
+                <div class="pref-handle"></div>
+              </div>
+            </div>
+            <div class="pref-labels"><span>Well-known</span><span>Hidden gems</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

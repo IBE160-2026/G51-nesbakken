@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Direction 3: Pocket Park</title>
+<style>
+/*
+  DIRECTION 3 — "POCKET PARK"
+  Position on the spectrum: LEANING ILLUSTRATED — parks are built from little
+  clustered tree-blob icons (echoing the logo's hillside scenery), roads stay
+  simple and legible, buildings get a touch of terracotta character.
+
+  Hex values used:
+    --paper:        #FAF8F2   page background
+    --ink:          #1E4A3A   primary text uses brand forest green, not black
+    --ink-soft:     #7A8572   secondary text
+    --map-bg:       #F7F2E6   warm paper map canvas
+    --road:         #FFFFFF   roads as clean white ribbons (cut out of paper)
+    --road-main:    #FBF6EA   King St arterial, faint warm white
+    --block:        #E7B99A   terrace-house roof terracotta (muted, not bright)
+    --block-wall:   #F2E4D3   terrace-house wall tone
+    --tree-dark:    #1E4A3A   tree-blob clusters, brand forest green
+    --tree-light:   #8FAE7C   tree-blob clusters, lighter leaf green
+    --water:        #9FC2C9   small canal corner
+    --route:        #1E4A3A   brand forest green, dashed hand-trail style
+    --route-dot:    #F7F2E6   gaps in the dash show the paper through
+    --marker-badge: #1E4A3A
+    --marker-notch: #163A2D
+    --pin-you:      #1E4A3A
+    --pin-cap:      #E7B99A   Jaunty's little cap, picks up the terracotta accent
+
+  Rationale (2-3 sentences):
+  Pocket Park treats green space the way the Jaunt logo does — as clusters of
+  friendly tree-blobs rather than a flat polygon — while keeping roads as plain
+  white ribbons so the street grid stays instantly legible underneath the
+  illustration. The route becomes a hand-trail dashed line and stops become
+  rounded badge pins, giving the walk a tactile, pick-up-and-go feel without
+  tipping the whole map into decoration.
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAF8F2;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 80px;
+  color: #1E4A3A;
+}
+.heading { max-width: 460px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #7A8572; }
+
+.phone {
+  width: 320px;
+  height: 650px;
+  background: #1E4A3A;
+  border-radius: 46px;
+  padding: 12px;
+  box-shadow: 0 30px 60px -20px rgba(30,74,58,0.4);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F7F2E6;
+  border-radius: 36px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 18px 20px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F7F2E6;
+}
+.header .back { font-size: 20px; color: #1E4A3A; width: 24px; }
+.header .title { font-size: 14px; font-weight: 800; text-align: center; }
+.header .title .sub { display: block; font-size: 11px; font-weight: 600; color: #7A8572; margin-top: 1px; }
+.time-pill {
+  background: #1E4A3A; color: #F7F2E6; font-size: 11.5px; font-weight: 800;
+  padding: 6px 12px; border-radius: 20px;
+}
+
+.map-wrap { flex: 1; position: relative; background: #F7F2E6; }
+.map-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.street-label { font-size: 8px; fill: #A9A08A; font-weight: 700; }
+.street-label.main { fill: #8C8470; font-size: 8.5px; }
+
+.bottom-bar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 18px 22px; display: flex; justify-content: center;
+}
+.view-list-pill {
+  background: #1E4A3A; color: #F7F2E6; font-size: 13px; font-weight: 800;
+  padding: 13px 26px; border-radius: 30px; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 10px 26px -8px rgba(30,74,58,0.5);
+}
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Direction 3 — Pocket Park</h1>
+  <p>Green space rendered as clustered tree-blobs like the logo's hillside; roads stay as plain legible white ribbons underneath. Terrace rooftops pick up a muted terracotta accent.</p>
+</div>
+
+<div class="phone">
+  <div class="screen">
+
+    <div class="header">
+      <div class="back">‹</div>
+      <div class="title">Newtown History Loop<span class="sub">4 stops · 1.9 km</span></div>
+      <div class="time-pill">~50 min</div>
+    </div>
+
+    <div class="map-wrap">
+      <svg viewBox="0 0 320 420" preserveAspectRatio="xMidYMid slice">
+        <rect width="320" height="420" fill="#F7F2E6"/>
+
+        <!-- small canal corner -->
+        <path d="M 0 30 C 35 50, 18 80, 0 95 Z" fill="#9FC2C9"/>
+        <path d="M 6 45 q 10 6 0 14" stroke="#F7F2E6" stroke-width="2" fill="none" opacity="0.6"/>
+
+        <!-- white road ribbons -->
+        <g stroke="#FFFFFF" stroke-width="10" stroke-linecap="round">
+          <line x1="0" y1="65" x2="320" y2="65"/>
+          <line x1="0" y1="155" x2="320" y2="155"/>
+          <line x1="0" y1="255" x2="320" y2="255"/>
+          <line x1="0" y1="350" x2="320" y2="350"/>
+          <line x1="55" y1="0" x2="55" y2="420"/>
+          <line x1="135" y1="0" x2="135" y2="420"/>
+          <line x1="245" y1="0" x2="245" y2="420"/>
+        </g>
+        <line x1="6" y1="398" x2="300" y2="20" stroke="#FBF6EA" stroke-width="13" stroke-linecap="round"/>
+
+        <text class="street-label main" x="150" y="195" transform="rotate(-34 150 195)">King St</text>
+        <text class="street-label" x="10" y="150">Church St</text>
+        <text class="street-label" x="150" y="250">Bedford St</text>
+
+        <!-- terrace-house roofs along a row -->
+        <g>
+          <rect x="150" y="30" width="24" height="15" fill="#F2E4D3"/>
+          <polygon points="150,30 162,20 174,30" fill="#E7B99A"/>
+          <rect x="180" y="30" width="24" height="15" fill="#F2E4D3"/>
+          <polygon points="180,30 192,20 204,30" fill="#E7B99A"/>
+          <rect x="210" y="30" width="24" height="15" fill="#F2E4D3"/>
+          <polygon points="210,30 222,20 234,30" fill="#E7B99A"/>
+
+          <rect x="55" y="310" width="24" height="16" fill="#F2E4D3"/>
+          <polygon points="55,310 67,299 79,310" fill="#E7B99A"/>
+          <rect x="85" y="310" width="24" height="16" fill="#F2E4D3"/>
+          <polygon points="85,310 97,299 109,310" fill="#E7B99A"/>
+        </g>
+
+        <!-- Camperdown Cemetery park: clustered tree blobs -->
+        <g>
+          <circle cx="45" cy="140" r="15" fill="#8FAE7C"/>
+          <circle cx="68" cy="128" r="18" fill="#1E4A3A"/>
+          <circle cx="85" cy="150" r="14" fill="#8FAE7C"/>
+          <circle cx="55" cy="165" r="12" fill="#1E4A3A"/>
+          <circle cx="90" cy="175" r="10" fill="#8FAE7C"/>
+        </g>
+
+        <!-- route: hand-drawn dashed trail -->
+        <path d="M 165 375
+                 C 135 345, 100 320, 80 290
+                 C 65 265, 60 210, 68 150
+                 C 90 140, 115 180, 150 220
+                 C 180 250, 220 255, 245 220
+                 C 265 195, 255 150, 225 130
+                 C 245 110, 275 95, 300 60"
+              fill="none" stroke="#1E4A3A" stroke-width="5" stroke-linecap="round"
+              stroke-dasharray="2 9"/>
+
+        <!-- badge pins -->
+        <g transform="translate(68,150)">
+          <path d="M 0 -16 C 10 -16 16 -9 16 0 C 16 10 0 20 0 20 C 0 20 -16 10 -16 0 C -16 -9 -10 -16 0 -16 Z" fill="#1E4A3A"/>
+          <text x="0" y="2" text-anchor="middle" font-size="10" font-weight="800" fill="#F7F2E6">1</text>
+        </g>
+        <text x="86" y="134" font-size="9" font-weight="800" fill="#1E4A3A">St Stephen's Church</text>
+
+        <g transform="translate(150,220)">
+          <path d="M 0 -16 C 10 -16 16 -9 16 0 C 16 10 0 20 0 20 C 0 20 -16 10 -16 0 C -16 -9 -10 -16 0 -16 Z" fill="#1E4A3A"/>
+          <text x="0" y="2" text-anchor="middle" font-size="10" font-weight="800" fill="#F7F2E6">2</text>
+        </g>
+        <text x="168" y="204" font-size="9" font-weight="800" fill="#1E4A3A">King St Terraces</text>
+
+        <g transform="translate(245,220)">
+          <path d="M 0 -16 C 10 -16 16 -9 16 0 C 16 10 0 20 0 20 C 0 20 -16 10 -16 0 C -16 -9 -10 -16 0 -16 Z" fill="#1E4A3A"/>
+          <text x="0" y="2" text-anchor="middle" font-size="10" font-weight="800" fill="#F7F2E6">3</text>
+        </g>
+        <text x="198" y="204" font-size="9" font-weight="800" fill="#1E4A3A">Mural Lane</text>
+
+        <g transform="translate(225,130)">
+          <path d="M 0 -16 C 10 -16 16 -9 16 0 C 16 10 0 20 0 20 C 0 20 -16 10 -16 0 C -16 -9 -10 -16 0 -16 Z" fill="#1E4A3A"/>
+          <text x="0" y="2" text-anchor="middle" font-size="10" font-weight="800" fill="#F7F2E6">4</text>
+        </g>
+        <text x="178" y="112" font-size="9" font-weight="800" fill="#1E4A3A">Camperdown Cemetery</text>
+
+        <!-- current position: Jaunty's head with cap -->
+        <g transform="translate(165,375)">
+          <circle r="15" fill="#1E4A3A"/>
+          <path d="M -9 -8 A 10 6 0 0 1 9 -8 L 9 -12 A 11 7 0 0 0 -9 -12 Z" fill="#E7B99A"/>
+          <circle cx="-4.5" cy="1.5" r="1.7" fill="#F7F2E6"/>
+          <circle cx="4.5" cy="1.5" r="1.7" fill="#F7F2E6"/>
+        </g>
+        <text x="165" y="402" text-anchor="middle" font-size="9" font-weight="800" fill="#1E4A3A">Start / Newtown Stn</text>
+      </svg>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="view-list-pill">View list ▲</div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

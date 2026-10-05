@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Must-Tier-Only V1 Skeleton (Discovery)</title>
+<style>
+/*
+  KEY SCREENS — MUST-TIER-ONLY V1 SKELETON (Discovery iteration, not Finalize)
+  Purpose, per task brief: show the BARE MINIMUM complete product — only the
+  FRs tagged Must in prd.md §6.1 "In Scope — V1 (course-assessed)" — with
+  EVERY Should/Could feature deliberately stripped out, so the team can see
+  the actual minimum viable path separately from the fuller vision explored
+  in the other .working/ mocks (which freely mix in Should-tier ideas like
+  Re-Jaunt, remove/replace-stop, the preference slider, live GPS, photos,
+  visited-marking, favourites, amenities, current-location, and the Quiet
+  Streets custom map styling).
+
+  MUST-TIER FRs DEPICTED (verified against prd.md §6.1 directly, not only
+  the task's own summary of it):
+    FR-1  Choose a starting point (map-tap OR named starts only)
+    FR-2  Choose available time (30-120 min)
+    FR-3  Choose a topic, OR "surprise me"
+    FR-5  Generate a proposed Route
+    FR-6  Display the proposed Route (map + stop list)
+    FR-7  Inspect stop content before approving
+    FR-8  Explicitly approve the Route
+    FR-9  Honest fallback when no suitable Route exists
+    FR-12 Stop content accessible during the walk (opening optional)
+    FR-19/FR-20 Grounded AI content with visible source attribution
+  Plus the cross-cutting Musts that aren't a single screen: Newtown as the
+  tested Pilot Area (all map content below is Newtown), and the privacy/
+  no-account NFRs (no login anywhere in this flow).
+
+  EXPLICITLY EXCLUDED — EVERY ONE OF THESE SHOULD/COULD ITEMS IS ABSENT, NOT
+  JUST UNSTYLED (cross-checked screen by screen below):
+    - FR-24 current-location button          -> absent from Screen 1
+    - FR-4  landmark/hidden-gem slider        -> absent from Screen 3
+    - FR-23 background amenities layer        -> absent from Screen 5 map
+    - FR-10 Re-Jaunt button                   -> absent from Screen 5 (one
+                                                  button only: "Approve")
+    - FR-11 remove/replace a stop              -> absent from Screen 5 list
+              (no per-row "x", no swap affordance)
+    - the confirmation bottom sheet            -> absent; Screen 3's action
+      ("Ready for your X Jaunt?")                goes straight to Screen 4
+                                                  Loading. Not a named FR —
+                                                  a UX nicety cut here.
+    - FR-14 live position / map-following      -> absent from Screen 6; the
+                                                  walking map shows only the
+                                                  static approved route/stops,
+                                                  no position dot/marker at all
+    - FR-13 mark-visited checkbox              -> absent from Screen 6 overlay
+    - FR-16 AI walk summary                    -> no such screen exists here
+    - FR-17/FR-18 favourites / visit history    -> no heart icon, no history,
+                                                  no repeat-use variety shown
+    - FR-22 stop photos                        -> no photo/thumbnail anywhere
+              (Screen 5 list and Screen 6 overlay are text + attribution only)
+    - hamburger menu / "End Jaunt" ceremony     -> absent; Screen 6 is just
+                                                  the map + a dismissible stop
+                                                  overlay, nothing else. No
+                                                  invented Must-tier ending —
+                                                  the PRD does not require one
+                                                  beyond the walk being
+                                                  walkable (FR-12).
+    - "Quiet Streets" custom map illustration   -> every map below uses a
+      (tree clusters, muted building blocks,      plain grey-road-on-cream
+       bounded park polygons, canal ribbons)       treatment close to what
+                                                    default Leaflet/OSM tiles
+                                                    can render today, per
+                                                    PRD Open Question 19.
+
+  ---------------------------------------------------------------------------
+  HARD RULE COMPLIANCE — JARROD IS ALWAYS A REAL CROP, NEVER HAND-DRAWN
+  ---------------------------------------------------------------------------
+  Every appearance of the character below reuses crop math ALREADY measured
+  with Pillow and visually verified (by rendered screenshot) in three prior
+  files in this same .working/ directory — no new coordinates were guessed
+  for this file:
+    - .jaunty-wave-sm / .jaunty-wave-md  <- key-trip-setup-opening.html
+    - .jaunty-wave (168px) / .jaunty-icon <- key-topic-selection-v4.html
+    - .jaunty-walk-loading / .jaunty-notice <- key-generate-review-fallback.html
+  All crop from the same real, transparent, eyes-already-baked-in source:
+    imports/jaunty-mascot-sheet-v2-eyes-transparent.png (1536x1024 RGBA,
+    confirmed via Pillow in the files above). Internally the file/asset
+    names still say "jaunty" (renamed to "Jarrod" 2026-10-03, per memlog
+    #82) — that's expected, filenames weren't required to change. This
+    file's own render was checked with a headless-Chromium screenshot
+    before being reported done (see verification note at end of file).
+
+  Full hex palette — all inherited, no new values introduced:
+    --paper:      #FAFAF8   page background (outside phone frames)
+    --ink:        #16302A   primary text
+    --ink-soft:   #5C6D64   secondary text
+    --screen-bg:  #F6F4EC   phone screen background, warm cream
+    --forest:     #1E4A3A   brand dark forest green (route, primary actions)
+    --sage:       #AFC29A   brand secondary green
+    --pill-bg:    #EDEAE2   unselected chip/pill fill
+    --sheet-bg:   #FFFFFF   card surfaces
+    --road:       #E7E5DD   PLAIN simplified road color (new use of an
+                             existing-family neutral, not a new illustrated
+                             palette — intentionally flatter/greyer than the
+                             Quiet Streets road colors used elsewhere)
+    --map-bg:     #EFEEE7   PLAIN simplified map canvas (flatter than the
+                             Quiet Streets --screen-bg to read as a generic
+                             basemap, not a designed scene)
+
+  DRAFT COPY — NOT LOCKED: all stop names/descriptions/content snippets
+  below are illustrative placeholder copy for layout purposes, same status
+  as every other .working/ mock — not verified real catalogue/AI output.
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 0 16px 80px;
+  color: #16302A;
+}
+
+/* ===================== Must-tier-only scope banner ===================== */
+.scope-banner {
+  width: 100%;
+  max-width: 1040px;
+  background: #16302A;
+  color: #F6F4EC;
+  border-radius: 0 0 18px 18px;
+  padding: 22px 26px 24px;
+  margin-bottom: 4px;
+}
+.scope-banner .eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #E0A23B;
+  margin-bottom: 8px;
+}
+.scope-banner h1 {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+}
+.scope-banner p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #D7E0D7;
+  max-width: 760px;
+}
+.scope-banner .excluded-head {
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #F0C27B;
+  margin: 14px 0 6px;
+}
+.excluded-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 4px 20px;
+  max-width: 920px;
+}
+.excluded-grid div {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #C8D2C6;
+}
+.excluded-grid div b { color: #F6F4EC; font-weight: 700; }
+.scope-banner .footnote {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: #9FAE9C;
+  font-style: italic;
+}
+
+.heading { max-width: 760px; text-align: center; }
+.heading h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 6px; }
+.heading p { font-size: 12.5px; line-height: 1.5; color: #5C6D64; }
+
+.row { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 280px; }
+.phone-col .label { font-size: 11.5px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; text-align: center; }
+.phone-col .caption { max-width: 270px; text-align: center; font-size: 11px; color: #5C6D64; line-height: 1.5; }
+
+.phone {
+  width: 280px;
+  height: 574px;
+  background: #16302A;
+  border-radius: 40px;
+  padding: 10px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 30px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 14px 16px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F6F4EC;
+  z-index: 4;
+}
+.header .back { font-size: 18px; color: #16302A; width: 20px; }
+.header .spacer { width: 20px; }
+.header .title { font-size: 12.5px; font-weight: 700; text-align: center; }
+.header .title .sub { display: block; font-size: 9.5px; font-weight: 500; color: #5C6D64; margin-top: 1px; }
+.recap {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5C6D64;
+  background: #EDEAE2;
+  padding: 4px 11px;
+  border-radius: 14px;
+}
+.time-pill {
+  background: #1E4A3A;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 16px;
+}
+
+/* ---- Jarrod: real PNG crops only, same sheet, reused crop math ---- */
+.jaunty {
+  background-image: url('../imports/jaunty-mascot-sheet-v2-eyes-transparent.png');
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+}
+/* wave pose, 78px — small map overlay (Screen 1), scaled from the verified
+   84px base in key-trip-setup-opening.html by 78/84 = 0.9286 (uniform) */
+.jaunty-wave-sm {
+  width: 78px;
+  height: 82.36px;
+  background-size: 371.09px 247.39px;
+  background-position: -147.15px -4.85px;
+}
+/* wave pose, 140px — persistent figure (Screen 2), scaled from the verified
+   150px base in key-trip-setup-opening.html by 140/150 = 0.9333 */
+.jaunty-wave-md {
+  width: 140px;
+  height: 147.81px;
+  background-size: 666.05px 444.03px;
+  background-position: -264.11px -8.70px;
+}
+/* wave pose, 150px — main greeting (Screen 3), scaled from the verified
+   168px base in key-topic-selection-v4.html by 150/168 = 0.8929 */
+.jaunty-wave {
+  width: 150px;
+  height: 158.37px;
+  background-size: 713.63px 475.75px;
+  background-position: -282.97px -9.32px;
+}
+/* fist-up/excited pose, 26px — small icon on the Surprise-me button,
+   scaled from the verified 30px base in key-topic-selection-v4.html by
+   26/30 = 0.8667 */
+.jaunty-icon {
+  width: 26px;
+  height: 31.13px;
+  background-size: 127.11px 84.73px;
+  background-position: -12.90px -26.30px;
+}
+/* plain walk pose, 104px — Loading screen walker, scaled from the verified
+   120px base in key-generate-review-fallback.html by 104/120 = 0.8667 */
+.jaunty-walk-loading {
+  width: 104px;
+  height: 97.88px;
+  background-size: 522.04px 348.03px;
+  background-position: -63.55px -18.01px;
+}
+/* Patch (2026-10-03): swapped the rotated "notice" pose workaround for the
+   user's genuine dedicated sad pose (imports/jaunty-sad-transparent.png),
+   same fix as key-generate-review-fallback.html. Standalone image, not a
+   sprite-sheet cell — overrides .jaunty's background-image directly. Scaled
+   to match this file's 130px-base sizing convention (132x153, ~0.867x the
+   152x177 size used in key-generate-review-fallback.html). */
+.jaunty-notice {
+  width: 132px;
+  height: 153px;
+  background-image: url('../imports/jaunty-sad-transparent.png');
+  background-size: 132px 153px;
+  background-position: 0 0;
+}
+
+/* ===================== 1. STARTING POINT ===================== */
+.map-wrap { flex: 1; position: relative; background: #EFEEE7; overflow: hidden; }
+.map-wrap > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.street-label { font-size: 7px; fill: #9AA093; font-weight: 600; }
+.pilot-label { font-size: 7px; fill: #9AA093; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+
+.jaunty-overlay {
+  position: absolute;
+  top: 12px; left: 14px; right: 14px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.jaunty-overlay .bubble {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 14px;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.25);
+  margin-top: 6px;
+  max-width: 150px;
+  line-height: 1.35;
+}
+
+.start-panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: #FFFFFF;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 30px rgba(22,48,42,0.18);
+  padding: 13px 16px 18px;
+  z-index: 3;
+}
+.start-panel .panel-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #5C6D64;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.chip-scroll {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 1px 1px 2px;
+  scrollbar-width: none;
+}
+.chip-scroll::-webkit-scrollbar { display: none; }
+.start-chip {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 8px 13px;
+  border-radius: 15px;
+  background: #EDEAE2;
+  color: #16302A;
+  white-space: nowrap;
+}
+.start-hint {
+  margin-top: 10px;
+  font-size: 10px;
+  color: #8C9284;
+  text-align: center;
+}
+
+/* ===================== 2. AVAILABLE TIME ===================== */
+.content-time {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 10px 22px 26px;
+}
+.jaunty-greet { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.bubble-main {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 15px;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.18);
+}
+.picker-card {
+  width: 100%;
+  background: #FFFFFF;
+  border-radius: 22px;
+  padding: 9px 0 13px;
+  box-shadow: 0 6px 20px -10px rgba(22,48,42,0.15);
+}
+.picker-wrap {
+  position: relative;
+  height: 165px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.picker-highlight {
+  position: absolute;
+  left: 13px; right: 13px; top: 50%;
+  transform: translateY(-50%);
+  height: 46px;
+  background: #EDEAE2;
+  border-radius: 13px;
+  z-index: 0;
+}
+.picker-list { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 13px; }
+.picker-row { font-size: 14px; font-weight: 600; color: #B7BDAE; }
+.picker-row.near { color: #8C9284; font-size: 15px; }
+.picker-row.selected {
+  font-size: 25px; font-weight: 800; color: #1E4A3A;
+  display: flex; align-items: baseline; gap: 5px;
+}
+.picker-row.selected .unit { font-size: 12px; font-weight: 700; color: #5C6D64; }
+.picker-range-note { text-align: center; font-size: 10px; color: #8C9284; font-weight: 600; margin-top: 2px; }
+
+.continue-btn {
+  width: 100%; text-align: center;
+  background: #1E4A3A; color: #F6F4EC;
+  font-size: 12.5px; font-weight: 700;
+  padding: 13px 8px; border-radius: 17px;
+}
+
+/* ===================== 3. TOPIC / SURPRISE-ME ===================== */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 6px 20px 24px;
+}
+.scroller-wrap { width: 100%; }
+.scroller-label { font-size: 10px; font-weight: 700; color: #5C6D64; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.topic-scroll { display: flex; gap: 7px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; }
+.topic-scroll::-webkit-scrollbar { display: none; }
+.topic-pill {
+  flex-shrink: 0; font-size: 11.5px; font-weight: 700;
+  padding: 9px 14px; border-radius: 15px;
+  background: #EDEAE2; color: #16302A; white-space: nowrap;
+}
+.topic-pill.selected { background: #1E4A3A; color: #F6F4EC; }
+.or-divider { font-size: 10.5px; font-weight: 700; color: #8C9284; text-transform: uppercase; letter-spacing: 0.06em; }
+.surprise-btn {
+  width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  background: #AFC29A; color: #16302A;
+  font-size: 12px; font-weight: 700;
+  padding: 11px 8px; border-radius: 16px;
+}
+.cta-btn.primary {
+  width: 100%; text-align: center;
+  background: #1E4A3A; color: #F6F4EC;
+  font-size: 12.5px; font-weight: 700;
+  padding: 13px 8px; border-radius: 17px;
+  margin-top: 4px;
+}
+
+/* ===================== 4. LOADING ===================== */
+.loading-screen {
+  flex: 1; position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; background: #F6F4EC;
+}
+.scenery-wrap { width: 100%; height: 175px; position: relative; overflow: hidden; }
+.scenery-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.walker {
+  position: absolute; left: 50%; bottom: 44px; margin-left: -52px;
+  animation: walk-across 4.6s ease-in-out infinite alternate;
+}
+@keyframes walk-across { 0% { transform: translateX(-30px); } 100% { transform: translateX(30px); } }
+.loading-text { text-align: center; }
+.loading-text .headline { font-size: 14px; font-weight: 700; }
+
+/* ===================== 5 & 6. SIMPLE PLAIN MAP (shared) =====================
+   Deliberately flat/plain: a light cream canvas, thin uniform grey road
+   lines, no colored building blocks, no park/tree illustration, no water
+   ribbon — closer to a default Leaflet/OSM tile than the Quiet Streets
+   mocks' custom illustration treatment (see PRD Open Question 19). */
+.plain-map-wrap { flex: 1; position: relative; background: #EFEEE7; min-height: 0; }
+.plain-map-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.stop-panel {
+  background: #FFFFFF;
+  border-top: 1px solid #E7E3D5;
+  padding: 12px 16px 14px;
+  flex-shrink: 0;
+}
+.stop-panel h2 { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.stop-panel .meta { font-size: 10.5px; color: #5C6D64; margin-bottom: 8px; }
+.stop-list-simple { max-height: 168px; overflow-y: auto; }
+.stop-row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-bottom: 1px solid #F0EDE2; }
+.stop-row:last-child { border-bottom: none; }
+.stop-num {
+  width: 20px; height: 20px; border-radius: 50%; background: #1E4A3A; color: #fff;
+  font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.stop-row.start .stop-num { background: #AFC29A; color: #16302A; }
+.stop-info { flex: 1; min-width: 0; }
+.stop-info .name { font-size: 12px; font-weight: 700; }
+.stop-info .desc { font-size: 10px; color: #5C6D64; margin-top: 1px; line-height: 1.3; }
+.stop-info .walk { font-size: 9px; color: #8C9284; margin-top: 1px; }
+
+.approve-btn {
+  margin-top: 10px;
+  width: 100%; text-align: center;
+  background: #1E4A3A; color: #F6F4EC;
+  font-size: 13px; font-weight: 700;
+  padding: 13px 8px; border-radius: 17px;
+}
+
+/* ===================== 6. STOP CONTENT OVERLAY ===================== */
+.walk-screen { flex: 1; position: relative; min-height: 0; }
+.walk-dim {
+  position: absolute; inset: 0;
+  background: rgba(22, 48, 42, 0.38);
+  z-index: 5;
+}
+.stop-overlay {
+  position: absolute; left: 10px; right: 10px; bottom: 10px;
+  background: #FFFFFF;
+  border-radius: 18px;
+  box-shadow: 0 -8px 26px rgba(22,48,42,0.22);
+  padding: 14px 16px 16px;
+  z-index: 6;
+}
+.stop-overlay .close-row { display: flex; justify-content: flex-end; margin-bottom: 2px; }
+.stop-overlay .close-x {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #F0EDE2; color: #5C6D64;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.stop-overlay h3 { font-size: 14px; font-weight: 700; margin-bottom: 7px; }
+.stop-overlay .body-text { font-size: 11.5px; line-height: 1.5; color: #30403A; margin-bottom: 10px; }
+.stop-overlay .source-row {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 9.5px; color: #8C9284; font-weight: 600;
+  border-top: 1px solid #F0EDE2; padding-top: 8px;
+}
+.stop-overlay .source-row .src-icon {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #EDEAE2; color: #5C6D64;
+  font-size: 8px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.illustrative-tag {
+  position: absolute; top: 8px; left: 10px; z-index: 6;
+  font-size: 8px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  background: #FFF3DD; color: #8A5A1E;
+  padding: 3px 7px; border-radius: 8px;
+}
+
+/* ===================== 7. HONEST FALLBACK ===================== */
+.fallback-content {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px; padding: 10px 22px 28px; text-align: center;
+}
+.notice-wrap { display: inline-block; } /* patch 2026-10-03: real sad pose, no rotation needed */
+.fallback-copy { font-size: 13.5px; font-weight: 700; line-height: 1.5; max-width: 220px; }
+.fallback-sub { font-size: 11px; color: #5C6D64; margin-top: -6px; }
+.alt-row { display: flex; gap: 9px; width: 100%; }
+.alt-chip {
+  flex: 1; font-size: 11.5px; font-weight: 700;
+  padding: 11px 7px; border-radius: 15px;
+  background: #EDEAE2; color: #16302A; text-align: center;
+}
+.back-link { font-size: 11px; font-weight: 600; color: #8C9284; text-decoration: underline; text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<div class="scope-banner">
+  <div class="eyebrow">Must-tier-only skeleton — not the full design direction</div>
+  <h1>This is the bare minimum complete Jaunt — Must-tier V1 scope only</h1>
+  <p>Every screen below shows ONLY what prd.md §6.1 "In Scope — V1 (course-assessed)" marks <b>Must</b>. Nothing here depicts a Should or Could feature, even ones already explored and approved-looking in this project's other mocks. Treat this file as the real minimum the course deadline requires — not as a replacement for the fuller-vision mocks, and not as evidence those Should-tier ideas are optional to abandon.</p>
+  <div class="excluded-head">Deliberately excluded from every screen below</div>
+  <div class="excluded-grid">
+    <div><b>FR-24</b> current-location button</div>
+    <div><b>FR-4</b> landmark/hidden-gem preference slider</div>
+    <div><b>FR-23</b> background amenities map layer</div>
+    <div><b>FR-10</b> Re-Jaunt button</div>
+    <div><b>FR-11</b> remove/replace a stop</div>
+    <div>confirmation bottom sheet (UX nicety, not an FR)</div>
+    <div><b>FR-14</b> live position / map-following</div>
+    <div><b>FR-13</b> mark-visited checkbox</div>
+    <div><b>FR-16</b> AI-generated walk summary</div>
+    <div><b>FR-17 / FR-18</b> favourites &amp; visit history</div>
+    <div><b>FR-22</b> stop photos</div>
+    <div>hamburger menu / "End Jaunt" ceremony</div>
+    <div>"Quiet Streets" custom illustrated map styling</div>
+  </div>
+  <div class="footnote">Character still appears for warmth, but only sparingly — his role here is intentionally minimal, consistent with this being the lean version, not the full-featured one.</div>
+</div>
+
+<div class="heading">
+  <h2>7 screens, start to finish, Must-tier only</h2>
+  <p>Starting point → time → topic/surprise-me → loading → Route Review (map + list + one Approve button) → stop content during the walk (simple, dismissible overlay) → the honest fallback when no route fits. Jarrod is a real cropped PNG region in every appearance (crop math reused and scaled from already Pillow-verified values in key-trip-setup-opening.html / key-topic-selection-v4.html / key-generate-review-fallback.html) — never hand-drawn.</p>
+</div>
+
+<div class="row">
+
+  <!-- ============== SCREEN 1: STARTING POINT (FR-1) ============== -->
+  <div class="phone-col">
+    <div class="label">1 · Starting point</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="spacer"></div>
+          <div class="title">Start your Jaunt</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="map-wrap">
+          <svg viewBox="0 0 280 420" preserveAspectRatio="xMidYMid slice">
+            <rect width="280" height="420" fill="#EFEEE7"/>
+            <g stroke="#E7E5DD" stroke-width="5" stroke-linecap="round">
+              <line x1="0" y1="60" x2="280" y2="60"/>
+              <line x1="0" y1="140" x2="280" y2="140"/>
+              <line x1="0" y1="225" x2="280" y2="225"/>
+              <line x1="0" y1="310" x2="280" y2="310"/>
+              <line x1="0" y1="375" x2="280" y2="375"/>
+              <line x1="42" y1="0" x2="42" y2="420"/>
+              <line x1="112" y1="0" x2="112" y2="420"/>
+              <line x1="190" y1="0" x2="190" y2="420"/>
+              <line x1="250" y1="0" x2="250" y2="420"/>
+            </g>
+            <line x1="0" y1="400" x2="280" y2="30" stroke="#DED9C8" stroke-width="7" stroke-linecap="round"/>
+
+            <text class="street-label" x="150" y="210" transform="rotate(-37 150 210)">King St</text>
+            <text class="street-label" x="8" y="178">Church St</text>
+
+            <rect x="6" y="6" width="268" height="408" rx="16" fill="none" stroke="#B9BDB0" stroke-width="1.2" stroke-dasharray="4 5" opacity="0.6"/>
+            <text class="pilot-label" x="140" y="410" text-anchor="middle">Newtown pilot area</text>
+
+            <!-- plain generic pin markers for named-start spots (pictogram, not the character) -->
+            <g fill="#1E4A3A">
+              <path d="M 90 218 C 90 203, 106 203, 106 218 C 106 229, 98 238, 98 238 C 98 238, 90 229, 90 218 Z"/>
+              <circle cx="98" cy="217" r="4" fill="#EFEEE7"/>
+            </g>
+            <g fill="#1E4A3A">
+              <path d="M 140 278 C 140 263, 156 263, 156 278 C 156 289, 148 298, 148 298 C 148 298, 140 289, 140 278 Z"/>
+              <circle cx="148" cy="277" r="4" fill="#EFEEE7"/>
+            </g>
+          </svg>
+
+          <div class="jaunty-overlay">
+            <div class="jaunty jaunty-wave-sm"></div>
+            <div class="bubble">Where are we jaunting from?</div>
+          </div>
+
+          <div class="start-panel">
+            <div class="panel-label">Tap the map, or pick a spot</div>
+            <div class="chip-scroll">
+              <div class="start-chip">Newtown Station</div>
+              <div class="start-chip">King St</div>
+              <div class="start-chip">Camperdown Park</div>
+            </div>
+            <div class="start-hint">A tap outside Newtown is rejected with a clear message.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">FR-1 only: map-tap or a named start. No "use my current location" button (FR-24, Should) anywhere on this screen.</div>
+  </div>
+
+  <!-- ============== SCREEN 2: AVAILABLE TIME (FR-2) ============== -->
+  <div class="phone-col">
+    <div class="label">2 · Available time</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown Station</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content-time">
+          <div class="jaunty-greet">
+            <div class="jaunty jaunty-wave-md"></div>
+            <div class="bubble-main">How much time have you got?</div>
+          </div>
+
+          <div class="picker-card">
+            <div class="picker-wrap">
+              <div class="picker-highlight"></div>
+              <div class="picker-list">
+                <div class="picker-row">50</div>
+                <div class="picker-row near">55</div>
+                <div class="picker-row selected">60<span class="unit">min</span></div>
+                <div class="picker-row near">65</div>
+                <div class="picker-row">70</div>
+              </div>
+            </div>
+            <div class="picker-range-note">Swipe to adjust · 30–120 min</div>
+          </div>
+
+          <div class="continue-btn">Continue</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">FR-2 only: a single time value, 30-120 min range. Nothing else on this screen is Should/Could.</div>
+  </div>
+
+  <!-- ============== SCREEN 3: TOPIC / SURPRISE-ME (FR-3) ============== -->
+  <div class="phone-col">
+    <div class="label">3 · Topic or Wild Jaunt</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content">
+          <div class="jaunty-greet">
+            <div class="jaunty jaunty-wave"></div>
+            <div class="bubble-main">A topic in mind, or feeling spontaneous?</div>
+          </div>
+
+          <div class="scroller-wrap">
+            <div class="scroller-label">Swipe to pick one</div>
+            <div class="topic-scroll">
+              <div class="topic-pill selected">History</div>
+              <div class="topic-pill">Architecture</div>
+              <div class="topic-pill">Public Art</div>
+              <div class="topic-pill">Heritage</div>
+            </div>
+          </div>
+
+          <div class="or-divider">or</div>
+
+          <!-- Patch: "Wild Jaunt" is a free label/branding choice, not an
+               added feature — no reason to strip it even in the Must-tier
+               skeleton. Reverted from generic "Surprise me" for consistency
+               with the locked topic-selection design. -->
+          <div class="surprise-btn">
+            <div class="jaunty jaunty-icon"></div>
+            Wild Jaunt
+          </div>
+
+          <div class="cta-btn primary">Start my History Jaunt</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">FR-3 only: one named topic or Wild Jaunt (the label, not an added feature — FR-3's underlying "surprise me" is Must-tier either way) — both lead straight to Loading, no confirmation sheet and no landmark/hidden-gem slider (FR-4, Should) in between.</div>
+  </div>
+
+  <!-- ============== SCREEN 4: LOADING (supports FR-5) ============== -->
+  <div class="phone-col">
+    <div class="label">4 · Generating the route</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="spacer"></div>
+          <div class="title">Newtown · 60 min<span class="sub">History</span></div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="loading-screen">
+          <div class="scenery-wrap">
+            <svg viewBox="0 0 280 175" preserveAspectRatio="xMidYMax slice">
+              <path d="M0,110 C50,92 90,118 140,100 C190,82 230,110 280,96 L280,175 L0,175 Z" fill="#E1E6D6"/>
+              <path d="M0,128 C60,144 110,118 170,134 C220,146 260,124 280,134 L280,175 L0,175 Z" fill="#CBD4BC"/>
+              <rect x="34" y="100" width="4" height="19" fill="#5C7A52"/>
+              <circle cx="36" cy="93" r="13" fill="#8CA27C"/>
+            </svg>
+            <div class="walker jaunty jaunty-walk-loading"></div>
+          </div>
+          <div class="loading-text">
+            <div class="headline">Concocting your jaunt&hellip;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Supports FR-5 (route generation) and FR-9 (the request that will next either succeed to Screen 5 or fail honestly to Screen 7). Generic redrawn flat scenery, not the character.</div>
+  </div>
+
+  <!-- ============== SCREEN 5: ROUTE REVIEW (FR-5/6/7/8) ============== -->
+  <div class="phone-col">
+    <div class="label">5 · Route Review</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="title">Newtown History Loop</div>
+          <div class="time-pill">52 min</div>
+        </div>
+
+        <div class="plain-map-wrap">
+          <svg viewBox="0 0 280 300" preserveAspectRatio="xMidYMid slice">
+            <rect width="280" height="300" fill="#EFEEE7"/>
+            <g stroke="#E7E5DD" stroke-width="6" stroke-linecap="round">
+              <line x1="0" y1="55" x2="280" y2="55"/>
+              <line x1="0" y1="135" x2="280" y2="135"/>
+              <line x1="0" y1="215" x2="280" y2="215"/>
+              <line x1="45" y1="0" x2="45" y2="300"/>
+              <line x1="115" y1="0" x2="115" y2="300"/>
+              <line x1="210" y1="0" x2="210" y2="300"/>
+            </g>
+            <line x1="4" y1="285" x2="270" y2="15" stroke="#DED9C8" stroke-width="8" stroke-linecap="round"/>
+
+            <text class="street-label" x="140" y="150" transform="rotate(-35 140 150)">King St</text>
+
+            <path d="M 115 215 L 115 135 L 45 135 L 45 55 L 115 55 L 210 55 L 210 215 L 115 215"
+                  fill="none" stroke="#1E4A3A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <circle cx="45" cy="135" r="10" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="45" y="139" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">1</text>
+
+            <circle cx="115" cy="55" r="10" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="115" y="59" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">2</text>
+
+            <circle cx="210" cy="55" r="10" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="210" y="59" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">3</text>
+
+            <circle cx="210" cy="215" r="10" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="210" y="219" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">4</text>
+
+            <g transform="translate(115,215)">
+              <circle r="12" fill="#1E4A3A"/>
+              <path d="M -6 -8 A 9 5 0 0 1 6 -8 L 5.5 -11 A 10 6 0 0 0 -5.5 -11 Z" fill="#AFC29A"/>
+              <circle cx="-3.5" cy="1" r="1.3" fill="#fff"/>
+              <circle cx="3.5" cy="1" r="1.3" fill="#fff"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="stop-panel">
+          <h2>Newtown History Loop</h2>
+          <div class="meta">4 stops · 1.9 km · 52 min total</div>
+          <div class="stop-list-simple">
+            <div class="stop-row start">
+              <div class="stop-num">●</div>
+              <div class="stop-info">
+                <div class="name">Newtown Station</div>
+                <div class="desc">Start &amp; finish point</div>
+              </div>
+            </div>
+            <div class="stop-row">
+              <div class="stop-num">1</div>
+              <div class="stop-info">
+                <div class="name">St Stephen's Church</div>
+                <div class="desc">Gothic sandstone church, built 1874</div>
+                <div class="walk">6 min walk</div>
+              </div>
+            </div>
+            <div class="stop-row">
+              <div class="stop-num">2</div>
+              <div class="stop-info">
+                <div class="name">King St Terraces</div>
+                <div class="desc">Row of restored Victorian terrace houses</div>
+                <div class="walk">9 min walk</div>
+              </div>
+            </div>
+            <div class="stop-row">
+              <div class="stop-num">3</div>
+              <div class="stop-info">
+                <div class="name">Mural Lane</div>
+                <div class="desc">Laneway covered in rotating street art</div>
+                <div class="walk">4 min walk</div>
+              </div>
+            </div>
+            <div class="stop-row">
+              <div class="stop-num">4</div>
+              <div class="stop-info">
+                <div class="name">Camperdown Cemetery</div>
+                <div class="desc">Colonial-era burial ground, est. 1848</div>
+                <div class="walk">11 min walk</div>
+              </div>
+            </div>
+          </div>
+          <div class="approve-btn">Approve</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">FR-6/7/8: map + full stop list, time shown, ONE button ("Approve"). No Re-Jaunt, no per-row remove, no amenities dots, no photos — plain grey-road map, not the Quiet Streets illustration.</div>
+  </div>
+
+  <!-- ============== SCREEN 6: STOP CONTENT DURING THE WALK (FR-12/19/20) ============== -->
+  <div class="phone-col">
+    <div class="label">6 · Stop content (during walk)</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="title">Newtown History Loop<span class="sub">Stop 1 of 4</span></div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="walk-screen">
+          <svg viewBox="0 0 280 420" preserveAspectRatio="xMidYMid slice" style="position:absolute; inset:0; width:100%; height:100%;">
+            <rect width="280" height="420" fill="#EFEEE7"/>
+            <g stroke="#E7E5DD" stroke-width="6" stroke-linecap="round">
+              <line x1="0" y1="80" x2="280" y2="80"/>
+              <line x1="0" y1="190" x2="280" y2="190"/>
+              <line x1="0" y1="300" x2="280" y2="300"/>
+              <line x1="55" y1="0" x2="55" y2="420"/>
+              <line x1="150" y1="0" x2="150" y2="420"/>
+              <line x1="230" y1="0" x2="230" y2="420"/>
+            </g>
+            <!-- static approved route + stop markers only — no live position
+                 marker/dot of any kind (FR-14, Should, is absent) -->
+            <path d="M 150 300 L 150 190 L 55 190 L 55 80 L 150 80 L 230 80 L 230 300 L 150 300"
+                  fill="none" stroke="#1E4A3A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="55" cy="190" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="55" y="194" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">1</text>
+            <circle cx="150" cy="80" r="10" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="150" y="84" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">2</text>
+            <circle cx="230" cy="80" r="10" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="230" y="84" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">3</text>
+            <circle cx="230" cy="300" r="10" fill="#1E4A3A" stroke="#AFC29A" stroke-width="2.5"/>
+            <text x="230" y="304" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">4</text>
+          </svg>
+
+          <div class="illustrative-tag">Illustrative content</div>
+          <div class="walk-dim"></div>
+
+          <div class="stop-overlay">
+            <div class="close-row"><div class="close-x">✕</div></div>
+            <h3>St Stephen's Church</h3>
+            <div class="body-text">Built in 1874, this Gothic sandstone church was one of Newtown's first permanent places of worship — its spire was, for decades, the tallest point for miles around and a landmark for travellers approaching from the city.</div>
+            <div class="source-row">
+              <div class="src-icon">S</div>
+              Source: NSW Heritage register
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">FR-12/19/20: content is optional to open, dismissible (✕), with visible source attribution. No visited checkbox (FR-13), no photo (FR-22), no live position marker, no menu/"End Jaunt" ceremony.</div>
+  </div>
+
+  <!-- ============== SCREEN 7: HONEST FALLBACK (FR-9) ============== -->
+  <div class="phone-col">
+    <div class="label">7 · No suitable route</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="title">Newtown · 30 min<span class="sub">History</span></div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="fallback-content">
+          <div class="notice-wrap jaunty jaunty-notice"></div>
+          <div>
+            <div class="fallback-copy">Jarrod couldn't quite make a 30‑minute History walk work from here.</div>
+            <div class="fallback-sub">Here's what might work instead:</div>
+          </div>
+          <div class="alt-row">
+            <div class="alt-chip">Try 45 minutes</div>
+            <div class="alt-chip">Try a different topic</div>
+          </div>
+          <div class="back-link">‹ Back to change my inputs</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">FR-9 only: honest message, a concrete alternative when one exists, and always a way back. Genuine dedicated sad pose (user-created, 2026-10-03), not a rotated/repurposed pose.</div>
+  </div>
+
+</div>
+
+</body>
+</html>

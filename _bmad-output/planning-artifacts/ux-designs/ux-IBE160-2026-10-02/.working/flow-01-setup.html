@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Flow 01: Setup (Splash → Starting Point → Time → Topic → Confirm)</title>
+<style>
+/*
+  FLOW 01 — SETUP: ONE CONSOLIDATED, DEFINITIVE SEQUENCE
+  ---------------------------------------------------------------------------
+  This file replaces no existing file (nothing in .working/ is deleted or
+  edited) — it is a single new consolidation of six already-decided screens,
+  assembled per direct task brief after reading .memlog.md in full:
+
+    1. Launch splash           (key-launch-splash.html, WITH a targeted fix)
+    2. Trip Setup — starting point   (key-trip-setup-opening.html, Screen 1)
+    3. Trip Setup — available time   (key-trip-setup-opening.html, Screen 2)
+    4. Topic selection — at rest     (key-topic-selection-v4.html, Screen 1)
+    5. Topic selection — Choose Topic page (key-topic-selection-v4.html, Screen 2)
+    6. Confirmation bottom sheet      (key-topic-selection-v4.html, 3rd frame)
+
+  Screens 2-6 are reproduced byte-for-byte in structure/markup/values from
+  their already-approved source files — nothing about their content,
+  copy, layout, or component sizing was changed. "Wild Jaunt" wording is
+  reused verbatim (locked per memlog #27/#53 — never "Surprise me").
+
+  ---------------------------------------------------------------------------
+  SPLASH FIX (the one real change in this file vs. key-launch-splash.html)
+  ---------------------------------------------------------------------------
+  Per direct correction: the previous splash's looping element was Jarrod
+  alone (isolated character crop) doing the tilt/jump idle animation, plus a
+  small separate cropped-logo badge persisting at the bottom of Phase 2.
+  Corrected here:
+    - The big looping/bouncing/jumping element is now the FULL "JAUNT"
+      wordmark itself — a crop of imports/jaunt-logo.png isolating just the
+      lettering band, not the isolated "JA" character crop.
+    - The small bottom logo badge is REMOVED entirely (redundant once the
+      big wordmark already carries brand identity through the loop).
+    - Jarrod does not appear anywhere in this splash screen as a result —
+      he reappears, as a real crop, starting on Screen 2 (Trip Setup).
+    - Everything else about the splash is unchanged: Phase 1's full,
+      unmodified logo reveal; the hillside parallax background (same two
+      layers, same hex values, same drift speeds); the overall timing
+      (3.2s reveal+crossfade, then a 4.8s idle/jump loop starting at t=3.2s).
+
+  Wordmark crop derivation (Pillow, this session — re-verified, not just
+  reused from memory): scanned imports/jaunt-logo.png (confirmed RGB,
+  1774x887) for pixels within distance 50 of the brand forest green
+  #1E4A3A. Measured tight bbox of the "JAUNT" lettering alone (the only
+  dark-forest-green content in the image — the hillside/tree/house below
+  are sage/light tones, so this scan cleanly isolates just the wordmark):
+  x 351-1401, y 178-662 — matches (within 1px rounding) the same bbox this
+  project's own key-launch-splash.html already computed and padded to a
+  clean rectangle for its (now-removed) mini-badge: (310,128)-(1441,722),
+  a 1131x594 crop. That established, already-verified padded rectangle is
+  reused directly here (not re-derived), now as the file's one deliberately
+  LARGE looping element rather than a small badge. A standalone crop
+  preview was rendered and visually checked before wiring in the CSS below
+  — confirmed clean: no tree, no house, no bottom hillside mass included,
+  just the wordmark sitting on its thin hill line exactly as abundant in
+  the source art.
+  Scaling math (same background-size/-position linear-factor technique used
+  for every crop in this project — crop aspect ratio 1131:594 preserved,
+  nothing stretched), at this file's chosen display width of 230px:
+    factor = 230/1131 = 0.20336...
+    .wordmark-crop (230px wide):
+      background-size:     360.76px 180.38px   (1774*factor, 887*factor)
+      background-position: -63.04px -26.03px   (-310*factor, -128*factor)
+      display height:      120.8px             (594*factor)
+  This is a real RGB crop (the source PNG has no alpha channel — confirmed
+  via Pillow), so the crop rectangle includes real background pixels
+  (near-white sky, sage hill sliver) exactly as seen in the source image —
+  the same technique already used and approved for the prior mini-badge,
+  just applied at a larger display size.
+
+  Jarrod's established crop coordinates (wave pose, from
+  key-trip-setup-opening.html / key-topic-selection-v4.html) are reused
+  verbatim and unscaled for Screens 2-6 below — no bbox was re-derived for
+  any Jarrod appearance in this file, per the hard rule that every Jarrod
+  appearance is a crop of imports/jaunty-mascot-sheet-v2-eyes-transparent.png
+  using already-measured, already-verified coordinates.
+
+  ---------------------------------------------------------------------------
+  Palette — entirely inherited, no new hex values introduced anywhere below:
+    --paper:     #FAFAF8   page background (outside phone frames)
+    --ink:       #16302A   primary text / warm ink
+    --ink-soft:  #5C6D64   secondary / understated text
+    --ink-faint: #8C9284   tertiary text / captions
+    --screen-bg: #F6F4EC   phone screen background, warm cream
+    --logo-bg:   #FDFEFA   real sampled corner color of jaunt-logo.png
+    --sage:      #AFC29A   secondary brand green
+    --sage-lt:   #CBDAB9   back hill (lighter, for parallax depth)
+    --forest:    #1E4A3A   primary brand green — route/primary actions/text
+    --tree-dk:   #5C7A52   tree/bush canopy, deeper green
+    --tree-lt:   #93AE80   tree/bush canopy, lighter green
+    --house:     #DCE6D0   house wall fill
+    --pill-bg:   #EDEAE2   unselected chip/pill fill
+    --sheet-bg:  #FFFFFF   card/bubble/sheet surfaces
+    --road-main: #E3DED0   arterial road fill (King St)
+    --block:     #E7E1D2   building block fill
+    --water:     #A6C2C6   canal fill
+    --handle:    #DDD8C8   sheet drag handle
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 80px;
+  color: #16302A;
+}
+.heading { max-width: 760px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #5C6D64; }
+
+.row { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.phone-col .label { font-size: 12px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; text-align: center; }
+.phone-col .caption { font-size: 11px; color: #5C6D64; max-width: 260px; text-align: center; line-height: 1.45; }
+
+.phone {
+  width: 280px;
+  height: 574px;
+  background: #16302A;
+  border-radius: 40px;
+  padding: 10px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 30px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===================== SHARED CHROME (header / recap / jaunty) ===================== */
+.header {
+  padding: 15px 17px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F6F4EC;
+  z-index: 4;
+}
+.header .back { font-size: 19px; color: #16302A; width: 22px; }
+.header .spacer { width: 22px; }
+.header .title { font-size: 13.5px; font-weight: 700; text-align: center; }
+.recap {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #5C6D64;
+  background: #EDEAE2;
+  padding: 5px 12px;
+  border-radius: 14px;
+  letter-spacing: 0.01em;
+}
+
+/* ---- Jarrod: real PNG crops, same sheet, scaled per on-screen size ----
+   Class names say "jaunty" (internal asset/class naming only, kept from
+   the original files per this project's established convention — the
+   character was renamed Jaunty->Jarrod 2026-10-03, filenames/classes were
+   explicitly left unchanged). Every size below is an already-established,
+   already-verified crop from the two source files — none re-derived here. */
+.jaunty {
+  background-image: url('../imports/jaunty-mascot-sheet-v2-eyes-transparent.png');
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+  /* z-index:1 here is load-bearing even though .jaunty is not itself
+     position:absolute: flexbox gives z-index effect to flex items even at
+     position:static. This ensures Jarrod always paints above
+     .jaunty-backing (an absolutely-positioned sibling with z-index:auto)
+     on Screen 2 — carried over from key-trip-setup-opening.html, where
+     omitting it was confirmed (this session) to hide Jarrod entirely
+     behind the backing circle. */
+  z-index: 1;
+}
+/* wave pose, 84px — Screen 2 (starting point) small map overlay */
+.jaunty-wave-sm {
+  width: 84px;
+  height: 88.69px;
+  background-size: 399.63px 266.42px;
+  background-position: -158.465px -5.22px;
+}
+/* wave pose, 150px — Screen 3 (time) persistent figure */
+.jaunty-wave-md {
+  width: 150px;
+  height: 158.37px;
+  background-size: 713.63px 475.75px;
+  background-position: -282.97px -9.32px;
+}
+/* wave pose, 168px — Screen 4 (topic at rest) main greeting figure, also
+   reused unscaled on Screen 6 (confirmation sheet's dimmed background) */
+.jaunty-wave {
+  width: 168px;
+  height: 177.37px;
+  background-size: 799.26px 532.84px;
+  background-position: -316.93px -10.44px;
+}
+/* fist-up/excited pose, 30px — small icon on the Wild Jaunt button */
+.jaunty-icon {
+  width: 30px;
+  height: 35.92px;
+  background-size: 146.66px 97.77px;
+  background-position: -14.89px -30.35px;
+}
+/* plain-walk pose, 168px — Screen 5 (Choose Topic) central figure */
+.jaunty-walk-lg {
+  width: 168px;
+  height: 150.64px;
+  background-size: 754.53px 503.02px;
+  background-position: -77.61px -25.63px;
+}
+/* fist-up/excited pose, 100px — Screen 6 confirmation sheet happy pose */
+.jaunty-happy {
+  width: 100px;
+  height: 123.13px;
+  background-size: 502.75px 335.17px;
+  background-position: -52.45px -104.05px;
+}
+
+/* ===================== SCREEN 1 — LAUNCH SPLASH ===================== */
+.splash-stage { position: absolute; inset: 0; }
+
+/* ---- Phase 1: the real wordmark/logo image, shown unmodified (unchanged) ---- */
+.logo-layer {
+  position: absolute;
+  inset: 0;
+  background: #FDFEFA; /* real sampled corner color of jaunt-logo.png */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 26px;
+  animation: logoReveal 3.2s ease-in-out forwards;
+}
+.logo-layer img { width: 100%; height: auto; display: block; }
+@keyframes logoReveal {
+  0%   { opacity: 0; transform: scale(0.92); }
+  12%  { opacity: 1; transform: scale(1); }
+  68%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+/* ---- Phase 2: hillside scene + looping WORDMARK (fix applied here) ---- */
+.main-layer {
+  position: absolute;
+  inset: 0;
+  background: #F6F4EC;
+  animation: mainReveal 3.2s ease-in-out forwards;
+}
+@keyframes mainReveal {
+  0%   { opacity: 0; }
+  62%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+.scene { position: absolute; inset: 0; overflow: hidden; }
+.parallax-back, .parallax-front {
+  position: absolute;
+  left: -15%;
+  bottom: 0;
+  width: 130%;
+  height: 46%;
+}
+.parallax-back svg, .parallax-front svg { width: 100%; height: 100%; display: block; }
+.parallax-back { animation: driftBack 16s ease-in-out infinite alternate; }
+.parallax-front { animation: driftFront 11s ease-in-out infinite alternate; }
+@keyframes driftBack {
+  0%   { transform: translateX(-10px); }
+  100% { transform: translateX(10px); }
+}
+@keyframes driftFront {
+  0%   { transform: translateX(14px); }
+  100% { transform: translateX(-14px); }
+}
+
+/* Shadow beneath the wordmark — same squash/stretch-matching pulse Jarrod's
+   shadow used, resized for the wordmark's wider/flatter footprint. */
+.wordmark-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  width: 92px;
+  height: 13px;
+  margin-left: -46px;
+  background: #16302A;
+  border-radius: 50%;
+  opacity: 0.26;
+  animation: wordmarkShadowPulse 4.8s ease-in-out infinite;
+  animation-delay: 3.2s;
+}
+@keyframes wordmarkShadowPulse {
+  0%   { transform: scaleX(1);    opacity: 0.26; }
+  33%  { transform: scaleX(1);    opacity: 0.26; }
+  44%  { transform: scaleX(1.08); opacity: 0.30; }
+  54%  { transform: scaleX(0.6);  opacity: 0.13; }
+  64%  { transform: scaleX(1.15); opacity: 0.32; }
+  72%  { transform: scaleX(1);    opacity: 0.26; }
+  100% { transform: scaleX(1);    opacity: 0.26; }
+}
+
+/* FIX: this wrapper replaces the old .jarrod-wrap. It holds the cropped
+   WORDMARK (not the character) and runs the exact same idle/jump timeline
+   Jarrod used to run — same percentages, same 4.8s duration, same 3.2s
+   start delay — because it's one flat rigid image, the whole word tilts/
+   squashes/jumps together as a single unit (no attempt to animate "JA"
+   separately from "UNT" — that would need real image decomposition, out
+   of scope per the task brief). */
+.wordmark-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  margin-left: -115px; /* half of 230px display width */
+  transform-origin: 50% 100%;
+  animation: wordmarkIdle 4.8s ease-in-out infinite;
+  animation-delay: 3.2s;
+}
+@keyframes wordmarkIdle {
+  0%   { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  8%   { transform: translateY(0)    rotate(-6deg) scaleY(1);    }
+  16%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  24%  { transform: translateY(0)    rotate(6deg)  scaleY(1);    }
+  33%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  44%  { transform: translateY(4px)  rotate(0deg)  scaleY(0.90); }
+  54%  { transform: translateY(-26px) rotate(0deg) scaleY(1.08); }
+  64%  { transform: translateY(0)    rotate(0deg)  scaleY(0.90); }
+  72%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  100% { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+}
+/* Patch (post-render): the RGB crop of jaunt-logo.png had no alpha channel,
+   so a faint rectangular seam showed against the scene background at this
+   display size (flagged honestly by the render itself). Fixed by processing a
+   letters-only transparent cutout (imports/jaunt-wordmark-transparent.png —
+   same Pillow chroma-key technique used throughout this project, extended
+   to also key out the logo's sage hill tone so only the dark-green letters
+   remain, since the hill is separately provided by this screen's own
+   parallax layers). Standalone trimmed image (1052x485), not a sprite-sheet
+   crop — sized directly, no background-position math needed. */
+.wordmark-crop {
+  width: 230px;
+  height: 106px;
+  background-image: url('../imports/jaunt-wordmark-transparent.png');
+  background-repeat: no-repeat;
+  background-size: 230px 106px;
+  display: block;
+}
+/* The old .mini-wordmark badge (bottom-persistent small logo crop) and its
+   markup have been REMOVED entirely per the fix — no element below reuses
+   that class. */
+
+/* ===================== SCREEN 2 — STARTING POINT ===================== */
+.map-wrap { flex: 1; position: relative; background: #F6F4EC; overflow: hidden; }
+.map-wrap > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.street-label { font-size: 7.5px; fill: #8C9284; font-weight: 600; }
+.street-label.main { fill: #6E7A6C; font-size: 8px; }
+.pilot-label { font-size: 7.5px; fill: #8C9284; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+
+.jaunty-overlay {
+  position: absolute;
+  top: 14px; left: 15px; right: 15px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.jaunty-overlay .bubble {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 16px;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.25);
+  margin-top: 6px;
+  max-width: 158px;
+  line-height: 1.35;
+}
+/* Backing shape (bugfix, carried over unchanged): masks the map grid line /
+   dashed pilot-boundary line that would otherwise show through Jarrod's
+   crop's negative space (between legs, above head). Generic UI treatment,
+   not character art. */
+.jaunty-backing {
+  position: absolute;
+  top: -5px; left: -4px;
+  width: 92px; height: 98px;
+  background: #F6F4EC;
+  border-radius: 50%;
+  box-shadow: 0 6px 14px -6px rgba(22,48,42,0.22);
+  z-index: 0;
+}
+.pin-dot { flex-shrink: 0; }
+
+.start-panel {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: #FFFFFF;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(22,48,42,0.18);
+  padding: 14px 18px 20px;
+  z-index: 3;
+}
+.start-panel .panel-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #5C6D64;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 9px;
+}
+.chip-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 1px 1px 2px; scrollbar-width: none; margin-bottom: 10px; }
+.chip-scroll::-webkit-scrollbar { display: none; }
+.start-chip {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 16px;
+  background: #EDEAE2;
+  color: #16302A;
+  white-space: nowrap;
+}
+/* Address/place search intentionally not rendered — typed search stays
+   Post-V1 per .memlog.md; this space is reserved for it, as in the source. */
+
+/* Full-width single primary action -> matches the mandatory sizing rule
+   (padding 14px-equivalent block, border-radius 18px). */
+.locate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: #1E4A3A;
+  color: #F6F4EC;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 13px 8px;
+  border-radius: 18px;
+}
+
+/* ===================== SCREEN 3 — AVAILABLE TIME ===================== */
+.content-time {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 22px 26px;
+}
+.jaunty-greet { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.bubble-main {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.18);
+}
+.picker-card { width: 100%; background: #FFFFFF; border-radius: 24px; padding: 10px 0 14px; box-shadow: 0 6px 20px -10px rgba(22,48,42,0.15); }
+.picker-wrap { position: relative; height: 172px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.picker-highlight {
+  position: absolute; left: 14px; right: 14px; top: 50%;
+  transform: translateY(-50%);
+  height: 50px; background: #EDEAE2; border-radius: 14px; z-index: 0;
+}
+.picker-list { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+.picker-row { font-size: 15px; font-weight: 600; color: #B7BDAE; }
+.picker-row.near { color: #8C9284; font-size: 16px; }
+.picker-row.selected { font-size: 27px; font-weight: 800; color: #1E4A3A; display: flex; align-items: baseline; gap: 5px; }
+.picker-row.selected .unit { font-size: 13px; font-weight: 700; color: #5C6D64; }
+.picker-range-note { text-align: center; font-size: 10.5px; color: #8C9284; font-weight: 600; margin-top: 2px; }
+
+/* Full-width single primary action -> matches the mandatory sizing rule. */
+.continue-btn {
+  width: 100%;
+  text-align: center;
+  background: #1E4A3A;
+  color: #F6F4EC;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 14px 8px;
+  border-radius: 18px;
+}
+
+/* ===================== SCREENS 4-6 — TOPIC SELECTION ===================== */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 6px 20px 24px;
+}
+.bubble {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.18);
+}
+
+/* Two equal-weight CTAs, Screen 4 and Screen 6's dimmed background only —
+   an established approved two-button row, not a single stretched pill. */
+.cta-row { display: flex; gap: 10px; width: 100%; }
+.cta-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 13px 8px;
+  border-radius: 18px;
+  text-align: center;
+}
+.cta-btn.primary { background: #1E4A3A; color: #F6F4EC; }
+.cta-btn.secondary { background: #AFC29A; color: #16302A; }
+
+.page-title { font-size: 15px; font-weight: 700; text-align: center; margin-bottom: -6px; }
+
+.scroller-wrap { width: 100%; }
+.scroller-label { font-size: 10.5px; font-weight: 700; color: #5C6D64; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 7px; }
+.topic-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; }
+.topic-scroll::-webkit-scrollbar { display: none; }
+.topic-pill {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: #EDEAE2;
+  color: #16302A;
+  white-space: nowrap;
+}
+.topic-pill.selected { background: #1E4A3A; color: #F6F4EC; }
+
+.pref-control { width: 100%; }
+.pref-caption { font-size: 10.5px; font-weight: 700; color: #5C6D64; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; text-align: center; }
+.pref-caption .opt { font-weight: 500; text-transform: none; color: #8C9284; }
+.pref-track-wrap { position: relative; padding-top: 18px; }
+.pref-balanced-tag {
+  position: absolute; top: 0; left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px; font-weight: 700; color: #1E4A3A;
+  background: #FFFFFF; padding: 2px 8px; border-radius: 10px;
+}
+.pref-track { position: relative; height: 5px; background: #AFC29A; border-radius: 4px; }
+.pref-handle {
+  position: absolute; top: 50%; left: 50%;
+  width: 18px; height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #1E4A3A;
+  box-shadow: 0 2px 6px rgba(22,48,42,0.3);
+}
+.pref-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: #8C9284; font-weight: 600; }
+
+/* Compact auto-width pill (not stretched to full width) for the short
+   single-sentence action on Screen 5 — matches the mandatory sizing rule
+   for a short-label button exactly (inline-flex, width:auto, centered). */
+.start-jaunt-btn {
+  margin-top: 20px;
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: 78%;
+  background: #1E4A3A;
+  color: #F6F4EC;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 11px 22px;
+  border-radius: 18px;
+  text-align: center;
+}
+
+/* ---- Confirmation bottom sheet (Screen 6) ---- */
+.dim-overlay { position: absolute; inset: 0; background: rgba(22, 48, 42, 0.45); z-index: 10; }
+.confirm-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 42%;
+  background: #FFFFFF;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(22,48,42,0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 22px 16px;
+  z-index: 11;
+  gap: 6px;
+}
+.confirm-sheet .handle { width: 36px; height: 4px; background: #DDD8C8; border-radius: 4px; margin: 2px auto 0; flex-shrink: 0; }
+.confirm-sheet .jaunty-happy { margin-top: -2px; flex-shrink: 0; }
+.confirm-sheet h2 { font-size: 14.5px; font-weight: 700; text-align: center; }
+/* Full-width single primary action inside the sheet -> matches the
+   mandatory sizing rule (one clear primary action, nothing beside it). */
+.confirm-btn {
+  width: 100%;
+  background: #1E4A3A;
+  color: #F6F4EC;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px 8px;
+  border-radius: 18px;
+  text-align: center;
+}
+.dismiss-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8C9284;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Flow 01 — Setup: Splash → Starting Point → Time → Topic → Confirm</h1>
+  <p>One consolidated, definitive sequence replacing the scattered prior iterations: the launch splash (fixed so the big looping element is the full JAUNT wordmark, not an isolated Jarrod crop, and the redundant bottom badge is removed), the two Trip Setup opening screens, the two Topic Selection screens, and the "Ready for your Jaunt?" confirmation sheet. Screens 2-6 reproduce their already-approved source files exactly — same copy, same crops, same component sizing, "Wild Jaunt" wording unchanged.</p>
+</div>
+
+<div class="row">
+
+  <!-- ============== 1. LAUNCH SPLASH ============== -->
+  <div class="phone-col">
+    <div class="label">1. Launch splash</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="splash-stage">
+          <div class="logo-layer">
+            <img src="../imports/jaunt-logo.png" alt="Jaunt logo">
+          </div>
+          <div class="main-layer">
+            <div class="scene">
+              <div class="parallax-back">
+                <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMax slice">
+                  <path d="M0,130 C50,108 90,140 140,118 C190,96 230,130 300,112 L300,200 L0,200 Z" fill="#CBDAB9"/>
+                </svg>
+              </div>
+              <div class="parallax-front">
+                <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMax slice">
+                  <path d="M0,150 C60,168 110,138 170,156 C220,170 260,146 300,158 L300,200 L0,200 Z" fill="#AFC29A"/>
+                  <rect x="37" y="118" width="4" height="22" fill="#1E4A3A"/>
+                  <circle cx="39" cy="110" r="15" fill="#5C7A52"/>
+                  <circle cx="27" cy="122" r="9" fill="#93AE80"/>
+                  <ellipse cx="95" cy="142" rx="14" ry="10" fill="#93AE80"/>
+                  <ellipse cx="108" cy="146" rx="10" ry="8" fill="#5C7A52"/>
+                  <rect x="228" y="118" width="34" height="26" fill="#DCE6D0"/>
+                  <polygon points="245,98 216,118 274,118" fill="#1E4A3A"/>
+                  <rect x="240" y="128" width="10" height="16" fill="#5C7A52"/>
+                  <rect x="254" y="124" width="6" height="6" fill="#5C7A52"/>
+                  <ellipse cx="282" cy="150" rx="11" ry="8" fill="#93AE80"/>
+                </svg>
+              </div>
+
+              <!-- FIX: wordmark replaces Jarrod as the looping element; no
+                   separate bottom badge exists anywhere in this file. -->
+              <div class="wordmark-shadow"></div>
+              <div class="wordmark-wrap">
+                <div class="wordmark-crop"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Real jaunt-logo.png, unmodified, full-screen reveal → crossfades into a hillside scene where the cropped "JAUNT" wordmark band (not Jarrod) does the idle tilt-wobble + jump loop. No separate logo badge persists — the big wordmark already carries the brand.</div>
+  </div>
+
+  <!-- ============== 2. TRIP SETUP — STARTING POINT ============== -->
+  <div class="phone-col">
+    <div class="label">2. Trip Setup — starting point</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="spacer"></div>
+          <div class="title">Start your Jaunt</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="map-wrap">
+          <svg viewBox="0 0 300 460" preserveAspectRatio="xMidYMid slice">
+            <rect width="300" height="460" fill="#F6F4EC"/>
+            <path d="M 0 30 C 36 55, 18 85, 0 100 L 0 0 Z" fill="#A6C2C6"/>
+            <polygon points="18,210 92,196 114,258 52,278" fill="#AFC29A"/>
+            <polygon points="195,300 250,292 262,335 210,348" fill="#AFC29A"/>
+            <g fill="#E7E1D2">
+              <rect x="135" y="40" width="22" height="15"/>
+              <rect x="163" y="40" width="22" height="15"/>
+              <rect x="191" y="40" width="22" height="15"/>
+              <rect x="225" y="135" width="24" height="16"/>
+              <rect x="253" y="135" width="24" height="16"/>
+              <rect x="55" y="135" width="24" height="15"/>
+              <rect x="83" y="135" width="24" height="15"/>
+              <rect x="140" y="230" width="24" height="16"/>
+              <rect x="168" y="230" width="24" height="16"/>
+              <rect x="40" y="320" width="24" height="16"/>
+              <rect x="68" y="320" width="24" height="16"/>
+              <rect x="220" y="390" width="24" height="16"/>
+              <rect x="248" y="390" width="24" height="16"/>
+            </g>
+            <g stroke="#EDEAE2" stroke-width="7" stroke-linecap="round">
+              <line x1="0" y1="60" x2="300" y2="60"/>
+              <line x1="0" y1="150" x2="300" y2="150"/>
+              <line x1="0" y1="245" x2="300" y2="245"/>
+              <line x1="0" y1="335" x2="300" y2="335"/>
+              <line x1="0" y1="405" x2="300" y2="405"/>
+              <line x1="45" y1="0" x2="45" y2="460"/>
+              <line x1="120" y1="0" x2="120" y2="460"/>
+              <line x1="205" y1="0" x2="205" y2="460"/>
+              <line x1="270" y1="0" x2="270" y2="460"/>
+            </g>
+            <line x1="0" y1="440" x2="300" y2="30" stroke="#E3DED0" stroke-width="11" stroke-linecap="round"/>
+            <text class="street-label main" x="150" y="230" transform="rotate(-37 150 230)">King St</text>
+            <text class="street-label" x="128" y="260">Bedford St</text>
+            <text class="street-label" x="8" y="195">Church St</text>
+            <text class="street-label" x="210" y="380">Australia St</text>
+            <rect x="8" y="8" width="284" height="444" rx="18" fill="none" stroke="#8C9284" stroke-width="1.4" stroke-dasharray="5 5" opacity="0.55"/>
+            <text class="pilot-label" x="150" y="450" text-anchor="middle">Newtown pilot area</text>
+            <g fill="#1E4A3A">
+              <path d="M 95 236 C 95 220, 112 220, 112 236 C 112 248, 103.5 258, 103.5 258 C 103.5 258, 95 248, 95 236 Z"/>
+              <circle cx="103.5" cy="235" r="4.5" fill="#F6F4EC"/>
+            </g>
+            <g fill="#1E4A3A">
+              <path d="M 150 300 C 150 284, 167 284, 167 300 C 167 312, 158.5 322, 158.5 322 C 158.5 322, 150 312, 150 300 Z"/>
+              <circle cx="158.5" cy="299" r="4.5" fill="#F6F4EC"/>
+            </g>
+            <g fill="#1E4A3A">
+              <path d="M 225 160 C 225 144, 242 144, 242 160 C 242 172, 233.5 182, 233.5 182 C 233.5 182, 225 172, 225 160 Z"/>
+              <circle cx="233.5" cy="159" r="4.5" fill="#F6F4EC"/>
+            </g>
+          </svg>
+
+          <div class="jaunty-overlay">
+            <div class="jaunty-backing"></div>
+            <div class="jaunty jaunty-wave-sm"></div>
+            <div class="bubble">Where are we jaunting from?</div>
+          </div>
+
+          <div class="start-panel">
+            <div class="panel-label">Or pick a spot</div>
+            <div class="chip-scroll">
+              <div class="start-chip">Newtown Station</div>
+              <div class="start-chip">King St</div>
+              <div class="start-chip">Camperdown Park</div>
+            </div>
+            <div class="locate-btn">
+              <svg class="pin-dot" width="14" height="14" viewBox="0 0 14 14">
+                <path d="M7 0C3.7 0 1 2.6 1 5.9 1 9.8 7 14 7 14S13 9.8 13 5.9C13 2.6 10.3 0 7 0Z" fill="#F6F4EC"/>
+                <circle cx="7" cy="5.8" r="2.2" fill="#1E4A3A"/>
+              </svg>
+              Use my current location
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Map-first, framed to the whole Newtown pilot area so no GPS is required. Named-start chips + current-location action as fast alternatives to tapping the map. Jarrod (real wave-pose crop) is a small overlay, not a central figure — the map is the primary content here.</div>
+  </div>
+
+  <!-- ============== 3. TRIP SETUP — AVAILABLE TIME ============== -->
+  <div class="phone-col">
+    <div class="label">3. Trip Setup — available time</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown Station</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content-time">
+          <div class="jaunty-greet">
+            <div class="jaunty jaunty-wave-md"></div>
+            <div class="bubble-main">How much time have you got?</div>
+          </div>
+
+          <div class="picker-card">
+            <div class="picker-wrap">
+              <div class="picker-highlight"></div>
+              <div class="picker-list">
+                <div class="picker-row">50</div>
+                <div class="picker-row near">55</div>
+                <div class="picker-row selected">60<span class="unit">min</span></div>
+                <div class="picker-row near">65</div>
+                <div class="picker-row">70</div>
+              </div>
+            </div>
+            <div class="picker-range-note">Swipe to adjust · 30–120 min, 5-min steps</div>
+          </div>
+
+          <div class="continue-btn">Continue</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">5-minute-increment wheel picker, 30-120 min range. Jarrod (same wave-pose crop, scaled larger) stays proportionally bigger since this screen is sparse — the established prominence-scales-with-content-density pattern.</div>
+  </div>
+
+  <!-- ============== 4. TOPIC SELECTION — AT REST ============== -->
+  <div class="phone-col">
+    <div class="label">4. Topic selection — at rest</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content">
+          <div class="jaunty-greet">
+            <div class="jaunty jaunty-wave"></div>
+            <div class="bubble">A topic in mind, or feeling spontaneous?</div>
+          </div>
+
+          <div class="cta-row">
+            <div class="cta-btn primary">Choose Topic</div>
+            <div class="cta-btn secondary">
+              <div class="jaunty jaunty-icon"></div>
+              Wild Jaunt
+            </div>
+          </div>
+
+          <div class="pref-control">
+            <div class="pref-caption">Landmarks or hidden gems? <span class="opt">optional</span></div>
+            <div class="pref-track-wrap">
+              <div class="pref-balanced-tag">Balanced</div>
+              <div class="pref-track"><div class="pref-handle"></div></div>
+            </div>
+            <div class="pref-labels"><span>Well-known</span><span>Hidden gems</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Two equal-weight CTAs — "Choose Topic" navigates onward; "Wild Jaunt" (locked wording) jumps straight to confirmation, one tap, no slider required. Landmark/hidden-gem preference defaults to Balanced and applies either way.</div>
+  </div>
+
+  <!-- ============== 5. TOPIC SELECTION — CHOOSE TOPIC PAGE ============== -->
+  <div class="phone-col">
+    <div class="label">5. Topic selection — "Choose Topic" page</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content">
+          <!-- No Wild Jaunt here by design — committing to a topic path
+               removes the instant-surprise option from this screen. -->
+          <div class="jaunty jaunty-walk-lg"></div>
+          <div class="page-title">Pick a topic</div>
+
+          <div class="scroller-wrap">
+            <div class="scroller-label">Swipe to pick one</div>
+            <div class="topic-scroll">
+              <div class="topic-pill selected">History</div>
+              <div class="topic-pill">Architecture</div>
+              <div class="topic-pill">Public Art</div>
+              <div class="topic-pill">Heritage</div>
+            </div>
+          </div>
+
+          <div class="pref-control">
+            <div class="pref-caption">Landmarks or hidden gems? <span class="opt">optional</span></div>
+            <div class="pref-track-wrap">
+              <div class="pref-balanced-tag">Balanced</div>
+              <div class="pref-track"><div class="pref-handle"></div></div>
+            </div>
+            <div class="pref-labels"><span>Well-known</span><span>Hidden gems</span></div>
+          </div>
+
+          <div class="start-jaunt-btn">Start my History Jaunt</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Separate screen (not an in-place expand). Jarrod (plain-walk crop) stays central at the same 168px size as Screen 4. The bottom action is a compact auto-width pill, not a stretched full-width box — label updates with the selected topic pill.</div>
+  </div>
+
+  <!-- ============== 6. CONFIRMATION BOTTOM SHEET ============== -->
+  <div class="phone-col">
+    <div class="label">6. Confirmation bottom sheet</div>
+    <div class="phone">
+      <div class="screen">
+        <!-- Representative trigger screen: Wild Jaunt brings this sheet
+             straight up over Screen 4 with no navigation; the same sheet
+             appears over Screen 5 once its own "Start my ... Jaunt" pill
+             is tapped. -->
+        <div class="header">
+          <div class="back">‹</div>
+          <div class="recap">Newtown · 60 min</div>
+          <div class="spacer"></div>
+        </div>
+
+        <div class="content">
+          <div class="jaunty-greet">
+            <div class="jaunty jaunty-wave"></div>
+            <div class="bubble">A topic in mind, or feeling spontaneous?</div>
+          </div>
+
+          <div class="cta-row">
+            <div class="cta-btn primary">Choose Topic</div>
+            <div class="cta-btn secondary">
+              <div class="jaunty jaunty-icon"></div>
+              Wild Jaunt
+            </div>
+          </div>
+
+          <div class="pref-control">
+            <div class="pref-caption">Landmarks or hidden gems? <span class="opt">optional</span></div>
+            <div class="pref-track-wrap">
+              <div class="pref-balanced-tag">Balanced</div>
+              <div class="pref-track"><div class="pref-handle"></div></div>
+            </div>
+            <div class="pref-labels"><span>Well-known</span><span>Hidden gems</span></div>
+          </div>
+        </div>
+
+        <div class="dim-overlay"></div>
+
+        <div class="confirm-sheet">
+          <div class="handle"></div>
+          <div class="jaunty jaunty-happy"></div>
+          <h2>Ready for your History Jaunt?</h2>
+          <div class="confirm-btn">Start my History Jaunt</div>
+          <div class="dismiss-link">Wait, let me change that</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Same visual pattern as the Route Review stop-list sheet: happy (fist-up) Jarrod pose, one full-width primary confirm button, a quieter secondary dismiss link beneath it. Slides up over whichever screen triggered it.</div>
+  </div>
+
+</div>
+
+</body>
+</html>

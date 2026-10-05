@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Flow 03: Walking → Stop Info → End of Walk</title>
+<style>
+/*
+  FLOW 03 — ACTIVE WALKING THROUGH END-OF-WALK (consolidated, definitive).
+
+  This file is a straight consolidation of the already-approved
+  .working/key-walking-to-summary-v2.html into this project's new flow-0N
+  naming scheme — not a redesign. Content, structure, styling, and character
+  crops are carried over as-is. The older key-walking-to-summary.html (v1)
+  and key-walking-to-summary-v2.html remain in .working/ untouched; this file
+  is the one to treat as current going forward.
+
+  Covers 7 screens/states:
+    1. Active walking — default (drawer closed)
+    2. Active walking — off-canvas menu open
+    3. Walking — no live GPS
+    4. Stop info overlay (St Stephen's Church)
+    5. End of walk — catch-up
+    6. End of walk — AI summary
+    7. End of walk — "Jaunt complete" (honest no-summary ending)
+
+  ASSET RULE (hard rule, re-verified for this file): Jarrod (the character;
+  renamed from "Jaunty" 2026-10-03 — underlying filenames/CSS class names
+  below still say "jaunty", that's an internal asset/class name, not
+  user-facing copy) is NEVER hand-drawn as new SVG/path shapes anywhere in
+  this file. Every appearance is a real cropped region of
+  imports/jaunty-mascot-sheet-v2-eyes-transparent.png (1536x1024px, verified
+  via Pillow Image.open().size), reusing the exact same crop boxes already
+  measured and verified in the source file this consolidates from.
+
+  CROPS (unchanged from the source file — see that file's own derivation):
+    HEAD-ONLY MARKER (live position dot, col0/row0 "plain walk", head
+    isolated at a real alpha-channel gap between head and torso):
+      width:30px; height:26.09px;
+      background-size:500.87px 333.91px;
+      background-position:-101.41px -21.52px;
+    FIST-UP / EXCITED POSE (col0,row1 — used larger, atop BOTH the full AI
+    summary AND the "Jaunt complete" screen, since both are end-of-walk
+    positive moments):
+      width:110px; height:126.59px;
+      background-size:589.2px 392.8px;
+      background-position:-61.47px -130.81px;
+
+  MAP / BUILDING / PARK / ROUTE STYLING — inherited exactly from
+  .working/key-route-review-quiet-streets-v2.html (same street grid, same
+  two-tone muted-grey rowhouse blocks, same real Camperdown-Cemetery polygon
+  doubling as park fill + tree-cluster clipPath, same orthogonal route line
+  that only turns at drawn intersections, same "View list" bottom pill).
+
+  BUTTON / CARD / BUBBLE / SHEET / OVERLAY STYLING — inherited exactly from
+  key-topic-selection-v3.html and key-walking-to-summary-v2.html (phone-frame
+  chrome, header bar, speech-bubble shape, primary/secondary buttons, pill
+  shapes).
+
+  STOP-MARKER PHOTO-PIN TREATMENT — reuses the same inline-SVG
+  photo-thumbnail illustration technique already used for stop photos in
+  key-route-review-quiet-streets-v2.html's expanded sheet and the source
+  file's stop-info overlay (St Stephen's Church / Mural Lane motifs).
+  Applied only to stops that actually have a photo in the established
+  catalogue examples (St Stephen's Church, Mural Lane); King St Terraces and
+  Camperdown Cemetery have none, so they keep the plain numbered-circle
+  marker — same "no placeholder box when there's no photo" principle used
+  throughout this project's mocks.
+
+  PALETTE — every hex below already appears in the inherited files; no new
+  hex values are introduced anywhere in this file.
+    --paper        #FAFAF8   page background (outside phones)
+    --ink          #16302A   warm ink / primary text
+    --ink-soft     #5C6D64   secondary text
+    --ink-faint    #8C9284   tertiary / captions / source line / muted icons
+    --cream        #F6F4EC   screen + map background
+    --pill-bg      #EDEAE2   unselected pill / recap pill / muted indicators
+    --sheet-bg     #FFFFFF   sheet / bubble / overlay / card / drawer surfaces
+    --sheet-handle #DDD8C8   drag handle bar
+    --forest       #1E4A3A   primary brand green — route, buttons, markers
+    --sage         #AFC29A   secondary brand green — marker ring, accents
+    --block-a      #C7C4B6   building unit, light muted grey
+    --block-b      #BDBAAC   building unit, dark muted grey
+    --tree-dark    #5C7A52   tree-cluster, deep green (clipped to park shape)
+    --tree-light   #93AE80   tree-cluster, light green
+    --water        #A6C2C6   canal ribbon
+    (photo-stand-in illustration hexes, reused verbatim from the route-review
+     file's thumbnails: #BFD8E0 #9CAE8E #B79D78 #D8C4A0 #7FA6B6 #5B4A36
+     #EDE7D6 #2F6F76 #E0A23B #C8536B #2D3E63 #E8D44D)
+
+  SIZING-RULE PASS (this consolidation's one substantive check, per brief):
+  every button/pill/badge checked against the project's three sizing rules
+  (full-width primary: padding 14px / radius 18px; compact pill: inline-flex,
+  width auto, padding 12px 24px / radius 28px; small info badge: inline-flex,
+  padding 6px 10px / radius 14px, width auto, nowrap). Everything matched
+  already EXCEPT one: ".complete-cta" ("Back to start" on the "Jaunt
+  complete" screen) had inherited the full-width-primary-button treatment
+  (width:100%; padding:14px; border-radius:18px) from ".cta-btn.primary" —
+  the exact "wrong context" bug this pass exists to catch, since "Back to
+  start" is a short label that belongs on a compact pill, not a full-width
+  bar. Fixed below to the compact-pill rule (inline-flex, width:auto,
+  padding:12px 24px, border-radius:28px). No other change made anywhere in
+  this file — everything else was already correctly fitted.
+
+  JUDGMENT CALLS / OPEN ITEMS CARRIED FORWARD FROM THE SOURCE FILE:
+    - Off-canvas drawer width is 78% of screen width — within "roughly
+      75-80%" guidance, not a locked spec number.
+    - Drawer is rendered as an OVERLAY on top of the existing screen (map +
+      header dim behind a scrim) rather than a true layout "push" — the
+      accepted static-mock equivalent.
+    - "Jaunt complete" heading text and "Nice walk!" acknowledgment line are
+      both short draft copy, unconfirmed.
+    - Walking-without-GPS screen keeps "Stop 2 of 4" progress text in the
+      header — plausible without live tracking (manual visited-count-based
+      progress), not itself a GPS-derived value; a judgment call, not a
+      locked decision.
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  padding: 40px 16px 80px;
+  color: #16302A;
+}
+.heading { max-width: 680px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #5C6D64; }
+
+.group { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.group-title { font-size: 15px; font-weight: 700; text-align: center; }
+.group-sub { font-size: 12px; color: #5C6D64; text-align: center; max-width: 560px; line-height: 1.5; }
+.row { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.phone-col .label { font-size: 12px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; text-align: center; }
+.phone-col .caption { font-size: 11.5px; color: #5C6D64; max-width: 300px; text-align: center; line-height: 1.4; }
+
+.phone {
+  width: 300px;
+  height: 615px;
+  background: #16302A;
+  border-radius: 42px;
+  padding: 11px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- header (shared chrome, inherited pattern) ---- */
+.header {
+  padding: 16px 18px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F6F4EC;
+  z-index: 3;
+  position: relative;
+}
+.header .title { font-size: 13.5px; font-weight: 700; text-align: center; }
+.header .title .sub { display: block; font-size: 10.5px; font-weight: 500; color: #5C6D64; margin-top: 1px; }
+.time-pill {
+  background: #1E4A3A;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 18px;
+  white-space: nowrap;
+}
+.recap {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #5C6D64;
+  background: #EDEAE2;
+  padding: 5px 12px;
+  border-radius: 14px;
+}
+
+.hamburger {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ---- map (inherited exactly from key-route-review-quiet-streets-v2.html) ---- */
+.map-wrap { flex: 1; position: relative; background: #F6F4EC; }
+.map-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.street-label { font-size: 8px; fill: #8C9284; font-weight: 600; }
+.street-label.main { fill: #6E7A6C; font-size: 8.5px; }
+
+.bottom-bar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 18px 20px; display: flex; justify-content: center;
+}
+.view-list-pill {
+  background: #1E4A3A; color: #fff; font-size: 12.5px; font-weight: 700;
+  padding: 12px 24px; border-radius: 28px; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 10px 24px -8px rgba(22,48,42,0.45);
+}
+
+/* ---- Jarrod crops (real PNG, class names kept as "jaunty" — internal
+   asset/class naming only, see top comment) ---- */
+.jaunty {
+  background-image: url('../imports/jaunty-mascot-sheet-v2-eyes-transparent.png');
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+}
+.jaunty-head-marker {
+  width: 30px; height: 26.09px;
+  background-size: 500.87px 333.91px;
+  background-position: -101.41px -21.52px;
+}
+.jaunty-summary {
+  width: 110px; height: 126.59px;
+  background-size: 589.2px 392.8px;
+  background-position: -61.47px -130.81px;
+}
+
+/* bubble (inherited shape from key-topic-selection-v3.html) */
+.bubble {
+  background: #FFFFFF;
+  color: #16302A;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 14px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22,48,42,0.18);
+}
+
+/* ---- off-canvas drawer (full side-drawer menu) ---- */
+.drawer-scrim {
+  position: absolute; inset: 0;
+  background: rgba(22,48,42,0.45);
+  z-index: 8;
+}
+.drawer-panel {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  width: 78%;
+  background: #FFFFFF;
+  z-index: 9;
+  box-shadow: 10px 0 30px rgba(22,48,42,0.25);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px 22px;
+}
+.drawer-close {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+.drawer-route-title { font-size: 13px; font-weight: 700; color: #16302A; margin-bottom: 2px; }
+.drawer-route-sub { font-size: 11px; color: #5C6D64; margin-bottom: 20px; }
+.drawer-spacer { flex: 1; }
+.drawer-end-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 4px;
+  border-top: 1px solid #EDEAE2;
+  font-size: 13.5px; font-weight: 700; color: #16302A;
+}
+
+/* ---- stop photo-pin (map marker, resolved treatment) ---- */
+.pin-badge-num { font-size: 9px; font-weight: 700; fill: #fff; }
+
+/* ---- calm "location off" indicator (no live GPS state) ---- */
+.location-off-pill {
+  position: absolute; top: 12px; left: 14px;
+  display: flex; align-items: center; gap: 6px;
+  background: #EDEAE2; color: #5C6D64;
+  font-size: 10.5px; font-weight: 700;
+  padding: 6px 10px 6px 7px; border-radius: 14px;
+  z-index: 4;
+}
+/* Override needed: ".map-wrap svg" (same specificity, earlier in source) would
+   otherwise stretch this icon to position:absolute/inset:0/100%x100% of the
+   pill, since this pill is a child of .map-wrap. */
+.location-off-pill svg {
+  position: static;
+  width: 12px; height: 12px;
+  flex-shrink: 0;
+}
+
+/* ---- stop-row / sheet list (inherited from route-review file) ---- */
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: #FFFFFF;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(22,48,42,0.18);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 18px 18px;
+  overflow-y: auto;
+}
+.sheet .handle { width: 36px; height: 4px; background: #DDD8C8; border-radius: 4px; margin: 2px auto 12px; flex-shrink: 0; }
+
+/* ---- overlay (stop info, group 3) ---- */
+.overlay-strip { height: 7%; background: #F6F4EC; flex-shrink: 0; }
+.overlay-panel {
+  flex: 1;
+  background: #FFFFFF;
+  border-radius: 22px 22px 0 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  padding: 10px 18px 20px;
+}
+.overlay-handle { width: 36px; height: 4px; background: #DDD8C8; border-radius: 4px; margin: 2px auto 4px; flex-shrink: 0; }
+.overlay-dismiss-label { text-align: center; font-size: 9.5px; color: #8C9284; font-weight: 600; margin-bottom: 10px; }
+.visited-badge {
+  position: absolute; top: 38px; right: 16px;
+  display: flex; align-items: center; gap: 6px;
+  background: #F6F4EC; border: 1.5px solid #1E4A3A;
+  padding: 6px 10px; border-radius: 14px; z-index: 5;
+}
+.visited-badge .box { width: 15px; height: 15px; border: 1.5px solid #1E4A3A; border-radius: 4px; background: #FFFFFF; flex-shrink: 0; }
+.visited-badge .label { font-size: 10.5px; font-weight: 700; color: #1E4A3A; }
+
+.photo-banner { width: 100%; border-radius: 14px; overflow: hidden; display: block; margin-top: 34px; }
+.stop-name { font-size: 17px; font-weight: 700; margin-top: 14px; }
+.stop-body { font-size: 12.5px; line-height: 1.6; color: #16302A; margin-top: 10px; }
+.source-line { font-size: 10.5px; color: #8C9284; font-weight: 600; margin-top: 12px; }
+
+/* ---- catch-up list (group 4a) ---- */
+.content-pad { flex: 1; display: flex; flex-direction: column; padding: 10px 20px 18px; overflow-y: auto; }
+.catchup-heading { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.catchup-sub { font-size: 11.5px; color: #5C6D64; margin-bottom: 14px; }
+.catchup-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #EDEAE2; }
+.catchup-row:last-child { border-bottom: none; }
+.catchup-check { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.catchup-check.checked { background: #1E4A3A; }
+.catchup-check.unchecked { background: #FFFFFF; border: 1.5px solid #AFC29A; }
+.catchup-check svg { width: 12px; height: 12px; }
+.catchup-name { font-size: 12.5px; font-weight: 700; flex: 1; }
+.catchup-name.todo { color: #5C6D64; font-weight: 600; }
+.catchup-hint { font-size: 9.5px; color: #8C9284; font-weight: 600; }
+
+.cta-btn {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; padding: 14px; border-radius: 18px;
+  text-align: center; margin-top: auto;
+}
+.cta-btn.primary { background: #1E4A3A; color: #F6F4EC; }
+/* quiet secondary path to the honest "end without a summary" state —
+   deliberately plain text, not a button, so it reads as the lesser path,
+   not an equal alternative to creating a summary. */
+.skip-link {
+  text-align: center;
+  font-size: 11.5px; font-weight: 700; color: #5C6D64;
+  margin-top: 12px; text-decoration: underline;
+}
+
+/* ---- summary (group 4b) ---- */
+.summary-head { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 20px 6px; }
+.summary-list { flex: 1; overflow-y: auto; padding: 8px 20px 18px; display: flex; flex-direction: column; gap: 14px; }
+.summary-row { display: flex; gap: 10px; align-items: flex-start; }
+.summary-thumb { width: 52px; height: 52px; border-radius: 11px; flex-shrink: 0; overflow: hidden; display: block; }
+.summary-info { flex: 1; min-width: 0; }
+.summary-info .name { font-size: 12.5px; font-weight: 700; }
+.summary-info .recap { font-size: 11px; color: #5C6D64; margin-top: 3px; line-height: 1.45; background: none; padding: 0; border-radius: 0; font-weight: 500; }
+.heart-btn { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.illustrative-tag { font-size: 9px; font-weight: 500; color: #9A9388; font-style: italic; display: block; margin-top: 2px; }
+
+/* ---- "Jaunt complete" honest no-summary ending (group 4c) ---- */
+.complete-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px 28px;
+  text-align: center;
+}
+.complete-heading { font-size: 18px; font-weight: 700; color: #16302A; }
+.complete-ack { font-size: 13.5px; font-weight: 600; color: #5C6D64; }
+/* SIZING FIX (this consolidation pass): "Back to start" is a short label and
+   belongs on a compact pill, per the project's button-sizing rule — it had
+   inherited the full-width-primary treatment (width:100%; padding:14px;
+   border-radius:18px) from .cta-btn.primary, which made it look like an
+   oversized bar rather than a fitted pill. Now: inline-flex, width:auto,
+   padding:12px 24px, border-radius:28px, matching the compact-pill rule
+   exactly (same shape as .view-list-pill elsewhere in this file). */
+.complete-cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: auto;
+  margin-top: 18px;
+  background: #1E4A3A; color: #F6F4EC;
+  font-size: 13px; font-weight: 700;
+  padding: 12px 24px; border-radius: 28px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Flow 03 — Walking → Stop Info → End of Walk</h1>
+  <p>Consolidated, definitive version of the walking-through-end-of-walk flow: a straight carry-over of the already-approved key-walking-to-summary-v2.html into this project's flow-0N file naming, not a redesign. Covers active walking (default + off-canvas menu open), walking without live GPS, the stop info overlay, and all three end-of-walk outcomes (catch-up, AI summary, honest "Jaunt complete" no-summary ending). Jarrod (the character) appears only as real cropped pixels from the transparent v2-eyes mascot sheet — never redrawn. One sizing fix applied during this pass (see "Back to start" button, noted below); everything else matched the project's button/pill/badge sizing rules already.</p>
+</div>
+
+<!-- ========================================================= -->
+<!-- GROUP 1 — ACTIVE WALKING: OFF-CANVAS DRAWER MENU           -->
+<!-- ========================================================= -->
+<div class="group">
+  <div class="group-title">1. Active Walking — Off-canvas Menu</div>
+  <div class="group-sub">Tapping the hamburger slides a white drawer in from the left (78% width, full height), with a dimming scrim over the rest of the screen — the standard static-mock stand-in for "push/overlay the content aside." Stop markers here show the resolved photo-pin treatment (St Stephen's Church, Mural Lane) alongside plain numbered markers (King St Terraces, Camperdown Cemetery) where no photo exists.</div>
+  <div class="row">
+
+    <div class="phone-col">
+      <div class="label">Default (drawer closed)</div>
+      <div class="phone">
+        <div class="screen">
+          <div class="header">
+            <div class="hamburger">
+              <svg width="20" height="14" viewBox="0 0 20 14">
+                <rect width="20" height="2.4" rx="1.2" fill="#16302A"/>
+                <rect y="5.8" width="20" height="2.4" rx="1.2" fill="#16302A"/>
+                <rect y="11.6" width="20" height="2.4" rx="1.2" fill="#16302A"/>
+              </svg>
+            </div>
+            <div class="title">Newtown History Loop<span class="sub">Stop 2 of 4</span></div>
+            <div class="time-pill">~18 min left</div>
+          </div>
+
+          <div class="map-wrap">
+            <svg viewBox="0 0 300 440" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <clipPath id="cemeteryClip-f1">
+                  <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345"/>
+                </clipPath>
+                <clipPath id="churchPinClip-f1"><rect x="36" y="241" width="28" height="28" rx="7"/></clipPath>
+                <clipPath id="muralPinClip-f1"><rect x="216" y="136" width="28" height="28" rx="7"/></clipPath>
+              </defs>
+              <rect width="300" height="440" fill="#F6F4EC"/>
+              <path d="M 0 40 C 40 60, 20 90, 0 110 L 0 0 Z" fill="#A6C2C6"/>
+              <g stroke="#EDEAE2" stroke-width="8" stroke-linecap="round">
+                <line x1="0" y1="70" x2="300" y2="70"/>
+                <line x1="0" y1="165" x2="300" y2="165"/>
+                <line x1="0" y1="270" x2="300" y2="270"/>
+                <line x1="0" y1="375" x2="300" y2="375"/>
+                <line x1="50" y1="0" x2="50" y2="440"/>
+                <line x1="125" y1="0" x2="125" y2="440"/>
+                <line x1="230" y1="0" x2="230" y2="440"/>
+              </g>
+              <line x1="4" y1="420" x2="290" y2="20" stroke="#E3DED0" stroke-width="12" stroke-linecap="round"/>
+              <g>
+                <rect x="5" y="10" width="34" height="30" fill="#C7C4B6"/>
+                <rect x="42" y="10" width="30" height="30" fill="#BDBAAC"/>
+                <rect x="76" y="8" width="28" height="32" fill="#C7C4B6"/>
+                <rect x="150" y="10" width="30" height="28" fill="#BDBAAC"/>
+                <rect x="184" y="8" width="28" height="30" fill="#C7C4B6"/>
+                <rect x="216" y="10" width="30" height="28" fill="#BDBAAC"/>
+                <rect x="250" y="8" width="28" height="32" fill="#C7C4B6"/>
+                <rect x="4" y="78" width="40" height="24" fill="#C7C4B6"/>
+                <rect x="4" y="105" width="40" height="24" fill="#BDBAAC"/>
+                <rect x="4" y="132" width="40" height="24" fill="#C7C4B6"/>
+                <rect x="238" y="80" width="26" height="22" fill="#C7C4B6"/>
+                <rect x="266" y="80" width="28" height="22" fill="#BDBAAC"/>
+                <rect x="238" y="106" width="26" height="22" fill="#BDBAAC"/>
+                <rect x="266" y="106" width="28" height="22" fill="#C7C4B6"/>
+                <rect x="4" y="184" width="38" height="30" fill="#C7C4B6"/>
+                <rect x="4" y="220" width="38" height="30" fill="#BDBAAC"/>
+                <rect x="268" y="184" width="28" height="30" fill="#C7C4B6"/>
+                <rect x="268" y="220" width="28" height="30" fill="#BDBAAC"/>
+                <rect x="60" y="284" width="26" height="30" fill="#C7C4B6"/>
+                <rect x="90" y="284" width="26" height="30" fill="#BDBAAC"/>
+                <rect x="60" y="320" width="26" height="30" fill="#BDBAAC"/>
+                <rect x="90" y="320" width="26" height="30" fill="#C7C4B6"/>
+                <rect x="4" y="286" width="36" height="30" fill="#C7C4B6"/>
+                <rect x="4" y="322" width="36" height="30" fill="#BDBAAC"/>
+                <rect x="4" y="386" width="36" height="28" fill="#BDBAAC"/>
+                <rect x="60" y="386" width="26" height="26" fill="#C7C4B6"/>
+                <rect x="90" y="386" width="26" height="26" fill="#BDBAAC"/>
+              </g>
+              <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345" fill="#AFC29A"/>
+              <g clip-path="url(#cemeteryClip-f1)">
+                <circle cx="205" cy="315" r="11" fill="#5C7A52"/>
+                <circle cx="222" cy="308" r="8" fill="#93AE80"/>
+                <circle cx="238" cy="320" r="10" fill="#5C7A52"/>
+                <circle cx="255" cy="310" r="9" fill="#93AE80"/>
+                <circle cx="266" cy="330" r="8" fill="#5C7A52"/>
+                <circle cx="235" cy="355" r="11" fill="#5C7A52"/>
+              </g>
+              <text class="street-label main" x="150" y="210" transform="rotate(-35 150 210)">King St</text>
+
+              <path d="M 125 375 L 125 270 L 50 270 L 50 165 L 125 165 L 230 165 L 230 375 L 125 375"
+                    fill="none" stroke="#1E4A3A" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+              <!-- Stop 1, St Stephen's Church — VISITED, resolved photo-pin treatment -->
+              <rect x="34" y="239" width="32" height="32" rx="8" fill="#1E4A3A"/>
+              <g clip-path="url(#churchPinClip-f1)">
+                <rect x="36" y="241" width="28" height="28" fill="#BFD8E0"/>
+                <rect x="36" y="259" width="28" height="10" fill="#9CAE8E"/>
+                <polygon points="43,250 50,244 57,250" fill="#B79D78"/>
+                <rect x="43" y="250" width="14" height="14" fill="#D8C4A0"/>
+              </g>
+              <circle cx="63" cy="242" r="8.5" fill="#AFC29A" stroke="#1E4A3A" stroke-width="1.5"/>
+              <path d="M 59.5 242 l 2 2.5 l 4.5 -5" stroke="#1E4A3A" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="75" y="256" font-size="9" font-weight="700" fill="#16302A">St Stephen's Church</text>
+
+              <!-- Stop 2, King St Terraces — current/next, plain numbered marker (no photo in catalogue) -->
+              <circle cx="125" cy="165" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+              <text x="125" y="169" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">2</text>
+              <text x="50" y="152" font-size="9" font-weight="700" fill="#16302A">King St Terraces</text>
+
+              <!-- Stop 3, Mural Lane — upcoming, resolved photo-pin treatment -->
+              <rect x="214" y="134" width="32" height="32" rx="8" fill="#1E4A3A"/>
+              <g clip-path="url(#muralPinClip-f1)">
+                <rect x="216" y="136" width="28" height="28" fill="#EDE7D6"/>
+                <rect x="216" y="136" width="13" height="13" fill="#2F6F76"/>
+                <rect x="229" y="136" width="15" height="9" fill="#E0A23B"/>
+                <rect x="216" y="149" width="10" height="15" fill="#C8536B"/>
+                <rect x="226" y="147" width="18" height="17" fill="#2D3E63"/>
+              </g>
+              <circle cx="243" cy="137" r="8.5" fill="#1E4A3A" stroke="#F6F4EC" stroke-width="1.5"/>
+              <text x="243" y="140" text-anchor="middle" class="pin-badge-num">3</text>
+              <text x="168" y="122" font-size="9" font-weight="700" fill="#16302A">Mural Lane</text>
+
+              <!-- Stop 4, Camperdown Cemetery — plain numbered marker (no photo in catalogue) -->
+              <circle cx="230" cy="375" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+              <text x="230" y="379" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">4</text>
+              <text x="150" y="358" font-size="9" font-weight="700" fill="#16302A">Camperdown Cemetery</text>
+
+              <!-- LIVE POSITION: Jarrod's HEAD ONLY, real PNG crop via foreignObject,
+                   walking along Church St between stop 1 and stop 2. -->
+              <foreignObject x="35" y="192" width="30" height="26.09">
+                <div xmlns="http://www.w3.org/1999/xhtml" class="jaunty jaunty-head-marker"></div>
+              </foreignObject>
+            </svg>
+          </div>
+
+          <div class="bottom-bar">
+            <div class="view-list-pill">View list ▲</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="label">Menu open — off-canvas drawer</div>
+      <div class="caption">Full-height white panel, 78% width, slides from the left over a dimmed scrim. "End Jaunt" sits near the bottom, per the original decision.</div>
+      <div class="phone">
+        <div class="screen">
+          <div class="header">
+            <div class="hamburger">
+              <svg width="20" height="14" viewBox="0 0 20 14">
+                <rect width="20" height="2.4" rx="1.2" fill="#16302A"/>
+                <rect y="5.8" width="20" height="2.4" rx="1.2" fill="#16302A"/>
+                <rect y="11.6" width="20" height="2.4" rx="1.2" fill="#16302A"/>
+              </svg>
+            </div>
+            <div class="title">Newtown History Loop<span class="sub">Stop 2 of 4</span></div>
+            <div class="time-pill">~18 min left</div>
+          </div>
+
+          <div class="map-wrap">
+            <svg viewBox="0 0 300 440" preserveAspectRatio="xMidYMid slice">
+              <rect width="300" height="440" fill="#F6F4EC"/>
+              <path d="M 0 40 C 40 60, 20 90, 0 110 L 0 0 Z" fill="#A6C2C6"/>
+              <g stroke="#EDEAE2" stroke-width="8" stroke-linecap="round">
+                <line x1="0" y1="70" x2="300" y2="70"/>
+                <line x1="0" y1="165" x2="300" y2="165"/>
+                <line x1="0" y1="270" x2="300" y2="270"/>
+                <line x1="0" y1="375" x2="300" y2="375"/>
+              </g>
+              <path d="M 125 375 L 125 270 L 50 270 L 50 165 L 125 165 L 230 165 L 230 375 L 125 375"
+                    fill="none" stroke="#1E4A3A" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <foreignObject x="35" y="192" width="30" height="26.09">
+                <div xmlns="http://www.w3.org/1999/xhtml" class="jaunty jaunty-head-marker"></div>
+              </foreignObject>
+            </svg>
+          </div>
+
+          <div class="bottom-bar">
+            <div class="view-list-pill">View list ▲</div>
+          </div>
+
+          <!-- OFF-CANVAS DRAWER: overlays the full screen (map + header dim behind
+               the scrim); the drawer panel itself is opaque white, covering the
+               left 78%. This is the static-mock stand-in for "slide in + push/
+               overlay the rest of the screen". -->
+          <div class="drawer-scrim"></div>
+          <div class="drawer-panel">
+            <div class="drawer-close">
+              <svg width="16" height="16" viewBox="0 0 16 16">
+                <line x1="1" y1="1" x2="15" y2="15" stroke="#16302A" stroke-width="2" stroke-linecap="round"/>
+                <line x1="15" y1="1" x2="1" y2="15" stroke="#16302A" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="drawer-route-title">Newtown History Loop</div>
+            <div class="drawer-route-sub">Stop 2 of 4 · ~18 min left</div>
+
+            <!--
+              Nothing else lives here yet. This drawer is the planned future
+              home for, once actually built (both Post-V1, addendum items —
+              NOT implemented, NOT rendered as live menu rows below):
+                - "In case of rain" (weather re-routing)
+                - "Re-route" (mid-walk route changes)
+              Do not uncomment/add rows for these until those features exist.
+            -->
+            <div class="drawer-spacer"></div>
+
+            <div class="drawer-end-item">
+              <span>End Jaunt</span>
+              <svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke="#16302A" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- GROUP 2 — WALKING WITHOUT LIVE GPS                         -->
+<!-- ========================================================= -->
+<div class="group">
+  <div class="group-title">2. Walking — No Live GPS</div>
+  <div class="group-sub">FR-14 (live position) is Should-tier — tracking may be deferred, unavailable, or denied. Same map, route, and stop markers as the default walking screen (same resolved photo-pin treatment); the "see yourself move" layer is simply absent, with a calm, non-alarming "Location off" indicator in its place — not an error state. Stop-list access (FR-12, Must) is untouched.</div>
+  <div class="row">
+
+    <div class="phone-col">
+      <div class="label">Default (no position marker)</div>
+      <div class="phone">
+        <div class="screen">
+          <div class="header">
+            <div class="hamburger">
+              <svg width="20" height="14" viewBox="0 0 20 14">
+                <rect width="20" height="2.4" rx="1.2" fill="#16302A"/>
+                <rect y="5.8" width="20" height="2.4" rx="1.2" fill="#16302A"/>
+                <rect y="11.6" width="20" height="2.4" rx="1.2" fill="#16302A"/>
+              </svg>
+            </div>
+            <div class="title">Newtown History Loop<span class="sub">Stop 2 of 4</span></div>
+            <div class="time-pill">~18 min left</div>
+          </div>
+
+          <div class="map-wrap">
+            <div class="location-off-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24">
+                <path d="M12 21s-6-6.5-6-11a6 6 0 1112 0c0 4.5-6 11-6 11z" fill="none" stroke="#5C6D64" stroke-width="2"/>
+                <circle cx="12" cy="10" r="2.2" fill="none" stroke="#5C6D64" stroke-width="1.6"/>
+                <line x1="3" y1="3" x2="21" y2="21" stroke="#5C6D64" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              Location off
+            </div>
+            <svg viewBox="0 0 300 440" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <clipPath id="cemeteryClip-f3">
+                  <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345"/>
+                </clipPath>
+                <clipPath id="churchPinClip-f3"><rect x="36" y="241" width="28" height="28" rx="7"/></clipPath>
+                <clipPath id="muralPinClip-f3"><rect x="216" y="136" width="28" height="28" rx="7"/></clipPath>
+              </defs>
+              <rect width="300" height="440" fill="#F6F4EC"/>
+              <path d="M 0 40 C 40 60, 20 90, 0 110 L 0 0 Z" fill="#A6C2C6"/>
+              <g stroke="#EDEAE2" stroke-width="8" stroke-linecap="round">
+                <line x1="0" y1="70" x2="300" y2="70"/>
+                <line x1="0" y1="165" x2="300" y2="165"/>
+                <line x1="0" y1="270" x2="300" y2="270"/>
+                <line x1="0" y1="375" x2="300" y2="375"/>
+                <line x1="50" y1="0" x2="50" y2="440"/>
+                <line x1="125" y1="0" x2="125" y2="440"/>
+                <line x1="230" y1="0" x2="230" y2="440"/>
+              </g>
+              <line x1="4" y1="420" x2="290" y2="20" stroke="#E3DED0" stroke-width="12" stroke-linecap="round"/>
+              <g>
+                <rect x="5" y="10" width="34" height="30" fill="#C7C4B6"/>
+                <rect x="42" y="10" width="30" height="30" fill="#BDBAAC"/>
+                <rect x="76" y="8" width="28" height="32" fill="#C7C4B6"/>
+                <rect x="150" y="10" width="30" height="28" fill="#BDBAAC"/>
+                <rect x="184" y="8" width="28" height="30" fill="#C7C4B6"/>
+                <rect x="216" y="10" width="30" height="28" fill="#BDBAAC"/>
+                <rect x="250" y="8" width="28" height="32" fill="#C7C4B6"/>
+                <rect x="4" y="78" width="40" height="24" fill="#C7C4B6"/>
+                <rect x="4" y="105" width="40" height="24" fill="#BDBAAC"/>
+                <rect x="4" y="132" width="40" height="24" fill="#C7C4B6"/>
+                <rect x="238" y="80" width="26" height="22" fill="#C7C4B6"/>
+                <rect x="266" y="80" width="28" height="22" fill="#BDBAAC"/>
+                <rect x="238" y="106" width="26" height="22" fill="#BDBAAC"/>
+                <rect x="266" y="106" width="28" height="22" fill="#C7C4B6"/>
+                <rect x="4" y="184" width="38" height="30" fill="#C7C4B6"/>
+                <rect x="4" y="220" width="38" height="30" fill="#BDBAAC"/>
+                <rect x="268" y="184" width="28" height="30" fill="#C7C4B6"/>
+                <rect x="268" y="220" width="28" height="30" fill="#BDBAAC"/>
+                <rect x="60" y="284" width="26" height="30" fill="#C7C4B6"/>
+                <rect x="90" y="284" width="26" height="30" fill="#BDBAAC"/>
+                <rect x="60" y="320" width="26" height="30" fill="#BDBAAC"/>
+                <rect x="90" y="320" width="26" height="30" fill="#C7C4B6"/>
+                <rect x="4" y="286" width="36" height="30" fill="#C7C4B6"/>
+                <rect x="4" y="322" width="36" height="30" fill="#BDBAAC"/>
+                <rect x="4" y="386" width="36" height="28" fill="#BDBAAC"/>
+                <rect x="60" y="386" width="26" height="26" fill="#C7C4B6"/>
+                <rect x="90" y="386" width="26" height="26" fill="#BDBAAC"/>
+              </g>
+              <polygon points="195,300 250,292 282,320 275,370 240,415 200,400 182,345" fill="#AFC29A"/>
+              <g clip-path="url(#cemeteryClip-f3)">
+                <circle cx="205" cy="315" r="11" fill="#5C7A52"/>
+                <circle cx="222" cy="308" r="8" fill="#93AE80"/>
+                <circle cx="238" cy="320" r="10" fill="#5C7A52"/>
+                <circle cx="255" cy="310" r="9" fill="#93AE80"/>
+                <circle cx="266" cy="330" r="8" fill="#5C7A52"/>
+                <circle cx="235" cy="355" r="11" fill="#5C7A52"/>
+              </g>
+              <text class="street-label main" x="150" y="210" transform="rotate(-35 150 210)">King St</text>
+
+              <path d="M 125 375 L 125 270 L 50 270 L 50 165 L 125 165 L 230 165 L 230 375 L 125 375"
+                    fill="none" stroke="#1E4A3A" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+              <rect x="34" y="239" width="32" height="32" rx="8" fill="#1E4A3A"/>
+              <g clip-path="url(#churchPinClip-f3)">
+                <rect x="36" y="241" width="28" height="28" fill="#BFD8E0"/>
+                <rect x="36" y="259" width="28" height="10" fill="#9CAE8E"/>
+                <polygon points="43,250 50,244 57,250" fill="#B79D78"/>
+                <rect x="43" y="250" width="14" height="14" fill="#D8C4A0"/>
+              </g>
+              <circle cx="63" cy="242" r="8.5" fill="#AFC29A" stroke="#1E4A3A" stroke-width="1.5"/>
+              <path d="M 59.5 242 l 2 2.5 l 4.5 -5" stroke="#1E4A3A" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="75" y="256" font-size="9" font-weight="700" fill="#16302A">St Stephen's Church</text>
+
+              <circle cx="125" cy="165" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+              <text x="125" y="169" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">2</text>
+              <text x="50" y="152" font-size="9" font-weight="700" fill="#16302A">King St Terraces</text>
+
+              <rect x="214" y="134" width="32" height="32" rx="8" fill="#1E4A3A"/>
+              <g clip-path="url(#muralPinClip-f3)">
+                <rect x="216" y="136" width="28" height="28" fill="#EDE7D6"/>
+                <rect x="216" y="136" width="13" height="13" fill="#2F6F76"/>
+                <rect x="229" y="136" width="15" height="9" fill="#E0A23B"/>
+                <rect x="216" y="149" width="10" height="15" fill="#C8536B"/>
+                <rect x="226" y="147" width="18" height="17" fill="#2D3E63"/>
+              </g>
+              <circle cx="243" cy="137" r="8.5" fill="#1E4A3A" stroke="#F6F4EC" stroke-width="1.5"/>
+              <text x="243" y="140" text-anchor="middle" class="pin-badge-num">3</text>
+              <text x="168" y="122" font-size="9" font-weight="700" fill="#16302A">Mural Lane</text>
+
+              <circle cx="230" cy="375" r="11" fill="#1E4A3A" stroke="#AFC29A" stroke-width="3"/>
+              <text x="230" y="379" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">4</text>
+              <text x="150" y="358" font-size="9" font-weight="700" fill="#16302A">Camperdown Cemetery</text>
+
+              <!-- NO live position marker here, deliberately — this is the point
+                   of this state: the optional layer is absent, not broken. -->
+            </svg>
+          </div>
+
+          <div class="bottom-bar">
+            <div class="view-list-pill">View list ▲</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- GROUP 3 — STOP INFO OVERLAY                                -->
+<!-- ========================================================= -->
+<div class="group">
+  <div class="group-title">3. Stop Info Overlay</div>
+  <div class="group-sub">Near-full-screen overlay opened by tapping a stop. "Visited" sits in the top-right corner, visually separate from the content below it — viewing the story does not check it.</div>
+  <div class="row">
+
+    <div class="phone-col">
+      <div class="label">St Stephen's Church</div>
+      <div class="phone">
+        <div class="screen">
+          <div class="overlay-strip"></div>
+          <div class="overlay-panel">
+            <div class="overlay-handle"></div>
+            <div class="overlay-dismiss-label">swipe down to dismiss</div>
+
+            <div class="visited-badge">
+              <div class="box"></div>
+              <div class="label">Visited</div>
+            </div>
+
+            <svg class="photo-banner" viewBox="0 0 300 150" height="150">
+              <defs><clipPath id="churchBannerClip-f3"><rect width="300" height="150" rx="14"/></clipPath></defs>
+              <g clip-path="url(#churchBannerClip-f3)">
+                <rect width="300" height="150" fill="#BFD8E0"/>
+                <rect x="0" y="95" width="300" height="55" fill="#9CAE8E"/>
+                <polygon points="110,50 150,10 190,50" fill="#B79D78"/>
+                <rect x="110" y="50" width="80" height="70" fill="#D8C4A0"/>
+                <path d="M126 62 a11 11 0 0 1 22 0 v18 h-22 z" fill="#7FA6B6"/>
+                <path d="M152 62 a11 11 0 0 1 22 0 v18 h-22 z" fill="#7FA6B6"/>
+                <rect x="140" y="92" width="20" height="28" fill="#5B4A36"/>
+                <line x1="150" y1="10" x2="150" y2="0" stroke="#5B4A36" stroke-width="2.5"/>
+                <line x1="144" y1="2" x2="156" y2="2" stroke="#5B4A36" stroke-width="2.5"/>
+              </g>
+            </svg>
+
+            <div class="stop-name">St Stephen's Church <span class="illustrative-tag">(illustrative example text — not verified, not real stored content)</span></div>
+            <div class="stop-body">
+              Built in 1874 to serve Newtown's growing parish, St Stephen's sits within one of Sydney's oldest cemetery grounds. Its sandstone spire was deliberately left unfinished when funds ran short during construction — a quirk still visible today. Locals say the old bellringer's cottage doubled as a weekday schoolroom well into the 1900s.
+            </div>
+            <div class="source-line">Source: NSW Heritage <span class="illustrative-tag">(placeholder — matches this stop's real catalogue source; the specific claims above are invented for mock purposes and were not checked against the actual stored excerpt)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- GROUP 4 — END OF WALK: WITH AND WITHOUT A SUMMARY          -->
+<!-- ========================================================= -->
+<div class="group">
+  <div class="group-title">4. End of Walk — Catch-up, Summary, or Plain Finish</div>
+  <div class="group-sub">Catch-up offers a quieter secondary path ("or end without a summary") straight to the honest "Jaunt complete" state — the same state reached when nothing was marked visited or summary generation fails. That screen has no summary text, no photos, no AI content — only what's actually guaranteed to exist.</div>
+  <div class="row">
+
+    <div class="phone-col">
+      <div class="label">Catch-up</div>
+      <div class="phone">
+        <div class="screen">
+          <div class="content-pad">
+            <div class="catchup-heading">Nice walk!</div>
+            <div class="catchup-sub">Catch up on anything you forgot to check off.</div>
+
+            <div class="catchup-row">
+              <div class="catchup-check checked">
+                <svg viewBox="0 0 12 12"><path d="M1 6 L4.5 9.5 L11 2" stroke="#F6F4EC" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="catchup-name">St Stephen's Church</div>
+            </div>
+            <div class="catchup-row">
+              <div class="catchup-check checked">
+                <svg viewBox="0 0 12 12"><path d="M1 6 L4.5 9.5 L11 2" stroke="#F6F4EC" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="catchup-name">King St Terraces</div>
+            </div>
+            <div class="catchup-row">
+              <div class="catchup-check unchecked"></div>
+              <div class="catchup-name todo">Mural Lane</div>
+              <div class="catchup-hint">forgot?</div>
+            </div>
+            <div class="catchup-row">
+              <div class="catchup-check unchecked"></div>
+              <div class="catchup-name todo">Camperdown Cemetery</div>
+              <div class="catchup-hint">forgot?</div>
+            </div>
+
+            <div class="cta-btn primary">Create summary of visited stops</div>
+            <!-- Quiet secondary path to the honest no-summary ending, covering
+                 "doesn't want a summary" directly; also what a zero-visited walk or
+                 a failed generation would land on. -->
+            <div class="skip-link">or end without a summary</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="label">Summary</div>
+      <div class="caption">Judgment call: Mural Lane was caught up just now; Camperdown Cemetery stayed unchecked, so it's left out of the summary.</div>
+      <div class="phone">
+        <div class="screen">
+          <div class="summary-head">
+            <div class="jaunty jaunty-summary"></div>
+            <div class="bubble">What a jaunt! Here's everywhere you stopped.</div>
+          </div>
+
+          <div class="summary-list">
+            <div class="summary-row">
+              <svg class="summary-thumb" viewBox="0 0 52 52">
+                <defs><clipPath id="churchSummaryClip-f3"><rect width="52" height="52" rx="11"/></clipPath></defs>
+                <g clip-path="url(#churchSummaryClip-f3)">
+                  <rect width="52" height="52" fill="#BFD8E0"/>
+                  <rect x="0" y="33" width="52" height="19" fill="#9CAE8E"/>
+                  <polygon points="12,16 26,4 40,16" fill="#B79D78"/>
+                  <rect x="12" y="16" width="28" height="26" fill="#D8C4A0"/>
+                  <path d="M18 22 a3.5 3.5 0 0 1 7 0 v6 h-7 z" fill="#7FA6B6"/>
+                  <path d="M27 22 a3.5 3.5 0 0 1 7 0 v6 h-7 z" fill="#7FA6B6"/>
+                  <rect x="23" y="32" width="6" height="10" fill="#5B4A36"/>
+                </g>
+              </svg>
+              <div class="summary-info">
+                <div class="name">St Stephen's Church</div>
+                <div class="recap">You caught the church's quietly unfinished spire — a lingering trace of the funds that ran out mid-build.</div>
+              </div>
+              <div class="heart-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.3C.4 8.2 2.3 4.5 6 4c2-.3 3.8.7 6 3 2.2-2.3 4-3.3 6-3 3.7.5 5.6 4.2 4 7.7C19.5 16.4 12 21 12 21z" fill="none" stroke="#1E4A3A" stroke-width="1.6"/></svg>
+              </div>
+            </div>
+
+            <div class="summary-row">
+              <div class="summary-info" style="padding-left:0;">
+                <div class="name">King St Terraces</div>
+                <div class="recap">A quick pause among the restored Victorian terraces, admiring the lace ironwork balconies.</div>
+              </div>
+              <div class="heart-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.3C.4 8.2 2.3 4.5 6 4c2-.3 3.8.7 6 3 2.2-2.3 4-3.3 6-3 3.7.5 5.6 4.2 4 7.7C19.5 16.4 12 21 12 21z" fill="none" stroke="#1E4A3A" stroke-width="1.6"/></svg>
+              </div>
+            </div>
+
+            <div class="summary-row">
+              <svg class="summary-thumb" viewBox="0 0 52 52">
+                <defs><clipPath id="muralSummaryClip-f3"><rect width="52" height="52" rx="11"/></clipPath></defs>
+                <g clip-path="url(#muralSummaryClip-f3)">
+                  <rect width="52" height="52" fill="#EDE7D6"/>
+                  <rect x="0" y="0" width="24" height="24" fill="#2F6F76"/>
+                  <rect x="24" y="0" width="28" height="16" fill="#E0A23B"/>
+                  <rect x="0" y="24" width="19" height="28" fill="#C8536B"/>
+                  <rect x="19" y="21" width="33" height="31" fill="#2D3E63"/>
+                  <circle cx="36" cy="36" r="7" fill="#E8D44D"/>
+                </g>
+              </svg>
+              <div class="summary-info">
+                <div class="name">Mural Lane</div>
+                <div class="recap">You wandered down Mural Lane and caught this month's rotating street art before it changes again.</div>
+              </div>
+              <div class="heart-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.3C.4 8.2 2.3 4.5 6 4c2-.3 3.8.7 6 3 2.2-2.3 4-3.3 6-3 3.7.5 5.6 4.2 4 7.7C19.5 16.4 12 21 12 21z" fill="#1E4A3A" stroke="#1E4A3A" stroke-width="1.6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="label">Jaunt complete — no summary</div>
+      <div class="caption">Reached from "or end without a summary" above — also where a zero-visited walk or a failed summary generation lands. No summary text, no photos, no AI content: only what's actually guaranteed to exist. Heading and acknowledgment line are both short draft copy, unconfirmed. "Back to start" is a compact pill per this pass's sizing fix (see top comment).</div>
+      <div class="phone">
+        <div class="screen">
+          <div class="complete-wrap">
+            <div class="jaunty jaunty-summary"></div>
+            <div class="complete-heading">Jaunt complete</div>
+            <div class="complete-ack">Nice walk!</div>
+            <div class="complete-cta">Back to start</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

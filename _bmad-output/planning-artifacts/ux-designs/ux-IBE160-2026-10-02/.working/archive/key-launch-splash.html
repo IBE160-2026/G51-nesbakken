@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Key Screen: Launch Splash</title>
+<style>
+/*
+  KEY SCREEN — APP LAUNCH / SPLASH (new, per .memlog.md lines 90-91)
+  ---------------------------------------------------------------------------
+  First time the FULL Jaunt brand (wordmark + logo scene) appears anywhere in
+  this UX, not just the standalone character. Shown once, before the
+  starting-point screen (key-trip-setup-opening.html Screen 1). Purpose: (a)
+  introduce the brand name/wordmark, (b) visually connect Jarrod to his
+  origin as the "JA" letterforms of the wordmark, before he reappears
+  on his own throughout the rest of the flow.
+
+  Per memlog's refinement (line 91, proposed not yet user-confirmed, but the
+  only technically grounded path): skip a literal letter-to-character morph
+  (real path-morphing animation, too complex for this project's plain-CSS
+  scope) in favor of: wordmark reveal -> crossfade -> Jarrod idle-wobbling
+  then jumping in front of a hillside scene, hills drifting gently
+  underneath. Pure CSS @keyframes throughout, no JS. This project's "no JS"
+  rule is about avoiding behavioral/interactive JS, not CSS animation.
+
+  ---------------------------------------------------------------------------
+  ASSET 1 — THE REAL WORDMARK/LOGO IMAGE, NEVER REDRAWN
+  ---------------------------------------------------------------------------
+  imports/jaunt-logo.png, confirmed via Pillow: mode RGB, size 1774x887
+  (exact 2:1 aspect ratio). This is the first mock in the whole project to
+  use this file — it has never appeared anywhere before now (per brief).
+
+  Phase 1 (the big reveal) uses the file DIRECTLY as an <img>, completely
+  unmodified — not a crop, not a redraw of the lettering. This is the
+  strongest possible compliance with "real image or faithful typography,
+  never an invented redraw of the custom lettering": it IS the real asset.
+  Background-color behind the <img> is set to #FDFEFA, matching the image's
+  own corner pixel color (sampled via Pillow: (253,254,250) and
+  (254,253,249) at the two top corners) rather than the phone screen's
+  slightly different cream (#F6F4EC) — avoids a visible seam/box edge around
+  the image during the reveal/hold.
+
+  Phase 2's small persistent "mini wordmark" badge (bottom of screen, see
+  .mini-wordmark) is ALSO the real file, this time background-image-cropped
+  (same crop technique already used for every Jarrod pose in this project)
+  to just the word lockup, trimming most of the surrounding sky/hill so it
+  reads as a compact badge rather than a second full scene. Crop rectangle
+  was derived from a real pixel measurement, not eyeballed: scanned every
+  pixel of the full-res image for color near the wordmark's dark forest
+  green (#1E4A3A, tolerance 50) to get the letterforms' true bounding box —
+  (350,178)-(1401,662) — then padded out to (310,128)-(1441,722) (a 1131x594
+  crop) so the full "T" and a touch of breathing room/hill-sliver survive at
+  the edges. A standalone crop preview was rendered and visually checked
+  before wiring in the CSS (see /tmp/logo_mini_crop_preview2.png this
+  session) — confirmed no letters clipped.
+  Crop math (same scaling method as every Jarrod crop in this project —
+  background-size/-position scaled by crop-width -> display-width factor,
+  everything derived from one factor so nothing is stretched):
+    factor = displayWidth / 1131
+    .mini-wordmark (96px wide):
+      background-size:     150.58px 75.29px   (1774*factor, 887*factor)
+      background-position: -26.31px -10.86px  (-310*factor, -128*factor)
+      display height:      50.42px            (594*factor)
+
+  ---------------------------------------------------------------------------
+  ASSET 2 — JARROD, THE SAME REAL CROP MATH ALREADY ESTABLISHED
+  ---------------------------------------------------------------------------
+  imports/jaunty-mascot-sheet-v2-eyes-transparent.png, confirmed via Pillow
+  this session: mode RGBA, size 1536x1024 (matches prior files' confirmed
+  dimensions — same sheet, no re-measurement of poses needed).
+
+  Pose used: the wave/greeting pose (row0,col1 on the 3x3 grid) — the SAME
+  crop already pixel-measured and visually verified in
+  key-trip-setup-opening.html (that file's own header documents the Pillow
+  bbox work). Reused here per this task's explicit instruction to reuse
+  established crop coordinates rather than re-deriving them. That file's
+  base measurement at 168px display width:
+    background-size:     799.26px 532.84px
+    background-position: -316.93px -10.44px
+  Scaling to this file's chosen display width of 190px (factor 190/168 =
+  1.130952..., the exact same linear scaling approach key-trip-setup-
+  opening.html itself used to go from its 168px base to 84px/150px variants
+  — background-size and -position scaled by the identical factor, so the
+  crop itself is never stretched/distorted, only displayed larger/smaller):
+    .jaunty-wave-splash (190px wide):
+      background-size:     903.92px 602.62px
+      background-position: -358.43px -11.81px
+      height:              200.60px   (height/width ratio of 1.0558 is
+                                        constant across this pose at every
+                                        scale — confirmed consistent between
+                                        key-trip-setup-opening.html's own
+                                        84px/150px variants: 88.69/84 =
+                                        158.37/150 = 1.0558)
+  Greeting/wave pose chosen deliberately (not a neutral walk pose): this is
+  Jarrod's first appearance of the whole app experience, so an open,
+  welcoming gesture reads better than a plain stand, and ties back to his
+  very next real appearance (same wave pose, same file) on the Trip Setup
+  starting-point screen immediately after this splash.
+
+  ---------------------------------------------------------------------------
+  SCENERY — GENERIC FLAT SHAPES, MATCHED TO THE LOADING SCREEN'S VISUAL WORLD
+  ---------------------------------------------------------------------------
+  Hill/tree/house shapes and exact hex values copied verbatim from
+  key-generate-review-fallback.html's Loading screen (.scenery-wrap svg),
+  per this task's explicit instruction to match that file so the splash and
+  loading screens read as the same visual world. Only change: the ONE loader
+  svg has been split into TWO separate svg layers (back hill alone; front
+  hill+tree+bush+house+bush together) so each can drift horizontally at its
+  own independent speed for the parallax effect this task asks for — the
+  loader itself has no parallax (its hills are static while Jarrod walks),
+  so this is a deliberate, scoped extension of that file's technique, not a
+  deviation from its established look. These are plain geometric shapes
+  (paths/rects/circles/ellipses), the same "generic scenery, not character
+  art" exception already used throughout this project.
+
+  ---------------------------------------------------------------------------
+  ANIMATION TIMELINE — ALL PURE CSS @keyframes, NO JS, AUTO-PLAYS ON LOAD
+  ---------------------------------------------------------------------------
+  Total one-time reveal length: 3.2s. After that, the idle/jump/parallax
+  portion loops indefinitely (matches the real app's few-seconds-then-
+  transition-to-Trip-Setup behavior — this mock just keeps looping since
+  there is nowhere to navigate to from a static file).
+
+    t=0.00s-0.38s   Logo fades/scales in (opacity 0->1, scale 0.92->1)
+    t=0.38s-2.18s   Logo holds fully visible (the "reveal" beat)
+    t=1.98s-3.20s   Logo fades/zooms back out (opacity 1->0, scale 1->1.06)
+                    while, overlapping it, the hillside+Jarrod scene fades
+                    in (opacity 0->1) — a ~1.1s crossfade, not a hard cut,
+                    reading as the wordmark "settling into" the scene behind
+                    it rather than two unrelated slides.
+    t=3.20s onward  Scene fully visible. Jarrod's idle/jump loop (4.8s,
+                    infinite) and his shadow's matching squash/stretch pulse
+                    both start exactly at t=3.20s (animation-delay: 3.2s) so
+                    he stands politely still through the crossfade and only
+                    starts moving once he's the clear subject. The two hill
+                    parallax layers drift continuously from t=0 at their own
+                    constant speeds (16s and 11s loops, opposite phase) —
+                    they're hidden behind the logo layer until the crossfade
+                    anyway, so there's no visible discontinuity at t=3.2s.
+
+  Jarrod's 4.8s idle-loop breakdown (single .jarrodIdle keyframe set,
+  applied to a wrapper div with transform-origin: 50% 100% so every effect
+  pivots from his feet, never his head):
+    0%-33%   Gentle tilt wobble side to side (rotate -6deg at 8%, back to 0
+             at 16%, +6deg at 24%, back to 0 at 33%) — two small wobbles.
+    33%-44%  Pause upright, then crouch into anticipation (translateY +4px,
+             scaleY 0.90 — a squash) heading into the jump.
+    44%-54%  Jump up (translateY -26px, scaleY 1.08 — a stretch at the
+             apex), shadow beneath shrinks/fades (scaleX 0.6, lower
+             opacity) to sell the height.
+    54%-64%  Land (translateY back to 0, scaleY 0.90 squash on impact),
+             shadow widens/darkens briefly (scaleX 1.15) on touchdown.
+    64%-72%  Settle back to neutral scaleY 1.
+    72%-100% Hold neutral before the loop restarts — a brief rest beat so
+             the wobble-then-jump reads as one deliberate playful gesture
+             repeating, not a frantic constant twitch.
+
+  Centering technique: Jarrod's wrapper is centered with
+  left:50%; margin-left:-95px (half of his 190px width) — NOT a centering
+  transform — because a plain `transform: translateX(-50%)` base would be
+  fully overwritten by the keyframes' own `transform` values rather than
+  combined with them (the exact gotcha already documented and fixed in
+  key-generate-review-fallback.html's .walker rule; same fix reused here
+  pre-emptively rather than re-discovering the same bug).
+
+  ---------------------------------------------------------------------------
+  VERIFICATION
+  ---------------------------------------------------------------------------
+  Jarrod's alpha-channel bbox and the sheet's dimensions were re-confirmed
+  via Pillow this session (not assumed from memory of other files). The
+  logo's real pixel dimensions, corner background color, and wordmark bbox
+  were all measured via Pillow this session, with a standalone crop preview
+  rendered and visually inspected before the crop math was finalized. This
+  rendered file was then screenshotted at four different points along the
+  animation timeline via headless Chrome's --virtual-time-budget flag (an
+  approach well-suited to verifying CSS-only animation, since it advances
+  the page's own render clock deterministically rather than guessing from
+  code alone): ~0.9s (logo fully held), ~2.6s (mid-crossfade, both layers
+  partially visible), ~4.6s (idle wobble phase active), ~6.6s (mid-air jump
+  apex). All four were visually reviewed before considering this file done.
+
+  Palette — entirely inherited, no new hex values introduced:
+    --paper:    #FAFAF8   page background (outside phone frame)
+    --ink:      #16302A   primary text
+    --screen-bg:#F6F4EC   phone screen background (used once scene is live)
+    --logo-bg:  #FDFEFA   real sampled corner color of jaunt-logo.png itself
+    --sage:     #AFC29A   brand secondary green / front hill
+    --sage-lt:  #CBDAB9   back hill (lighter, for depth)
+    --forest:   #1E4A3A   brand primary dark green (tree trunk, roofline)
+    --tree-dk:  #5C7A52   tree/bush canopy, deeper green
+    --tree-lt:  #93AE80   tree/bush canopy, lighter green
+    --house:    #DCE6D0   house wall fill
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 16px 80px;
+  color: #16302A;
+}
+.heading { max-width: 640px; text-align: center; margin-bottom: 8px; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #5C6D64; }
+
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.phone-col .label { font-size: 12px; font-weight: 700; color: #5C6D64; letter-spacing: 0.02em; text-transform: uppercase; }
+.phone-col .caption { max-width: 300px; text-align: center; font-size: 11.5px; color: #5C6D64; line-height: 1.5; margin-top: 2px; }
+
+.phone {
+  width: 300px;
+  height: 615px;
+  background: #16302A;
+  border-radius: 42px;
+  padding: 11px;
+  box-shadow: 0 30px 60px -20px rgba(22,48,42,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #F6F4EC;
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===================== SPLASH STAGE (both phases stacked) ===================== */
+.splash-stage { position: absolute; inset: 0; }
+
+/* ---- Phase 1: the real wordmark/logo image, shown unmodified ---- */
+.logo-layer {
+  position: absolute;
+  inset: 0;
+  background: #FDFEFA; /* matches the real image's own sampled corner color */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 28px;
+  animation: logoReveal 3.2s ease-in-out forwards;
+}
+.logo-layer img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+@keyframes logoReveal {
+  0%   { opacity: 0; transform: scale(0.92); }
+  12%  { opacity: 1; transform: scale(1); }
+  68%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+/* ---- Phase 2: hillside scene + Jarrod idle loop + mini wordmark ---- */
+.main-layer {
+  position: absolute;
+  inset: 0;
+  background: #F6F4EC;
+  animation: mainReveal 3.2s ease-in-out forwards;
+}
+@keyframes mainReveal {
+  0%   { opacity: 0; }
+  62%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.parallax-back, .parallax-front {
+  position: absolute;
+  left: -15%;
+  bottom: 0;
+  width: 130%;
+  height: 46%;
+}
+.parallax-back svg, .parallax-front svg { width: 100%; height: 100%; display: block; }
+.parallax-back { animation: driftBack 16s ease-in-out infinite alternate; }
+.parallax-front { animation: driftFront 11s ease-in-out infinite alternate; }
+@keyframes driftBack {
+  0%   { transform: translateX(-10px); }
+  100% { transform: translateX(10px); }
+}
+@keyframes driftFront {
+  0%   { transform: translateX(14px); }
+  100% { transform: translateX(-14px); }
+}
+
+/* Jarrod + his shadow, centered over the scene, idle/jump loop starts the
+   instant the crossfade finishes (animation-delay: 3.2s, see header note). */
+.jarrod-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 46px;
+  width: 70px;
+  height: 14px;
+  margin-left: -35px;
+  background: #16302A;
+  border-radius: 50%;
+  opacity: 0.28;
+  animation: shadowPulse 4.8s ease-in-out infinite;
+  animation-delay: 3.2s;
+}
+@keyframes shadowPulse {
+  0%   { transform: scaleX(1);    opacity: 0.28; }
+  33%  { transform: scaleX(1);    opacity: 0.28; }
+  44%  { transform: scaleX(1.08); opacity: 0.32; }
+  54%  { transform: scaleX(0.6);  opacity: 0.14; }
+  64%  { transform: scaleX(1.15); opacity: 0.34; }
+  72%  { transform: scaleX(1);    opacity: 0.28; }
+  100% { transform: scaleX(1);    opacity: 0.28; }
+}
+
+.jarrod-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 54px;
+  margin-left: -95px; /* half of 190px — see header note on why this is a
+                          margin, not a centering transform */
+  transform-origin: 50% 100%;
+  animation: jarrodIdle 4.8s ease-in-out infinite;
+  animation-delay: 3.2s;
+}
+@keyframes jarrodIdle {
+  0%   { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  8%   { transform: translateY(0)    rotate(-6deg) scaleY(1);    }
+  16%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  24%  { transform: translateY(0)    rotate(6deg)  scaleY(1);    }
+  33%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  44%  { transform: translateY(4px)  rotate(0deg)  scaleY(0.90); }
+  54%  { transform: translateY(-26px) rotate(0deg) scaleY(1.08); }
+  64%  { transform: translateY(0)    rotate(0deg)  scaleY(0.90); }
+  72%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  100% { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+}
+
+.jaunty {
+  background-image: url('../imports/jaunty-mascot-sheet-v2-eyes-transparent.png');
+  background-repeat: no-repeat;
+  display: block;
+}
+.jaunty-wave-splash {
+  width: 190px;
+  height: 200.6px;
+  background-size: 903.92px 602.62px;
+  background-position: -358.43px -11.81px;
+}
+
+/* Small persistent wordmark badge — the SAME real logo file, cropped
+   (background-image technique, not redrawn) to just the word lockup. See
+   header note for the Pillow-measured crop rectangle and scaling math. */
+.mini-wordmark {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: 96px;
+  height: 50.42px;
+  background-image: url('../imports/jaunt-logo.png');
+  background-repeat: no-repeat;
+  background-size: 150.58px 75.29px;
+  background-position: -26.31px -10.86px;
+}
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Launch Splash — Full Jaunt Wordmark &amp; Logo Reveal</h1>
+  <p>New screen, shown once before the starting-point screen. The real jaunt-logo.png wordmark appears first (unmodified — the first appearance of the full logo anywhere in this UX), crossfades into a hillside scene matched to the Loading screen's visual world, where Jarrod (the real wave-pose crop) does a gentle tilt-wobble then a small anticipation/jump/landing, looping indefinitely while the hills drift in slow parallax behind him. A small cropped wordmark badge persists at the bottom. Pure CSS <code>@keyframes</code>, no JS — open this file in a browser to see it actually play.</p>
+</div>
+
+<div class="phone-col">
+  <div class="label">Launch Splash</div>
+  <div class="phone">
+    <div class="screen">
+      <div class="splash-stage">
+
+        <div class="logo-layer">
+          <img src="../imports/jaunt-logo.png" alt="Jaunt logo">
+        </div>
+
+        <div class="main-layer">
+          <div class="scene">
+            <div class="parallax-back">
+              <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMax slice">
+                <path d="M0,130 C50,108 90,140 140,118 C190,96 230,130 300,112 L300,200 L0,200 Z" fill="#CBDAB9"/>
+              </svg>
+            </div>
+            <div class="parallax-front">
+              <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMax slice">
+                <path d="M0,150 C60,168 110,138 170,156 C220,170 260,146 300,158 L300,200 L0,200 Z" fill="#AFC29A"/>
+                <!-- tree (left) -->
+                <rect x="37" y="118" width="4" height="22" fill="#1E4A3A"/>
+                <circle cx="39" cy="110" r="15" fill="#5C7A52"/>
+                <circle cx="27" cy="122" r="9" fill="#93AE80"/>
+                <!-- bush (left-of-center) -->
+                <ellipse cx="95" cy="142" rx="14" ry="10" fill="#93AE80"/>
+                <ellipse cx="108" cy="146" rx="10" ry="8" fill="#5C7A52"/>
+                <!-- house (right) -->
+                <rect x="228" y="118" width="34" height="26" fill="#DCE6D0"/>
+                <polygon points="245,98 216,118 274,118" fill="#1E4A3A"/>
+                <rect x="240" y="128" width="10" height="16" fill="#5C7A52"/>
+                <rect x="254" y="124" width="6" height="6" fill="#5C7A52"/>
+                <!-- small bush (far right) -->
+                <ellipse cx="282" cy="150" rx="11" ry="8" fill="#93AE80"/>
+              </svg>
+            </div>
+
+            <div class="jarrod-shadow"></div>
+            <div class="jarrod-wrap">
+              <div class="jaunty jaunty-wave-splash"></div>
+            </div>
+          </div>
+
+          <div class="mini-wordmark"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="caption">Real jaunt-logo.png (unmodified) -&gt; crossfade -&gt; real Jarrod wave-pose crop idle-wobbling and jumping in front of generic flat-shape hillside scenery (matched to the Loading screen), hills drifting at two independent speeds, small cropped-wordmark badge persisting at the bottom.</div>
+</div>
+
+</body>
+</html>

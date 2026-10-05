@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jaunt — Direction 1: Mono Trail</title>
+<style>
+/*
+  DIRECTION 1 — "MONO TRAIL"
+  Position on the spectrum: MOST MUTED / MINIMAL base map.
+
+  Hex values used:
+    --paper:        #FAFAF8   page background
+    --card:         #FFFFFF   phone screen background
+    --ink:          #1C1C1A   primary text
+    --ink-soft:     #6B6B66   secondary text
+    --map-bg:       #F3F3F1   map canvas
+    --road:         #E4E4E0   minor roads (desaturated, almost no hue)
+    --road-main:    #D8D8D3   King St (diagonal arterial), slightly darker gray
+    --block:        #EAEAE6   building block fill (barely-there gray)
+    --block-line:   #DDDDD8   building block outline
+    --park:         #DCE0D6   park/cemetery — only a whisper of sage left
+    --route:        #1E8A52   VIVID saturated brand green — the one spot of real color
+    --route-dark:   #156B3F   route shadow/stroke edge
+    --marker-ring:  #FFFFFF   white ring around stop numbers
+    --sheet-line:   #ECECE8
+
+  Rationale (2-3 sentences):
+  Mono Trail pushes the base map to near-grayscale — roads, blocks and even the
+  cemetery green are desaturated down to tonal grays — so the only saturated
+  color on the entire screen is the route itself, making the walk impossible
+  to miss. It reads like a minimalist transit diagram more than a tourist map:
+  calm, confident, a little severe, and closest to "default map, but quieted down"
+  rather than illustrated. Typography is tight system sans, no warmth added —
+  the personality comes entirely from the contrast between gray city and green walk.
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #FAFAF8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 80px;
+  color: #1C1C1A;
+}
+.heading { max-width: 420px; text-align: center; }
+.heading h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+.heading p { font-size: 13.5px; line-height: 1.55; color: #6B6B66; }
+
+.phone {
+  width: 320px;
+  height: 650px;
+  background: #0D0D0C;
+  border-radius: 46px;
+  padding: 12px;
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,0.35);
+}
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #FFFFFF;
+  border-radius: 36px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  padding: 18px 20px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #F0F0EE;
+  z-index: 3;
+  background: #FFFFFF;
+}
+.header .back { font-size: 20px; color: #1C1C1A; width: 24px; }
+.header .title { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.header .title .sub { display: block; font-size: 11px; font-weight: 500; color: #6B6B66; margin-top: 1px; }
+.time-pill {
+  background: #1E8A52;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: 20px;
+  letter-spacing: 0.01em;
+}
+
+/* Map */
+.map-wrap { flex: 1; position: relative; background: #F3F3F1; }
+.map-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.street-label {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 8px;
+  fill: #9A9A94;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.street-label.main { fill: #7E7E78; font-size: 8.5px; }
+
+/* current position badge (Jaunty head) */
+.you-wrap { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25)); }
+
+/* Bottom pill (Route Review state) */
+.bottom-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 0 18px 22px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.view-list-pill {
+  background: #1C1C1A;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 13px 26px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 24px -8px rgba(0,0,0,0.4);
+}
+.view-list-pill .chev { font-size: 11px; opacity: 0.7; }
+</style>
+</head>
+<body>
+
+<div class="heading">
+  <h1>Direction 1 — Mono Trail</h1>
+  <p>Near-grayscale base map; the route is the only saturated color on screen. Minimal, transit-diagram calm.</p>
+</div>
+
+<div class="phone">
+  <div class="screen">
+
+    <div class="header">
+      <div class="back">‹</div>
+      <div class="title" style="text-align:center;">
+        Newtown History Loop
+        <span class="sub">3 stops · 1.4 km</span>
+      </div>
+      <div class="time-pill">~38 min</div>
+    </div>
+
+    <div class="map-wrap">
+      <svg viewBox="0 0 320 420" preserveAspectRatio="xMidYMid slice">
+        <rect x="0" y="0" width="320" height="420" fill="#F3F3F1"/>
+
+        <!-- park / cemetery, desaturated to near-gray -->
+        <polygon points="18,70 95,58 112,128 40,146" fill="#DCE0D6"/>
+
+        <!-- building blocks, barely-there -->
+        <g fill="#EAEAE6" stroke="#DDDDD8" stroke-width="1">
+          <rect x="150" y="30" width="26" height="16"/>
+          <rect x="182" y="30" width="26" height="16"/>
+          <rect x="214" y="30" width="26" height="16"/>
+          <rect x="150" y="190" width="24" height="18"/>
+          <rect x="178" y="190" width="24" height="18"/>
+          <rect x="60" y="230" width="30" height="18"/>
+          <rect x="96" y="230" width="30" height="18"/>
+          <rect x="220" y="260" width="26" height="20"/>
+          <rect x="250" y="260" width="26" height="20"/>
+          <rect x="40" y="320" width="28" height="18"/>
+          <rect x="72" y="320" width="28" height="18"/>
+        </g>
+
+        <!-- minor road grid -->
+        <g stroke="#E4E4E0" stroke-width="7" stroke-linecap="round">
+          <line x1="0" y1="60" x2="320" y2="60"/>
+          <line x1="0" y1="150" x2="320" y2="150"/>
+          <line x1="0" y1="260" x2="320" y2="260"/>
+          <line x1="0" y1="355" x2="320" y2="355"/>
+          <line x1="55" y1="0" x2="55" y2="420"/>
+          <line x1="130" y1="0" x2="130" y2="420"/>
+          <line x1="245" y1="0" x2="245" y2="420"/>
+        </g>
+
+        <!-- King Street, the diagonal arterial -->
+        <line x1="4" y1="400" x2="300" y2="18" stroke="#D8D8D3" stroke-width="11" stroke-linecap="round"/>
+
+        <text class="street-label main" x="150" y="190" transform="rotate(-34 150 190)">King St</text>
+        <text class="street-label" x="20" y="146">Church St</text>
+        <text class="street-label" x="140" y="255">Bedford St</text>
+        <text class="street-label" x="170" y="60">Eliza St</text>
+
+        <!-- route: start -> St Stephen's -> Terraces -> Mural -> back to start -->
+        <path d="M 160 370
+                 C 130 330, 90 300, 70 250
+                 C 55 215, 60 170, 95 128
+                 C 120 150, 150 185, 180 210
+                 C 210 225, 235 220, 245 190
+                 C 252 165, 235 130, 200 120"
+              fill="none" stroke="#156B3F" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+        <path d="M 160 370
+                 C 130 330, 90 300, 70 250
+                 C 55 215, 60 170, 95 128
+                 C 120 150, 150 185, 180 210
+                 C 210 225, 235 220, 245 190
+                 C 252 165, 235 130, 200 120"
+              fill="none" stroke="#1E8A52" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"
+              stroke-dasharray="1 10"/>
+
+        <!-- stop 1: St Stephen's Church -->
+        <circle cx="95" cy="128" r="11" fill="#1E8A52" stroke="#fff" stroke-width="2.5"/>
+        <text x="95" y="132" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="inherit">1</text>
+        <text x="110" y="124" font-size="9.5" font-weight="700" fill="#1C1C1A">St Stephen's Church</text>
+
+        <!-- stop 2: King Street Terraces -->
+        <circle cx="180" cy="210" r="11" fill="#1E8A52" stroke="#fff" stroke-width="2.5"/>
+        <text x="180" y="214" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="inherit">2</text>
+        <text x="193" y="206" font-size="9.5" font-weight="700" fill="#1C1C1A">King St Terraces</text>
+
+        <!-- stop 3: Mural Lane -->
+        <circle cx="245" cy="190" r="11" fill="#1E8A52" stroke="#fff" stroke-width="2.5"/>
+        <text x="245" y="194" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" font-family="inherit">3</text>
+        <text x="200" y="176" font-size="9.5" font-weight="700" fill="#1C1C1A">Mural Lane</text>
+
+        <!-- current position: Jaunty's head only -->
+        <g class="you-wrap" transform="translate(160,370)">
+          <circle r="14" fill="#1E8A52"/>
+          <path d="M -8 -10 A 11 7 0 0 1 8 -10 L 7 -13 A 12 8 0 0 0 -7 -13 Z" fill="#156B3F"/>
+          <circle cx="-4.5" cy="1" r="1.6" fill="#fff"/>
+          <circle cx="4.5" cy="1" r="1.6" fill="#fff"/>
+        </g>
+        <text x="160" y="398" text-anchor="middle" font-size="9" font-weight="700" fill="#1C1C1A">Start / Newtown Stn</text>
+      </svg>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="view-list-pill">View list <span class="chev">▲</span></div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
