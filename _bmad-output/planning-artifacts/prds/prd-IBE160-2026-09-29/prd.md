@@ -2,7 +2,7 @@
 title: Jaunt V1 PRD
 status: final
 created: 2026-09-29
-updated: 2026-10-02
+updated: 2026-10-07
 ---
 
 # PRD: Jaunt V1
@@ -349,7 +349,7 @@ See §5 Non-Goals for the full list and reasoning. All Non-Goal items are preser
 
 **Privacy:**
 - No account is required for any V1 feature, including Favourites and Visit History (FR-17).
-- Visit History, Favourites, and any mark-visited state (FR-13) are stored locally on the user's device, never on a server.
+- **Revised 2026-10-07 (architecture review caught an over-broad promise):** for V1, Visit History, Favourites, and any mark-visited state (FR-13) are stored locally on the user's device — no server-side account system exists in V1, and this data is not persisted on any server in this version. A planning request may transmit the minimal signal needed for that one computation (the same transient-use posture FR-24 already establishes for a one-shot location coordinate below); nothing from it is stored server-side in V1 regardless. **This is a V1 implementation fact, not a permanent architectural promise** — it does not foreclose a future server-side account system (synced favourites, saved walks, personalized recommendations), which `addendum.md` already names as a legitimate Post-V1 direction. The original absolute "never on a server" wording would have silently ruled that out; revised so V1's privacy posture and the project's own stated future direction don't contradict each other.
 - Live position (FR-14, Should) is only ever requested with an explicit, revocable permission prompt, is not required for any Must-tier feature, and the continuous position stream itself is never transmitted to or stored on a server — it only drives the client's own map display.
 - **Clarified 2026-10-03 (independent review caught an overstatement):** this does not mean *no* location data ever leaves the device. A starting point derived from FR-24's one-shot "use my current location" is, by design, sent to the routing/planning service — the same way a map-tapped or named-start coordinate already is. What stays device-only is the continuous GPS stream (FR-14) and any stored history/favourites, not a one-time selected coordinate the Route genuinely needs to be computed.
 

@@ -193,7 +193,7 @@ def _call_openai(prompt):
     body = response.json()
     try:
         return body["choices"][0]["message"]["content"]
-    except (KeyError, IndexError) as exc:
+    except (KeyError, IndexError, TypeError) as exc:
         raise AiSelectionError(f"unexpected OpenAI response shape: {exc}") from exc
 
 

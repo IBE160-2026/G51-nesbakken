@@ -106,7 +106,7 @@
     <p class="sub">Six decisions that make the tested backend (planner.py / ai.py / services.py) and the finalized UX spines (DESIGN.md / EXPERIENCE.md) buildable without two people building incompatible halves.</p>
     <div class="meta-row">
       <span class="pill">2026-10-07</span>
-      <span class="pill">6 decisions · 2 critical fixes from review</span>
+      <span class="pill">6 decisions · fixed twice under review</span>
       <span class="pill">Source: ARCHITECTURE-SPINE.md</span>
     </div>
   </header>
@@ -153,10 +153,10 @@ graph LR
 
       <article class="ad-card" id="ad2">
         <div class="ad-head"><span class="ad-num">AD-2</span><span class="ad-name">State ownership</span></div>
-        <p class="ad-plain">The Python server never remembers anything between requests. One planning request returns everything; the browser's own local storage remembers your current walk, so a refresh doesn't lose your place. Visit history lives in a <em>different</em> storage slot, so ending a walk never wipes your history by accident.</p>
+        <p class="ad-plain">The Python server never remembers anything between requests. One planning request returns everything; the browser's own local storage remembers your current walk, so a refresh doesn't lose your place. Visit history lives in a <em>different</em> storage slot, so ending a walk never wipes your history by accident. "End trip" only actually fires once the end-of-walk catch-up and summary screens finish — not the moment you tap "End Jaunt" — so a refresh during wrap-up still recovers. The Visited checkbox itself only works during an active walk, never while just previewing a stop beforehand.</p>
         <dl class="ad-tech">
-          <dt>Prevents</dt><dd>Server-side session state creeping in; a reload silently losing an in-progress trip.</dd>
-          <dt>Rule</dt><dd>Backend fully stateless. Active trip → its own <code>localStorage</code> key, cleared only by an explicit "end trip." Visit history (AD-6) → a separate key, untouched by that action.</dd>
+          <dt>Prevents</dt><dd>Server-side session state creeping in; a reload silently losing an in-progress trip; a stop previewed before the walk even starts getting recorded as genuinely visited.</dd>
+          <dt>Rule</dt><dd>Backend fully stateless. Active trip → its own <code>localStorage</code> key, cleared only when wrap-up completes or the user returns to setup. Visit history (AD-6) → a separate key, untouched by that action. The Visited control is context-gated: disabled/hidden outside an active walk.</dd>
         </dl>
       </article>
 
@@ -168,6 +168,7 @@ graph LR
           <dt>Rule</dt><dd>Content generation runs synchronously at plan time. Payload shape is binding: each stop carries <code>id</code>, order, <code>content</code>, and a structured attribution reference (<code>source_type</code>/<code>source_title</code>/<code>source_url</code>) — never a flat string with no source field.</dd>
           <dt>Failure path</dt><dd>A per-stop grounding-check failure falls back to the raw <code>source_excerpt</code>, never a whole-route failure.</dd>
         </dl>
+        <p class="ad-caveat">Corrected 2026-10-07: the grounding check itself isn't a small extension of existing code. Today's AI validation only checks that JSON parses and the chosen key was actually offered — it has no ability to judge whether generated prose is really supported by the source text. That detector doesn't exist yet and is real, substantial, unbuilt work — recommended as an early prototype task, with real supported/unsupported examples, before it's treated as a safe assumption.</p>
       </article>
 
       <article class="ad-card" id="ad4">
@@ -183,6 +184,7 @@ graph LR
       <article class="ad-card" id="ad5">
         <div class="ad-head"><span class="ad-num">AD-5</span><span class="ad-name">Replace / Re-Jaunt</span></div>
         <p class="ad-plain">Rejecting a stop and asking for a different one doesn't just blindly re-ask and hope — the requirements explicitly warn that wouldn't guarantee a new result. The rejected stop gets added to an exclusion list for the rest of that walk, and the route is re-checked for feasibility before it can be approved again.</p>
+        <p class="ad-caveat">Known, accepted trade-off: Re-Jaunt excludes every stop in the rejected route, not just the combination. A menu with routes {A,B} and {A,C} loses the valid {A,C} after rejecting {A,B}. Kept on purpose — Re-Jaunt is the clean-break tool, the separate per-stop removal (FR-11) is the precise one.</p>
         <dl class="ad-tech">
           <dt>Prevents</dt><dd>A "replace" that's just an unchanged re-call to the planner; confusing this trip's rejects with AD-6's cross-trip history.</dd>
           <dt>Rule</dt><dd><code>excluded_ids</code> is a hard filter, session-local, cleared by end-trip — a different list from AD-6's history. Since the backend holds no state, the browser resends the full list every time, never just the newest addition.</dd>
@@ -191,10 +193,11 @@ graph LR
 
       <article class="ad-card" id="ad6">
         <div class="ad-head"><span class="ad-num">AD-6</span><span class="ad-name">Visit history</span></div>
-        <p class="ad-plain">Your history of past visits and favourites lives in the browser too, in its own separate spot from the current walk. It's a soft hint, not a hard rule — AI leans toward places you haven't seen, but a favourite can still resurface. It never flat-out blocks a place from coming back.</p>
+        <p class="ad-plain">Your history of past visits and favourites lives in the browser, in its own separate spot from the current walk. It's a soft hint, not a hard rule — AI leans toward places you haven't seen, but a favourite can still resurface. It never flat-out blocks a place from coming back. Corrected 2026-10-07: the original schema only tracked a favourite flag, which actually lost the distinction the requirements require between a place you were only shown, one you previewed, and one you confirmed you actually visited.</p>
+        <p class="ad-caveat">Also reconciled: the PRD originally promised this data would "never" reach a server at all. Revised to a V1-scoped promise (nothing is stored server-side in V1; a transient per-request send is fine, same as the location-coordinate precedent) so a future account system isn't architecturally ruled out.</p>
         <dl class="ad-tech">
-          <dt>Prevents</dt><dd>A server-side history store; hard-filtering visited/favourited places when the UX explicitly wants favourites to resurface.</dd>
-          <dt>Rule</dt><dd>Separate <code>localStorage</code> key from the active trip. Shape: a list of <code>{id, favourited}</code>. Sent with the planning request as a soft AI-weighting signal only.</dd>
+          <dt>Prevents</dt><dd>A server-side history <em>store</em>; collapsing the four Engagement States into one "seen" flag (FR-17 explicitly prohibits this); hard-filtering visited/favourited places when the UX explicitly wants favourites to resurface.</dd>
+          <dt>Rule</dt><dd>Separate <code>localStorage</code> key from the active trip. Shape: a list of <code>{id, state, favourited}</code> — <code>state</code> is one of <code>proposed</code>/<code>opened_engaged</code>/<code>visited_completed</code>, <code>favourited</code> independent. Sent with the planning request as a transient, soft AI-weighting signal — never persisted server-side in V1.</dd>
         </dl>
       </article>
 
@@ -210,6 +213,7 @@ graph LR
       <div class="deferred-item"><span class="dot"></span><p><span class="q">Attribution UI.</span> OSM, the routing provider, Wikipedia, NSW Heritage, Inner West Council all need crediting — a content/UI task, not an architecture fork.</p></div>
       <div class="deferred-item"><span class="dot"></span><p><span class="q">Logging.</span> Not addressed at all by this spine. Not assumed to be unnecessary — just genuinely not decided yet.</p></div>
       <div class="deferred-item"><span class="dot"></span><p><span class="q">Sizing the actual UI build.</span> The PRD itself flags that no sprint plan has ever assigned time to building this frontend, given the compressed timeline. This spine fixes the rules that UI must follow — scheduling the build is the next skill's job, flagged here as urgent.</p></div>
+      <div class="deferred-item"><span class="dot"></span><p><span class="q">Topic coverage, confirmed by checking the real catalogue.</span> There is exactly 1 ready History stop and 1 ready Architecture stop against the planner's 2-stop minimum — those two topics cannot produce any route today. Not an architecture problem; a data-coverage gap needing its own task.</p></div>
     </div>
   </section>
 

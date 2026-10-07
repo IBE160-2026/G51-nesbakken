@@ -156,6 +156,15 @@ class TestSelectStops(unittest.TestCase):
             with self.assertRaises(AiSelectionError):
                 select_stops(SAMPLE_OPTIONS, "public_art", 60)
 
+    def test_null_choices_raises_ai_selection_error_not_type_error(self):
+        # Regression: body["choices"][0] raised an uncaught TypeError when
+        # "choices" was present but null, bypassing the retry/fallback path
+        # in planner.py that only expects AiSelectionError/AiFatalError.
+        mock_response = make_mock_response({"choices": None})
+        with patch("ai.requests.post", return_value=mock_response):
+            with self.assertRaises(AiSelectionError):
+                select_stops(SAMPLE_OPTIONS, "public_art", 60)
+
     def test_http_failure_raises_ai_selection_error_not_swallowed(self):
         with patch("ai.requests.post", side_effect=requests.exceptions.ConnectionError("boom")):
             with self.assertRaises(AiSelectionError):

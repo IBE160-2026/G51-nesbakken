@@ -18,17 +18,30 @@ const map = new maplibregl.Map({
   style: MAP_STYLE,
   center: NEWTOWN_CENTER,
   zoom: 15,
+  // Also disables drag-to-pitch - MapLibre ties pitch to the same
+  // right-click/two-finger-drag gesture as rotation.
+  dragRotate: false,
 });
+// NavigationControl({showCompass:false}) above only hides the compass
+// *button* - the touch two-finger-rotate gesture is a separate handler
+// and stays live unless disabled explicitly here too.
+map.touchZoomRotate.disableRotation();
+map.keyboard.disable();
 
 // Bottom-right is the standard thumb-reachable placement for one-handed
 // phone use - MapLibre's default (top-left) assumes a desktop mouse.
-// Compass/pitch are switched off: Jaunt's map stays flat and north-up,
-// matching DESIGN.md's flat "Quiet Streets" treatment rather than a
-// tiltable 3D view.
+// Compass/pitch are switched off above: Jaunt's map stays flat and
+// north-up, matching DESIGN.md's flat "Quiet Streets" treatment rather
+// than a tiltable 3D view.
 map.addControl(
   new maplibregl.NavigationControl({ showCompass: false }),
   "bottom-right"
 );
+
+map.on("error", (event) => {
+  statusEl.textContent = "Map failed to load. Please try again.";
+  console.error("MapLibre error:", event?.error || event);
+});
 
 instructionsEl.textContent = "Tap the map to choose your starting point";
 
