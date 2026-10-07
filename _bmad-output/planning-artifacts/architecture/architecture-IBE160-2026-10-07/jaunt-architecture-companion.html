@@ -1,0 +1,249 @@
+<title>Jaunt Architecture</title>
+<style>
+  :root {
+    /* layout: single scrolling column, sticky AD index rail on wide screens, card grid of 6 decisions */
+    --bg: #F6F4EC;        /* Jaunt's own "cream" */
+    --surface: #FFFFFF;
+    --surface-muted: #EDEAE2;
+    --ink: #16302A;       /* Jaunt's own "warm ink" */
+    --ink-soft: #5C6D64;
+    --ink-faint: #8C9284;
+    --forest: #1E4A3A;    /* Jaunt's primary brand color */
+    --sage: #AFC29A;
+    --line: #DCD8C8;
+    --critical: #8A3324;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11201B;
+      --surface: #16302A;
+      --surface-muted: #1B3A32;
+      --ink: #F2F0E6;
+      --ink-soft: #AEBBB1;
+      --ink-faint: #7E8C82;
+      --forest: #8FCBAE;
+      --sage: #AFC29A;
+      --line: #2C4A40;
+      --critical: #E8A090;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11201B; --surface: #16302A; --surface-muted: #1B3A32;
+    --ink: #F2F0E6; --ink-soft: #AEBBB1; --ink-faint: #7E8C82;
+    --forest: #8FCBAE; --sage: #AFC29A; --line: #2C4A40; --critical: #E8A090;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 0 16px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding-block: 28px 64px; }
+
+  header.page { padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+  h1 { font-size: 28px; margin: 6px 0 8px; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { color: var(--ink-soft); font-size: 14px; max-width: 65ch; }
+  .meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .pill { font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 999px; background: var(--surface-muted); color: var(--ink-soft); white-space: nowrap; }
+
+  .mode-toggle { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 20px 0 28px; }
+  .mode-toggle p { margin: 0; font-size: 13px; color: var(--ink-soft); flex: 1; min-width: 0; }
+  .switch { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .switch .track { position: absolute; inset: 0; background: var(--surface-muted); border-radius: 999px; transition: background .15s; pointer-events: none; }
+  .switch .knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; pointer-events: none; }
+  .switch input:checked ~ .track { background: var(--forest); }
+  .switch input:checked ~ .knob { transform: translateX(18px); }
+
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); margin: 0 0 14px; }
+
+  .diagram-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 32px; overflow-x: auto; }
+  .diagram-caption { font-size: 12.5px; color: var(--ink-soft); margin-top: 10px; }
+
+  section.ads { margin-bottom: 36px; }
+  .ad-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  .ad-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; scroll-margin-top: 16px; }
+  .ad-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .ad-num { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; font-weight: 700; color: var(--forest); background: var(--surface-muted); padding: 2px 8px; border-radius: 6px; }
+  .ad-name { font-size: 16.5px; font-weight: 700; }
+  .ad-status { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--ink-faint); white-space: nowrap; }
+  .ad-plain { margin: 12px 0 0; color: var(--ink); }
+  .ad-caveat { margin: 10px 0 0; font-size: 13px; color: var(--critical); background: color-mix(in srgb, var(--critical) 12%, transparent); border-radius: 8px; padding: 8px 11px; }
+  .ad-tech { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 13px; color: var(--ink-soft); }
+  .ad-tech dt { font-weight: 700; color: var(--ink); margin-top: 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ad-tech dt:first-child { margin-top: 0; }
+  .ad-tech dd { margin: 4px 0 0; }
+  .ad-tech code { background: var(--surface-muted); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  body.plain-only .ad-tech { display: none; }
+
+  section.deferred { margin-bottom: 36px; }
+  .deferred-list { display: flex; flex-direction: column; gap: 10px; }
+  .deferred-item { display: flex; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; }
+  .deferred-item .dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--sage); margin-top: 6px; }
+  .deferred-item p { margin: 0; }
+  .deferred-item .q { font-weight: 700; color: var(--ink); }
+
+  .stack-table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .stack-table th, .stack-table td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  .stack-table tr:last-child td { border-bottom: none; }
+  .stack-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); background: var(--surface-muted); }
+
+  footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-faint); }
+  footer code { font-size: 11.5px; }
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Architecture spine · feature altitude</div>
+    <h1>Closing Jaunt's frontend-wiring gap</h1>
+    <p class="sub">Six decisions that make the tested backend (planner.py / ai.py / services.py) and the finalized UX spines (DESIGN.md / EXPERIENCE.md) buildable without two people building incompatible halves.</p>
+    <div class="meta-row">
+      <span class="pill">2026-10-07</span>
+      <span class="pill">6 decisions · 2 critical fixes from review</span>
+      <span class="pill">Source: ARCHITECTURE-SPINE.md</span>
+    </div>
+  </header>
+
+  <div class="mode-toggle">
+    <p>Rehearsal mode: plain language only. Flip this to check your own explanation against the exact written rule before you say it out loud.</p>
+    <label class="switch">
+      <input type="checkbox" id="techToggle">
+      <span class="track"></span>
+      <span class="knob"></span>
+    </label>
+  </div>
+
+  <section>
+    <h2>How a request flows</h2>
+    <div class="diagram-card">
+      <pre class="mermaid">
+graph LR
+  Browser["Frontend (JS + localStorage)"] -->|HTTP JSON| API["app.py — Flask API layer"]
+  API --> Planner["planner.py — shortlist, feasibility, ordering, exclusion"]
+  Planner --> AI["ai.py — select_stops, generate_content"]
+  Planner --> Services["services.py — ORS matrix + geometry"]
+  Catalogue[("data/sydney_places.json")] --> Planner
+  AI -.->|HTTPS, server-side key| OpenAI[("OpenAI API")]
+  Services -.->|HTTPS, server-side key| ORS[("OpenRouteService")]
+      </pre>
+      <p class="diagram-caption">One-way dependency: browser → API → planner → {AI, routing}. Nothing downstream calls back up, and the browser never sees a provider key.</p>
+    </div>
+  </section>
+
+  <section class="ads">
+    <h2>The six decisions</h2>
+    <div class="ad-grid">
+
+      <article class="ad-card" id="ad1">
+        <div class="ad-head"><span class="ad-num">AD-1</span><span class="ad-name">Map rendering</span><span class="ad-status">Base layer built &amp; verified</span></div>
+        <p class="ad-plain">We moved the map library from Leaflet to MapLibre, with OpenFreeMap as a free, keyless, limitless tile source — now, before anything else gets built on top of the map, since this is the cheapest point in the whole project to make that change. The custom color palette from the design isn't done yet; today's map uses a free plain style as a placeholder.</p>
+        <dl class="ad-tech">
+          <dt>Prevents</dt><dd>One builder styling raster tiles while another assumes vector tiles exist; many-of-a-kind features (route line, amenity dots) built as individual DOM elements instead of one data layer.</dd>
+          <dt>Rule</dt><dd>MapLibre GL JS pinned <code>5.6.1</code> (v6 drops the plain-script-tag bundle this project relies on) · OpenFreeMap <code>positron</code> style · data-driven features use GeoJSON layers, one-off image content (Jarrod's head, a stop photo) uses <code>Marker({element})</code>.</dd>
+          <dt>Known exception</dt><dd>The existing catalogue-pin loop already renders one DOM marker per place — ported 1:1 from Leaflet to preserve behavior. Not retroactively required to change; the rule binds new features.</dd>
+        </dl>
+      </article>
+
+      <article class="ad-card" id="ad2">
+        <div class="ad-head"><span class="ad-num">AD-2</span><span class="ad-name">State ownership</span></div>
+        <p class="ad-plain">The Python server never remembers anything between requests. One planning request returns everything; the browser's own local storage remembers your current walk, so a refresh doesn't lose your place. Visit history lives in a <em>different</em> storage slot, so ending a walk never wipes your history by accident.</p>
+        <dl class="ad-tech">
+          <dt>Prevents</dt><dd>Server-side session state creeping in; a reload silently losing an in-progress trip.</dd>
+          <dt>Rule</dt><dd>Backend fully stateless. Active trip → its own <code>localStorage</code> key, cleared only by an explicit "end trip." Visit history (AD-6) → a separate key, untouched by that action.</dd>
+        </dl>
+      </article>
+
+      <article class="ad-card" id="ad3">
+        <div class="ad-head"><span class="ad-num">AD-3</span><span class="ad-name">AI content timing</span></div>
+        <p class="ad-plain">Every stop's "fun fact" is written by AI all at once, when the route is first planned — not one by one as you tap through during the walk. Chosen specifically so the walk keeps working if your phone loses signal mid-route. If one stop's fact fails its own fact-check, only that stop falls back to plain source text; the rest of the route is never thrown away over it.</p>
+        <dl class="ad-tech">
+          <dt>Prevents</dt><dd>A lazy per-stop content call that assumes connectivity mid-walk, incompatible with a trip meant to be complete and cached offline.</dd>
+          <dt>Rule</dt><dd>Content generation runs synchronously at plan time. Payload shape is binding: each stop carries <code>id</code>, order, <code>content</code>, and a structured attribution reference (<code>source_type</code>/<code>source_title</code>/<code>source_url</code>) — never a flat string with no source field.</dd>
+          <dt>Failure path</dt><dd>A per-stop grounding-check failure falls back to the raw <code>source_excerpt</code>, never a whole-route failure.</dd>
+        </dl>
+      </article>
+
+      <article class="ad-card" id="ad4">
+        <div class="ad-head"><span class="ad-num">AD-4</span><span class="ad-name">Preference signal</span></div>
+        <p class="ad-plain">The landmark-vs-hidden-gem slider doesn't get turned into some invented Python score. It's handed straight to the AI as part of the same judgment call it already makes about relevance — because "how well-known is this place" is a qualitative call, not arithmetic, and that's the line Python/AI already draw everywhere else in this project.</p>
+        <p class="ad-caveat">Not true yet: the AI prompt doesn't currently even receive the source title/type it would need to judge this well — that has to be added, not assumed already there.</p>
+        <dl class="ad-tech">
+          <dt>Prevents</dt><dd>A Python-invented "prominence" heuristic competing with AI's own judgment of the same signal.</dd>
+          <dt>Rule</dt><dd>No new Python field. Preference travels as one continuous numeric value (matching the mock's slider, not a 3-value enum) straight into AI's prompt.</dd>
+        </dl>
+      </article>
+
+      <article class="ad-card" id="ad5">
+        <div class="ad-head"><span class="ad-num">AD-5</span><span class="ad-name">Replace / Re-Jaunt</span></div>
+        <p class="ad-plain">Rejecting a stop and asking for a different one doesn't just blindly re-ask and hope — the requirements explicitly warn that wouldn't guarantee a new result. The rejected stop gets added to an exclusion list for the rest of that walk, and the route is re-checked for feasibility before it can be approved again.</p>
+        <dl class="ad-tech">
+          <dt>Prevents</dt><dd>A "replace" that's just an unchanged re-call to the planner; confusing this trip's rejects with AD-6's cross-trip history.</dd>
+          <dt>Rule</dt><dd><code>excluded_ids</code> is a hard filter, session-local, cleared by end-trip — a different list from AD-6's history. Since the backend holds no state, the browser resends the full list every time, never just the newest addition.</dd>
+        </dl>
+      </article>
+
+      <article class="ad-card" id="ad6">
+        <div class="ad-head"><span class="ad-num">AD-6</span><span class="ad-name">Visit history</span></div>
+        <p class="ad-plain">Your history of past visits and favourites lives in the browser too, in its own separate spot from the current walk. It's a soft hint, not a hard rule — AI leans toward places you haven't seen, but a favourite can still resurface. It never flat-out blocks a place from coming back.</p>
+        <dl class="ad-tech">
+          <dt>Prevents</dt><dd>A server-side history store; hard-filtering visited/favourited places when the UX explicitly wants favourites to resurface.</dd>
+          <dt>Rule</dt><dd>Separate <code>localStorage</code> key from the active trip. Shape: a list of <code>{id, favourited}</code>. Sent with the planning request as a soft AI-weighting signal only.</dd>
+        </dl>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="deferred">
+    <h2>Decided not to decide yet — and why that's the honest call</h2>
+    <div class="deferred-list">
+      <div class="deferred-item"><span class="dot"></span><p><span class="q">Visit-history retention.</span> AD-6 settles where history lives, not how long it lives there or whether a user can clear it — genuinely undecided (PRD Open Question 7).</p></div>
+      <div class="deferred-item"><span class="dot"></span><p><span class="q">"Time remaining" display.</span> From the original budget, or a live estimate from current position? The second needs a backend capability that doesn't exist yet (PRD Open Question 20).</p></div>
+      <div class="deferred-item"><span class="dot"></span><p><span class="q">Replace strategy.</span> AD-5 settles the exclusion mechanism; whether a fresh AI suggestion or the next-best shortlisted option is still open (PRD Open Question 2).</p></div>
+      <div class="deferred-item"><span class="dot"></span><p><span class="q">Attribution UI.</span> OSM, the routing provider, Wikipedia, NSW Heritage, Inner West Council all need crediting — a content/UI task, not an architecture fork.</p></div>
+      <div class="deferred-item"><span class="dot"></span><p><span class="q">Logging.</span> Not addressed at all by this spine. Not assumed to be unnecessary — just genuinely not decided yet.</p></div>
+      <div class="deferred-item"><span class="dot"></span><p><span class="q">Sizing the actual UI build.</span> The PRD itself flags that no sprint plan has ever assigned time to building this frontend, given the compressed timeline. This spine fixes the rules that UI must follow — scheduling the build is the next skill's job, flagged here as urgent.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Stack</h2>
+    <table class="stack-table">
+      <tr><th>Component</th><th>Version / detail</th></tr>
+      <tr><td>Python</td><td>3.13</td></tr>
+      <tr><td>Flask</td><td>3.1.3</td></tr>
+      <tr><td>MapLibre GL JS</td><td>5.6.1, pinned</td></tr>
+      <tr><td>OpenFreeMap</td><td>public instance, <code>positron</code> style, no key</td></tr>
+      <tr><td>OpenRouteService</td><td>foot-walking profile, keyed server-side</td></tr>
+      <tr><td>OpenAI</td><td>model set via <code>OPENAI_MODEL</code></td></tr>
+    </table>
+  </section>
+
+  <footer>
+    Distilled from a coaching-style <code>bmad-architecture</code> run (six decisions, two reconciliation passes, a three-lens reviewer gate) on 2026-10-07. The spine and its full decision trail are the source of truth — this page is a rehearsal aid, not a replacement for <code>ARCHITECTURE-SPINE.md</code> and <code>.memlog.md</code>.
+  </footer>
+</div>
+
+<script>
+  (function () {
+    try {
+      var toggle = document.getElementById('techToggle');
+      var saved = localStorage.getItem('jaunt-arch-tech-mode');
+      if (saved === '1') { toggle.checked = true; document.body.classList.remove('plain-only'); }
+      else { document.body.classList.add('plain-only'); }
+      toggle.addEventListener('change', function () {
+        document.body.classList.toggle('plain-only', !toggle.checked);
+        try { localStorage.setItem('jaunt-arch-tech-mode', toggle.checked ? '1' : '0'); } catch (e) {}
+      });
+    } catch (e) {
+      document.body.classList.add('plain-only');
+    }
+  })();
+</script>
