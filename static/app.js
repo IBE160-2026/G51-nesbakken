@@ -1,47 +1,65 @@
-// Sprint 2: just plumbing - render the real catalogue on a map, and let a
-// tap place a visual start-point marker. No filtering or logic yet.
+// Renders the real catalogue on a map, and lets a tap place a visual
+// start-point marker. Migrated from Leaflet to MapLibre GL JS (2026-10-07,
+// architecture decision AD-1) - see ARCHITECTURE-SPINE.md. Base style is
+// OpenFreeMap's "positron" (closest free out-of-the-box match to DESIGN.md's
+// muted cream palette); a fully custom DESIGN.md-matched style is later,
+// separate work, not part of this migration.
 
-const NEWTOWN_CENTER = [-33.8977, 151.1793];
-const POPUP_OPTIONS = { maxWidth: 260 };
-const START_MARKER_OPTIONS = {
-  radius: 10,
-  color: "#e63946",
-  fillColor: "#e63946",
-  fillOpacity: 0.9,
-  weight: 2,
-};
+const NEWTOWN_CENTER = [151.1793, -33.8977]; // MapLibre uses [lng, lat]
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+const POPUP_OPTIONS = { maxWidth: "260px" };
+const START_MARKER_COLOR = "#e63946";
 
 const statusEl = document.getElementById("status");
 const instructionsEl = document.getElementById("instructions");
 
-const map = L.map("map", { zoomControl: false }).setView(NEWTOWN_CENTER, 15);
+const map = new maplibregl.Map({
+  container: "map",
+  style: MAP_STYLE,
+  center: NEWTOWN_CENTER,
+  zoom: 15,
+});
 
 // Bottom-right is the standard thumb-reachable placement for one-handed
-// phone use - Leaflet's default (top-left) assumes a desktop mouse.
-L.control.zoom({ position: "bottomright" }).addTo(map);
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "&copy; OpenStreetMap contributors",
-}).addTo(map);
+// phone use - MapLibre's default (top-left) assumes a desktop mouse.
+// Compass/pitch are switched off: Jaunt's map stays flat and north-up,
+// matching DESIGN.md's flat "Quiet Streets" treatment rather than a
+// tiltable 3D view.
+map.addControl(
+  new maplibregl.NavigationControl({ showCompass: false }),
+  "bottom-right"
+);
 
 instructionsEl.textContent = "Tap the map to choose your starting point";
+
+// A small round div (not MapLibre's default pin) to match the original
+// circle-marker look, and so it's visually distinct in both shape and
+// colour from the default pin markers used for catalogue stops below.
+function buildStartMarkerElement() {
+  const el = document.createElement("div");
+  el.style.width = "20px";
+  el.style.height = "20px";
+  el.style.borderRadius = "50%";
+  el.style.background = START_MARKER_COLOR;
+  el.style.opacity = "0.9";
+  el.style.border = `2px solid ${START_MARKER_COLOR}`;
+  el.style.boxSizing = "border-box";
+  return el;
+}
 
 let startMarker = null;
 
 map.on("click", (event) => {
-  const { lat, lng } = event.latlng;
+  const { lat, lng } = event.lngLat;
   if (startMarker) {
-    startMarker.setLatLng([lat, lng]);
+    startMarker.setLngLat([lng, lat]);
   } else {
-    // A circle marker (Leaflet-native, no custom icon assets) is visually
-    // distinct in both shape and colour from the default pin markers used
-    // for stops below.
-    startMarker = L.circleMarker([lat, lng], START_MARKER_OPTIONS)
-      .addTo(map)
-      .bindPopup("Start point", POPUP_OPTIONS);
+    startMarker = new maplibregl.Marker({ element: buildStartMarkerElement() })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup(POPUP_OPTIONS).setText("Start point"))
+      .addTo(map);
   }
-  startMarker.openPopup();
+  startMarker.togglePopup();
   instructionsEl.textContent = "";
 });
 
@@ -90,9 +108,14 @@ async function loadPlaces() {
   }
 
   places.forEach((place) => {
-    const marker = L.marker([place.latitude, place.longitude]).addTo(map);
-    marker.bindPopup(buildPopupContent(place), POPUP_OPTIONS);
+    const popup = new maplibregl.Popup(POPUP_OPTIONS).setDOMContent(
+      buildPopupContent(place)
+    );
+    new maplibregl.Marker()
+      .setLngLat([place.longitude, place.latitude])
+      .setPopup(popup)
+      .addTo(map);
   });
 }
 
-loadPlaces();
+map.on("load", loadPlaces);

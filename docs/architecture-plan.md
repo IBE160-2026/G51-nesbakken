@@ -133,6 +133,8 @@ Build `import_places.py` against a single small pilot neighbourhood first (e.g. 
 **Sprint 2 — Minimal end-to-end web flow.**
 Flask + Leaflet showing the pilot-area catalogue stops near a clicked start point on a map. No AI, no time-budget logic yet — this sprint only proves the plumbing (backend, frontend, map rendering, data serialization) works before more logic is layered on.
 
+> **2026-10-07 update:** the frontend map library was migrated from Leaflet to MapLibre GL JS (vector tiles via OpenFreeMap), before Sprint 7/8 work began — decision AD-1, recorded in `_bmad-output/planning-artifacts/architecture/architecture-IBE160-2026-10-07/.memlog.md` (to be distilled into that run's `ARCHITECTURE-SPINE.md` at Finalize). The plumbing this sprint proved (Flask serving the catalogue, map-click start point, map rendering) is unchanged in substance; only the rendering library is different. This note exists so this sentence doesn't silently misdescribe what's actually running.
+
 **Sprint 3 — Candidate shortlisting, routing matrix, and the ordering/feasibility helper.**
 `planner.py`: build the shortlisting pipeline and request the real distance/duration matrix for the start point plus shortlist, then build the brute-force ordering-and-feasibility helper described above. This helper can be fully unit-tested at this point using a hand-built fake matrix — no AI needed yet, since it's pure logic once the matrix exists.
 
