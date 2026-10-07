@@ -365,7 +365,7 @@ See §5 Non-Goals for the full list and reasoning. All Non-Goal items are preser
 - Mobile-first web app (phone browser primary); desktop is secondary. Built and tested mobile-first from the start, per existing `architecture-plan.md` decision — not retrofitted later.
 
 **Reliability / regression:**
-- The existing test suite (167/167 passing, per the user/Codex's latest run — newer than `architecture-plan.md`'s documented 155/155 at end of Sprint 6) must continue passing as V1 features are added; new Must/Should features get their own tests per `AGENTS.md`'s testing priorities (core functionality, calculations, data handling, edge cases).
+- The existing test suite (168/168 passing — directly re-run and verified 2026-10-07, superseding earlier 167/167 and 155/155 figures) must continue passing as V1 features are added; new Must/Should features get their own tests per `AGENTS.md`'s testing priorities (core functionality, calculations, data handling, edge cases).
 
 ## 8. Success Metrics
 
