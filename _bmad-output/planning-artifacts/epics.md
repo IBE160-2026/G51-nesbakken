@@ -507,3 +507,161 @@ So that I get a better sense of the place without Jaunt showing anything it does
 **Given** this story begins
 **When** real catalogue coverage is assessed
 **Then** the fraction of `ready` Stops that actually have a qualifying rights-cleared image is checked and documented before this feature is treated as more than a nice-to-have for the Stops that happen to qualify (PRD Open Question 16)
+
+---
+
+## Epic 2: Walk It
+
+A user can actually walk the approved Route: open any stop's content at any time without being nagged about it, see their live position on the map when permission is granted and a calm non-error fallback when it isn't, explicitly mark a stop Visited while walking, and see a muted, subordinate layer of nearby amenities when zoomed in.
+
+**FRs covered:** FR-6 (reused), FR-12, FR-13, FR-14, FR-15, FR-23
+
+### Story 2.1: The active walking screen (Must)
+
+Depends on Story 1.5 (approval transitions here) and reuses Story 1.4's already-fetched route geometry - no new fetch. This is the foundational Must-tier story everything else in this epic builds on.
+
+As a user who has approved a Route,
+I want to walk it with my stops visible and their content available whenever I want it,
+So that I can follow my walk at my own pace without being pressured.
+
+**Acceptance Criteria:**
+
+**Given** I approve a Route (Story 1.5)
+**When** approval completes
+**Then** the active-walking screen loads, showing the map with the route and stop markers, reusing the geometry Story 1.4 already fetched - no new fetch (FR-6, reused)
+
+**Given** the active-walking screen
+**When** I tap a stop marker or its row
+**Then** its content overlay opens - the same overlay Story 1.5 already built for pre-walk review
+
+**Given** a stop's content overlay is open
+**When** I close it without interacting further
+**Then** nothing further is required of me - the app never nags or blocks me for not opening a stop's content (FR-12)
+
+**Given** I complete the walk without opening any stop's content
+**When** this happens
+**Then** the walk is still considered complete - opening content is always optional (FR-12)
+
+**Given** I want to stop walking before Epic 3's catch-up/summary flow exists
+**When** I tap the hamburger and end the walk
+**Then** I'm returned to a fresh Trip Setup screen and the active-trip `localStorage` key is cleared (architecture AD-2's "end trip" action) - visit history (AD-6, Epic 3) is untouched. This minimal exit must work standalone, without Epic 3 built yet; Epic 3 later enriches this same exit point with catch-up and a summary, it does not replace or block it.
+
+### Story 2.2: Show live position during the walk (Should)
+
+Depends on Story 2.1.
+
+As a user walking an approved Route,
+I want to see my live position on the map when I grant permission,
+So that I can see where I am relative to the stops.
+
+**Acceptance Criteria:**
+
+**Given** the active-walking screen
+**When** I'm asked for location permission
+**Then** it's an explicit, revocable prompt - never automatic or silent (FR-14)
+
+**Given** permission is granted
+**When** my position updates
+**Then** Jarrod's head-only marker (not a generic dot, not his full figure) moves along the route in real time (UX-DR14)
+
+**Given** permission is denied, deferred, or never attempted
+**When** this happens
+**Then** a calm "Location off" pill replaces the marker - the static map/route/stops are otherwise identical, and this is explicitly not an error state, it is the Must-tier baseline every walk must degrade to cleanly (UX-DR14)
+
+**Given** permission was already granted and position was updating
+**When** the user revokes permission mid-walk (browser/OS settings) or the GPS signal is lost (e.g. indoors)
+**Then** the live marker is removed and the same calm "Location off" pill appears - the rest of the walking screen (map, route, stops, content access) keeps working exactly as if GPS had never been granted; this is never shown as an error or a dead end, and degrading to this state mid-walk is treated the same as never having GPS at all
+
+**Given** the pill is shown after a mid-walk loss
+**When** permission or signal is restored
+**Then** the live marker resumes automatically - no special re-grant flow beyond what the browser itself provides
+
+**Given** the continuous position stream
+**When** it updates
+**Then** it is never transmitted to or stored on a server - it only drives the client's own map display (NFR-3)
+
+**Given** the live-position marker renders
+**When** it is drawn
+**Then** it uses a DOM Marker with a real ~30px head-crop image, not a GeoJSON layer - one-off image content per architecture AD-1's rule, the same pattern as the existing start-point marker
+
+### Story 2.3: Mark a stop Visited/Completed (Should)
+
+Depends on Story 2.1. Must respect architecture AD-2's context-gating rule (the same overlay exists pre-walk via Story 1.5, where this control must stay disabled).
+
+As a user who has actually reached a stop during my walk,
+I want to explicitly confirm I was there,
+So that my walk summary later only reflects what I genuinely did.
+
+**Acceptance Criteria:**
+
+**Given** I'm viewing a stop's content overlay during an active walk
+**When** I tap the Visited checkbox (top-right, a separate tap from reading content)
+**Then** that stop is recorded as Visited/Completed (FR-13)
+
+**Given** I view the same stop's content overlay before the walk starts (Story 1.5's pre-walk preview)
+**When** I view it
+**Then** the Visited checkbox is disabled/hidden - it is only actionable during an active walk (FR-13, architecture AD-2)
+
+**Given** I merely open a stop's content without tapping Visited
+**When** this happens, during or before the walk
+**Then** it is never recorded as Visited/Completed - opening content and marking Visited are two separate explicit actions (FR-13)
+
+**Given** a stop is marked Visited
+**When** this happens
+**Then** it is stored in the browser's active-trip `localStorage` object under the Engagement State schema Epic 3 later reads (architecture AD-6 - `state: "visited_completed"`)
+
+**Given** I mark a stop Visited during an active walk
+**When** I then refresh the page
+**Then** that stop's Visited/Completed status is still shown as checked - it survives the refresh via the same active-trip `localStorage` persistence Story 1.5 already established (architecture AD-2) for the rest of the trip, not just the original plan contents
+
+### Story 2.4: Muted background amenities at high zoom (Should)
+
+Depends on Story 2.1. The data source is genuinely open (PRD Open Question 17) and must be decided, not assumed.
+
+As a user zoomed into the map during my walk,
+I want to see nearby cafes/amenities for orientation without them competing with my route,
+So that the map stays oriented around my walk, not a general directory.
+
+**Acceptance Criteria:**
+
+**Given** I zoom in sufficiently
+**When** amenity points are shown
+**Then** they render as small (5px), low-opacity (0.7) muted dots with simple generic glyphs - visually subordinate to the route and stops at every zoom level where they appear (FR-23, UX-DR19)
+
+**Given** amenity points are shown
+**When** they are rendered
+**Then** they use a GeoJSON source + MapLibre paint layer, not individual DOM markers, per architecture AD-1's rule for many-of-a-kind data
+
+**Given** amenity points exist
+**When** anything uses them
+**Then** they are display-only - never stored as Stops, never fed into the Planner or AI selection (FR-23)
+
+**Given** this story is implemented
+**When** the data source is chosen
+**Then** it is explicitly decided and documented (e.g. a live Overpass amenity query vs. a bundled/pre-fetched set) - PRD Open Question 17 leaves this genuinely open, not a given
+
+### Story 2.5: Automatic arrival notification (Could)
+
+Depends on Story 2.2 (live position) - explicitly, per the PRD itself ("Could, depends on FR-14"). The only Could-tier story in this epic.
+
+As a user walking with live position enabled,
+I want a gentle nudge when I'm near an unvisited stop,
+So that I don't accidentally walk past something without noticing it.
+
+**Acceptance Criteria:**
+
+**Given** live position is active and permitted
+**When** I come near an unvisited Stop
+**Then** I receive a prompt inviting me to open its content (FR-15)
+
+**Given** live position is not active (denied or never attempted)
+**When** this happens
+**Then** no such prompt ever fires - it is never simulated from a non-GPS signal (FR-15)
+
+**Given** this feature doesn't exist
+**When** the Must/Should path (Stories 2.1-2.4) is tested
+**Then** nothing about it depends on this story - confirmed Could-tier, safely omittable
+
+**Given** an arrival notification fires
+**When** it is shown
+**Then** it is subtle and non-intrusive - a quiet visual signal (e.g. a pill/badge), no sound or vibration by default, never a modal or alert that interrupts the walk. Exact visual treatment is genuinely undesigned (Scope Tiers table lists FR-15 as "not designed in detail") - this constraint (subtle, never intrusive) is the one firm requirement to decide it against when the story is actually built
