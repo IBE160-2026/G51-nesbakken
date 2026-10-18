@@ -584,6 +584,14 @@ So that I can see where I am relative to the stops.
 **When** it is drawn
 **Then** it uses a DOM Marker with a real ~30px head-crop image, not a GeoJSON layer - one-off image content per architecture AD-1's rule, the same pattern as the existing start-point marker
 
+**Given** `GeolocationCoordinates.heading` is a real, non-null value (the browser's own GPS-course-over-ground, from the same permission already granted for FR-14 - no separate compass/`DeviceOrientationEvent` permission requested)
+**When** this is true
+**Then** a small directional arrow overlays Jarrod's head marker, pointing the way he's actually heading
+
+**Given** `heading` is `null`/`NaN` (the device is stationary, or heading can't be determined - the common case whenever a user pauses to read a stop's content)
+**When** this is true
+**Then** the arrow is not shown - just the plain head marker, never a guessed or stale direction (verified directly: this is the documented, spec-correct behavior of the API, not an edge case to special-case around)
+
 ### Story 2.3: Mark a stop Visited/Completed (Should)
 
 Depends on Story 2.1. Must respect architecture AD-2's context-gating rule (the same overlay exists pre-walk via Story 1.5, where this control must stay disabled).
@@ -665,3 +673,139 @@ So that I don't accidentally walk past something without noticing it.
 **Given** an arrival notification fires
 **When** it is shown
 **Then** it is subtle and non-intrusive - a quiet visual signal (e.g. a pill/badge), no sound or vibration by default, never a modal or alert that interrupts the walk. Exact visual treatment is genuinely undesigned (Scope Tiers table lists FR-15 as "not designed in detail") - this constraint (subtle, never intrusive) is the one firm requirement to decide it against when the story is actually built
+
+---
+
+## Epic 3: Remember and Vary
+
+After finishing, a user gets a short, honest AI-generated summary of only the stops they actually confirmed visiting; their visit history and favourites are remembered locally across sessions without an account; and future Jaunts vary what they're shown based on that real history, while a favourite can always resurface. All Should-tier, matching the PRD's own tiering - no Must or Could items in this epic.
+
+**FRs covered:** FR-16, FR-17, FR-18
+
+### Story 3.1: Catch-up before summarizing (Should)
+
+Depends on Epic 2's Story 2.1 (the "End Jaunt" exit) and Story 2.3 (the Visited-marking mechanism). Inserts new screens *before* the state-clearing step Story 2.1 built standalone - it doesn't change what that clearing does, only delays it until this richer wrap-up finishes, consistent with architecture AD-2's "end trip fires at wrap-up completion, not the initial hamburger tap" rule.
+
+As a user ending my walk,
+I want to review and retroactively mark any stops I forgot to check off,
+So that my eventual summary reflects everywhere I actually went.
+
+**Acceptance Criteria:**
+
+**Given** I tap "End Jaunt"
+**When** the catch-up screen loads instead of immediately clearing state and returning to setup
+**Then** every stop in my route is shown as checked or unchecked based on its current Visited status
+
+**Given** an unchecked stop
+**When** it is shown on the catch-up screen
+**Then** it carries a soft "forgot?" hint, not a demand
+
+**Given** I tap an unchecked stop on the catch-up screen
+**When** I do
+**Then** it becomes Visited/Completed - still an explicit action, not inferred (FR-13's rule extended to retroactive catch-up)
+
+**Given** the catch-up screen
+**When** I've reviewed it
+**Then** I can proceed to either "Create summary of visited stops" (Story 3.2) or the quiet secondary "end without a summary" link
+
+**Given** I proceed from catch-up, either path
+**When** this happens
+**Then** the active-trip `localStorage` state is not cleared yet - it stays alive through whichever path comes next, consistent with architecture AD-2
+
+### Story 3.2: AI-generated walk summary (Should)
+
+Depends on Story 3.1 (needs confirmed Visited stops) and reuses Epic 1 Story 1.3's grounding-check infrastructure (that story was explicitly built to be reusable here).
+
+As a user who finished a walk and confirmed what I actually visited,
+I want a short, honest AI summary of just those stops,
+So that I get a meaningful recap grounded in what I really did.
+
+**Acceptance Criteria:**
+
+**Given** I tap "Create summary of visited stops"
+**When** the summary is generated
+**Then** it is grounded strictly in Stops marked Visited/Completed - never a Stop that was only Proposed or merely Opened/Engaged (FR-16)
+
+**Given** zero stops are marked Visited/Completed
+**When** I reach this point
+**Then** no summary is generated - an honest "nothing confirmed" message is shown instead of fabricating one from Proposed/Opened stops (FR-16)
+
+**Given** the summary is generated
+**When** it is
+**Then** it reuses the same automated grounding-check mechanism Story 1.3 built for per-stop content - no new detector is built from scratch (FR-16, FR-19)
+
+**Given** the summary is shown
+**When** each visited stop appears in it
+**Then** it carries its own favourite-heart tap target (feeds Story 3.3/3.4)
+
+**Given** summary generation fails for a technical reason, with at least one Stop genuinely marked Visited/Completed
+**When** this happens
+**Then** the result is NOT the same "Jaunt complete" no-summary ending as the zero-Visited case - the user still sees a plain, non-AI list of the Stops they actually confirmed visiting, each still carrying its own favourite-heart target, so favouriting never depends on AI succeeding (FR-16, revised 2026-10-18)
+
+**Given** summary generation fails AND zero Stops are marked Visited/Completed
+**When** this happens
+**Then** the genuinely-empty-walk ending applies (the honest "nothing confirmed" message) - that is the one case these two endings still share
+
+### Story 3.3: Local visit history and favourites (Should)
+
+Depends on Epic 1 Story 1.5 (where a Stop first becomes Proposed/Opened-Engaged) and Epic 2 Stories 2.1/2.3 (where it may become Opened-Engaged/Visited-Completed during the walk) and Story 3.2 (the favourite-heart tap target). **Important integration note:** this story is not purely additive to Epic 3's own screens - it hooks into interactions already built in Epic 1 and Epic 2, which must each start emitting a history-recording side-effect once this story exists.
+
+As a user who has walked before,
+I want my visit history and favourites remembered locally without an account,
+So that future Jaunts can recognize places I've already experienced.
+
+**Acceptance Criteria:**
+
+**Given** a Stop is shown in a proposed Route (Story 1.5) or during the walk (Epic 2)
+**When** this happens
+**Then** it is recorded with Engagement State `proposed` if it has no stronger state yet, live as Epic 1/2's existing screens are used - not only retroactively at the end-of-walk catch-up/summary flow
+
+**Given** a Stop's content is then opened, pre-walk or during the walk
+**When** this happens
+**Then** its state upgrades to `opened_engaged`, never downgrading an existing stronger state (e.g. `visited_completed`)
+
+**Given** any of this activity, or a Favourite tap
+**When** it happens
+**Then** it is written to the separate `localStorage` key from the active trip (architecture AD-6) immediately, as the interaction happens - not batched or deferred to when the walk ends. Revised 2026-10-18: an earlier draft of this story said "when the walk ends," which contradicted the two ACs above (live updates) and would also lose history if the browser closed mid-walk. The schema is exactly `{id, state, favourited}`, the three ordinal Engagement States stored distinctly, never collapsed into one "seen" flag (FR-17)
+
+**Given** no account exists
+**When** any of this happens
+**Then** no login or account creation is ever required to use Favourites or Visit History (FR-17)
+
+**Given** this story is built
+**When** retention/reset behaviour is decided
+**Then** whether history ever expires and whether a user-facing clear control exists is explicitly decided and documented - PRD Open Question 7 is genuinely open, not assumed either way
+
+### Story 3.4: Repeat-use route variety (Should)
+
+Depends on Story 3.3 (history must exist to be used) and Epic 1 Story 1.4 (the planning endpoint, which this story adds the history signal to).
+
+As a user planning a new Jaunt after previous ones,
+I want future routes to favour places I haven't experienced yet,
+So that repeat use doesn't just show me the same things.
+
+**Acceptance Criteria:**
+
+**Given** stored visit history exists
+**When** a new planning request is sent
+**Then** it includes this history as a transient, soft AI-weighting signal (architecture AD-6) - never persisted server-side in V1 (NFR-2)
+
+**Given** a Stop marked Visited/Completed
+**When** future selection runs
+**Then** it is deprioritized more strongly than one that was only Proposed or Opened/Engaged - a merely-Proposed Stop is never penalized as if genuinely experienced (FR-18)
+
+**Given** a Favourited Stop
+**When** future selection runs
+**Then** it is never excluded by the deprioritization rule, regardless of its other Engagement State - it can always resurface (FR-18)
+
+**Given** a Favourited Stop and a genuinely new Stop with no prior engagement are both real candidates for the same Route
+**When** selection runs
+**Then** the new Stop is still generally preferred, all else equal - "never excluded" cancels the Visited/Opened penalty, it does not add a preference of its own on top (FR-18, clarified 2026-10-18, also architecture AD-6)
+
+**Given** this story is built
+**When** the exact weighting between Engagement States is decided
+**Then** it is documented as a tuning/design choice, not assumed - PRD Open Question 9 leaves the precise weighting open; only the direction (stronger engagement -> stronger deprioritization) is fixed
+
+**Given** no history exists yet (a first-time user)
+**When** a request is sent
+**Then** selection behaves exactly as it does today - this signal is additive, never required

@@ -236,6 +236,7 @@ After finishing, the user receives a short AI-generated summary grounded strictl
 - The summary never describes a Stop as having been visited unless it holds Visited/Completed state; it does not claim or imply physical presence it has no evidence for.
 - A walk with zero Stops marked Visited/Completed produces no summary (or an honest "nothing confirmed" message) rather than fabricating one from Proposed/Opened stops.
 - Grounded in the same Source Excerpts as the per-stop content (see FR-19) — no new invented detail.
+- **Added 2026-10-18:** a zero-Visited walk and a *failed AI summary generation* are not the same situation and must not share the same ending. When at least one Stop is genuinely Visited/Completed but the AI summary call itself fails, the user still sees a plain, non-AI list of the Stops they actually confirmed visiting, each with its own favourite-heart target — favouriting a visited Stop never depends on AI succeeding. Only a genuinely empty walk (zero Visited stops) gets the honest "nothing confirmed" ending.
 
 #### FR-17: Local visit history and favourites
 User's Visit History — tracking each Stop's Engagement State (Proposed / Opened/Engaged / Visited/Completed) — and Favourites are stored locally, without requiring an account. Realises UJ-1.
@@ -251,6 +252,7 @@ Future Route generation varies Stop selection based on Engagement State, weighte
 **Consequences (testable):**
 - A Stop marked Visited/Completed is deprioritized more strongly than one that was only Proposed (shown but never approved/walked) or Opened/Engaged (previewed but not confirmed visited) — a merely-Proposed Stop should not be penalized as if the user had actually experienced it.
 - A Favourite is not excluded by the deprioritization rule, regardless of its other Engagement State.
+- **Clarified 2026-10-18:** "not excluded" means eligible to resurface, not boosted above genuinely new options. A Stop with no prior engagement at all is still generally preferred over a resurfacing Favourite when both are real candidates for the same Route — Favourite status cancels the Visited/Opened deprioritization penalty, it does not add a preference of its own on top.
 - **Open:** the exact weighting between Engagement States is a tuning/design detail, not fixed by this PRD — see Open Question 9.
 
 ### 4.5 Trustworthy, Source-Grounded AI Content
