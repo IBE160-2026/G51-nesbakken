@@ -184,7 +184,11 @@ So that Jaunt knows what kind of walk to propose.
 
 **Given** the available-time screen
 **When** I adjust the time wheel-picker
-**Then** I can select any value from 30 to 120 minutes in 5-minute increments, with the selected value shown using the `display-time` typography token
+**Then** I can select any value from 30 to 120 minutes in 5-minute increments, with the selected value shown using the `display-time` typography token - a vertical swipe/scroll gesture, tap elsewhere for chip/pill selection, per the project's interaction primitives (UX-DR28)
+
+**Given** short-label single-action buttons on these screens (e.g. "Start my [Topic] Jaunt")
+**When** they are built
+**Then** they use the compact auto-width pill component, never inheriting the full-width-primary or `flex:1` styling meant for a different context - this exact mistake has recurred at least twice already in this project and must be explicitly tested for here, not just avoided by habit (UX-DR4, UX-DR5)
 
 **Given** the topic screen (at-rest or Choose Topic page)
 **When** I view the topic options
@@ -197,6 +201,22 @@ So that Jaunt knows what kind of walk to propose.
 **Given** I have completed starting point, time, and topic
 **When** I proceed
 **Then** all three values are held in the browser's in-progress trip state, not yet sent to the server, ready for the next step
+
+**Given** any Jarrod appearance on these screens
+**When** it is rendered
+**Then** it is a real cropped/composited region of the two source PNGs - never hand-drawn, redrawn, or AI-regenerated from a text description. This produced an unrecognizable result twice before the rule was adopted, and applies to the shipped app's own asset pipeline, not just design mocks (UX-DR18, UX-DR29)
+
+**Given** any copy written for these screens
+**When** it is written
+**Then** it follows the Voice & Tone Do/Don't table - plain, warm, topic-specific where a real variable is known, never generic form-field language or alarm-coded failure framing (UX-DR21). This rule applies to every subsequent story's copy too, not only Trip Setup's.
+
+**Given** every tappable control on these screens (named-start chips, topic pills, the preference-slider handle, compact pill buttons, the time wheel-picker)
+**When** it is built
+**Then** it meets or exceeds a ~44x44pt-equivalent touch target - checked directly against the real rendered size, not assumed from the padding values alone (UX-DR22). This is the first story to introduce these control types; later stories reusing the same component (chips, pills) inherit this check rather than re-deriving it.
+
+**Given** short, tightly-sized labels on this screen (e.g. the selected time value, compact pill text)
+**When** dynamic type / larger text settings are tested against them
+**Then** the layout is checked to confirm it doesn't clip or overlap - not yet verified anywhere in this project, so this story is where that first real check happens (UX-DR27)
 
 ### Story 1.2: Catalogue topic coverage for History and Architecture (Must - promoted from Should)
 
@@ -316,6 +336,10 @@ So that I know exactly what I'm about to walk before committing.
 **When** Route Review loads
 **Then** the map shows the full walking path and every Stop's location, and an expandable stop list shows each Stop's name and Topic (FR-6)
 
+**Given** a Stop is shown on the map
+**When** it is rendered
+**Then** it uses the resolved marker decision: a photo-thumbnail pin if a rights-cleared photo exists (Story 1.11), otherwise a plain numbered circle - never Jarrod standing at the stop with a speech bubble as an individual marker, an alternative explicitly rejected and not to be reintroduced (UX-DR13)
+
 **Given** a generated Route
 **When** Route Review loads
 **Then** the estimated total time (walking + Dwell Time) is shown on screen, not only used internally (FR-6)
@@ -335,6 +359,14 @@ So that I know exactly what I'm about to walk before committing.
 **Given** the planning response is received
 **When** it is
 **Then** the complete route+stops+content is persisted to the browser's own active-trip `localStorage` key (architecture AD-2)
+
+**Given** the stop-list bottom sheet (UX-DR11) is this project's first real use of the ink-on-cream/surface text pairing at reading length (not just short labels)
+**When** this story is built
+**Then** an actual WCAG contrast ratio is calculated for that pairing and recorded - not yet done anywhere in this project, so this is where it first gets checked rather than assumed (UX-DR23)
+
+**Given** the stop-list bottom sheet (and the stop-info overlay it opens into)
+**When** either is shown
+**Then** a visible, tappable close control exists alongside swipe-down-to-dismiss - a real, flagged gap today (only the Must-tier skeleton's stop overlay has one). Later stories reusing the bottom-sheet pattern (the confirmation sheet, the catch-up sheet, the off-canvas drawer) apply this same fix rather than re-deriving it (UX-DR25)
 
 ### Story 1.6: Honest fallback when no suitable Route exists (Must)
 
@@ -368,7 +400,7 @@ So that I never get a weak result or a dead end.
 
 **Given** either message is shown
 **When** I view it
-**Then** no red/alert color treatment is used (none exists in the design system) and the result is never framed as the user's mistake
+**Then** no red/alert color treatment is used (none exists in the design system) and the result is never framed as the user's mistake - the failure state is signaled by Jarrod's sad pose and plain language, never color alone (UX-DR24)
 
 ### Story 1.7: Re-Jaunt (Should)
 
@@ -474,6 +506,10 @@ So that I don't have to hunt for a map reference I don't have.
 **When** I tap "use my current location"
 **Then** a one-time (not continuous) browser geolocation request fires with its own explicit, revocable permission prompt (FR-24)
 
+**Given** this is the first of two separately-scoped location-permission moments in the product (the second is Story 2.2's continuous tracking)
+**When** this prompt appears
+**Then** it is the browser's own native permission dialog, not a custom UI - confirmed, not assumed, to behave accessibly, since this hasn't been separately verified for this product before (UX-DR26). Story 2.2's prompt relies on the same browser-native behavior rather than re-verifying it.
+
 **Given** location permission is denied or the request fails
 **When** this happens
 **Then** it falls back cleanly to map-tap/named starts - never a dead end (FR-24)
@@ -537,6 +573,14 @@ So that I can follow my walk at my own pace without being pressured.
 **Given** a stop's content overlay is open
 **When** I close it without interacting further
 **Then** nothing further is required of me - the app never nags or blocks me for not opening a stop's content (FR-12)
+
+**Given** the off-canvas drawer (UX-DR15) this screen introduces
+**When** it is open
+**Then** it gets the same visible close control Story 1.5 already established for the bottom sheet/stop overlay - applying that fix, not re-deriving it (UX-DR25)
+
+**Given** the hamburger icon and other icon-only controls on this screen
+**When** they are built
+**Then** they meet the same ~44x44pt touch-target check Story 1.1 already established (UX-DR22)
 
 **Given** I complete the walk without opening any stop's content
 **When** this happens
@@ -605,6 +649,10 @@ So that my walk summary later only reflects what I genuinely did.
 **Given** I'm viewing a stop's content overlay during an active walk
 **When** I tap the Visited checkbox (top-right, a separate tap from reading content)
 **Then** that stop is recorded as Visited/Completed (FR-13)
+
+**Given** the Visited checkbox badge (UX-DR16) this story introduces
+**When** it is built
+**Then** it signals its state with a bordered checkbox shape plus the word "Visited," never a color change alone, and meets the same ~44x44pt touch-target check established in Story 1.1 (UX-DR22, UX-DR24)
 
 **Given** I view the same stop's content overlay before the walk starts (Story 1.5's pre-walk preview)
 **When** I view it
@@ -700,6 +748,10 @@ So that my eventual summary reflects everywhere I actually went.
 **When** it is shown on the catch-up screen
 **Then** it carries a soft "forgot?" hint, not a demand
 
+**Given** the catch-up row's (UX-DR17) own checkbox-style tap target
+**When** it is built
+**Then** it meets the same ~44x44pt touch-target check established in Story 1.1, and the sheet gets the same visible close control established in Story 1.5 (UX-DR22, UX-DR25)
+
 **Given** I tap an unchecked stop on the catch-up screen
 **When** I do
 **Then** it becomes Visited/Completed - still an explicit action, not inferred (FR-13's rule extended to retroactive catch-up)
@@ -745,6 +797,10 @@ So that I get a meaningful recap grounded in what I really did.
 **Given** summary generation fails AND zero Stops are marked Visited/Completed
 **When** this happens
 **Then** the genuinely-empty-walk ending applies (the honest "nothing confirmed" message) - that is the one case these two endings still share
+
+**Given** the "Back to start" button on the no-summary "Jaunt complete" ending
+**When** it is built
+**Then** it uses the compact auto-width pill component, never the full-width-primary treatment - this exact button previously made exactly this mistake once already; explicitly test for the regression here too (UX-DR4, UX-DR5)
 
 ### Story 3.3: Local visit history and favourites (Should)
 
@@ -809,3 +865,57 @@ So that repeat use doesn't just show me the same things.
 **Given** no history exists yet (a first-time user)
 **When** a request is sent
 **Then** selection behaves exactly as it does today - this signal is additive, never required
+
+---
+
+## Epic 4: Expand to a Second Area
+
+Once the Newtown experience works end to end, the same app can be pointed at a second Sydney-area bounding box and produce a real, working Catalogue there too - proving the architecture's configuration-not-hard-coding posture (NFR-5) actually holds. Explicit stretch goal, deliberately last, never allowed to delay Epics 1-3. Touches only the offline import pipeline, not `planner.py`, `ai.py`, or the frontend.
+
+**FRs covered:** FR-21
+
+### Story 4.1: Move Newtown/English-specific values into configuration (Should)
+
+As a developer preparing to support a second area,
+I want Newtown-specific and English-specific values extracted into configuration,
+So that pointing the pipeline at a new area doesn't require code changes.
+
+**Acceptance Criteria:**
+
+**Given** `import_places.py`'s `PILOT_BBOX` and any other Newtown-specific hard-coded value
+**When** this story is complete
+**Then** these values are read from configuration rather than inline literals (FR-21 phase 1)
+
+**Given** `import_places.py`'s English-only Wikipedia-language assumption (a known limitation since Sprint 1)
+**When** this story is complete
+**Then** the language prefix is also configuration-driven, not hard-coded - even though no second language is being built now (§7 extensibility NFR)
+
+**Given** this refactor
+**When** it is complete
+**Then** it changes no behavior for the existing Newtown/English configuration - running the importers unchanged still produces the same catalogue (regression-safe, 174/174 tests still pass)
+
+### Story 4.2: Second pilot-area demonstration catalogue (Should)
+
+Depends on Story 4.1.
+
+As a developer validating Jaunt's extensibility claim,
+I want to run the existing import pipeline against a second Sydney-area boundary,
+So that FR-21's stretch goal is actually demonstrated, not just architecturally possible.
+
+**Acceptance Criteria:**
+
+**Given** Story 4.1's configuration refactor
+**When** the OSM-based and street-art importers are pointed at a new bounding box
+**Then** they produce `ready` Stops for the new area without modifying `planner.py`, `ai.py`, or the frontend (FR-21 phase 2)
+
+**Given** the new area's heritage-topic coverage
+**When** it is attempted
+**Then** the same automated OSM+Wikidata path used for history/architecture is tried first - manual curation (`import_heritage.py`'s current approach) is a fallback, not the default, for a second area
+
+**Given** the exact second-area boundary is not yet confirmed
+**When** this story begins
+**Then** the boundary is explicitly chosen and documented (Surry Hills is suggested by feasibility research - denser OSM coverage, no language change needed - but not committed) - PRD Open Question 5
+
+**Given** this is an explicit stretch goal
+**When** Epics 1-3 and this epic compete for time
+**Then** this epic is never allowed to delay the Newtown end-to-end flow
