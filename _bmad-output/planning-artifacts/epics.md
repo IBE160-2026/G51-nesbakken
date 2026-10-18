@@ -148,7 +148,7 @@ A user can set a starting point, available time, and topic (or "surprise me," or
 
 ### Epic 2: Walk It
 A user can actually walk the approved Route: open any stop's content at any time without being nagged about it, see their live position (Jarrod's head marker) on the map when permission is granted and a calm non-error fallback when it isn't, explicitly mark a stop Visited while walking (distinct from merely opening its content), and see a muted, clearly-subordinate layer of nearby cafes/amenities when zoomed in. Reuses the real route geometry Epic 1 already fetches - no new geometry work here, only rendering it during the walk. Standalone: a user can complete a full walk end to end; does not require Epic 3 or 4.
-**FRs covered:** FR-6 (reused), FR-12, FR-13, FR-14, FR-15, FR-23
+**FRs covered:** FR-6 (reused), FR-12, FR-13, FR-14, FR-15, FR-23 (Story 2.6 adds the PRD-required real-world validation pass, not tied to one FR - added 2026-10-18)
 
 ### Epic 3: Remember and Vary
 After finishing, a user gets a short, honest AI-generated summary of only the stops they actually confirmed visiting (never a stop they merely saw proposed or previewed) with a favourite-heart on each; their visit history and favourites are remembered locally across sessions without an account; and future Jaunts vary what they're shown based on that real history, while a favourite can always resurface. Standalone: depends on Epic 2 producing real Visited/Completed data, but delivers its own complete "remember and come back" value without needing Epic 4.
@@ -218,6 +218,10 @@ So that Jaunt knows what kind of walk to propose.
 **When** dynamic type / larger text settings are tested against them
 **Then** the layout is checked to confirm it doesn't clip or overlap - not yet verified anywhere in this project, so this story is where that first real check happens (UX-DR27)
 
+**Given** this screen is the app's only real form (starting point, time, topic), confirmed required by the course's own grading rubric (Sensorveiledning, criterion 4: "tastaturnavigasjon, alternativtekst og fornuftige skjemaetiketter") and not previously covered by any story in this document
+**When** it is built
+**Then** every input is reachable and operable via keyboard alone (tab order, Enter/Space activation, arrow-key operation of the time wheel-picker) and carries a real programmatic label (e.g. an `aria-label` naming what each chip/pill/control actually is), not just visible text with no semantic association. The map-tap starting-point control is the one exception needing its own documented keyboard-accessible alternative (e.g. a text/named-start fallback), since tapping a map has no natural keyboard equivalent.
+
 ### Story 1.2: Catalogue topic coverage for History and Architecture (Must - promoted from Should)
 
 **Why Must, not Should:** FR-3 is Must-tier and commits to three selectable named Topics. Today, History and Architecture have exactly 1 ready stop each against the Planner's 2-stop minimum - those two Topics are selectable but non-functional 100% of the time. A Must-tier commitment that silently never works for two of its three options isn't met by "selectable" alone - this fix is required for FR-3 to actually be true, not an optional data improvement.
@@ -239,6 +243,14 @@ So that these Must-tier topic choices work, not just appear selectable.
 **Given** an approved assignment
 **When** it is stored
 **Then** it replaces that record's `heritage` tag (heritage is dropped as a Topic any record carries - FR-3, revised 2026-10-18) rather than being added alongside it, and the record's original source text is never rewritten
+
+**Given** `import_heritage.py` rebuilds all 29 records from ArcGIS on every run (its own documented, intentional behavior)
+**When** this story is implemented
+**Then** the approved Topic assignments are NOT just a one-off edit to the generated `data/sydney_places.json` - they are persisted in a maintained override input the importer itself reads and applies (the same pattern `data/heritage_source_text.json` already establishes for Statement-of-Significance text), so a routine rerun of the importer does not silently discard the Must-tier coverage fix (confirmed real risk, Codex review 2026-10-18: `build_record()` unconditionally sets `topics: ["heritage"]` and `main()` overwrites existing records wholesale)
+
+**Given** the override file exists
+**When** the importer is rerun end to end
+**Then** the approved History/Architecture tags are still present afterward - this rerun-survives check is part of this story's acceptance, not assumed from "it's stored somewhere"
 
 **Given** the retagging is complete
 **When** the `ready` catalogue is queried by Topic
@@ -272,6 +284,10 @@ So that I never get fabricated information.
 **When** the content is generated
 **Then** the Contextual Source's general information is never phrased or implied as something specifically known about that particular Stop (FR-19)
 
+**Given** content blends a Stop's own Source Excerpt with a Contextual Source (confirmed real gap, Codex review 2026-10-18, user's explicit choice: support this properly rather than constraining V1 to single-source content)
+**When** the attribution reference is produced
+**Then** it is a list of `{source_type, source_title, source_url}` entries, one per source actually drawn from - never a single triple that can only represent one source (architecture AD-3, corrected 2026-10-18). The grounding check runs against every source in that list, not just the first one.
+
 **Given** generated content exists
 **When** it is reviewed as part of normal QA
 **Then** manual spot-checking against source material continues as a required second layer - documented as a process commitment, not replaced by the automated check (FR-19)
@@ -279,6 +295,10 @@ So that I never get fabricated information.
 **Given** a small test set of example generated texts, some genuinely supported by a source excerpt and some not
 **When** the automated grounding check runs against each
 **Then** it correctly flags the unsupported examples and passes the supported ones, with its known limitations documented (architecture spine's recommended early prototype task)
+
+**Given** the test set must include real catalogue examples, not just hypothetical ones (confirmed necessary, Codex review 2026-10-18: some real `ready` source excerpts are extremely thin, e.g. the actual catalogue entries "By Michael Snape." and "church in Newtown, New South Wales.")
+**When** the prototype is built
+**Then** it is run against both thin, real excerpts like these and richer ones, checking two separate things, not just one: (a) does generated content stay factually supported - richer prose is exactly where an unsupported detail could slip in; (b) is content built from a thin excerpt actually worth reading, or merely technically grounded. A thin source passing the grounding check is not the same as it producing good content - this story's prototype pass must look at both before the full content-generation flow is built on top of it
 
 **Given** the grounding-check mechanism is built
 **When** it is designed
@@ -308,7 +328,7 @@ So that the review screen can get everything it needs without multiple round tri
 
 **Given** a feasible Route is found
 **When** the response is built
-**Then** Story 1.3's content generation runs for every stop in the chosen route before the response returns, and each stop carries its own id, order, generated content, and structured `source_type`/`source_title`/`source_url` attribution - never a flat content string (architecture AD-3)
+**Then** Story 1.3's content generation runs for every stop in the chosen route before the response returns, and each stop carries its own id, order, generated content, and a structured attribution **list** (each entry `source_type`/`source_title`/`source_url`, one entry per source actually used - usually one, more when content blends a Contextual Source per Story 1.3) - never a flat content string, never a single triple that can't represent a blended stop (architecture AD-3, corrected 2026-10-18)
 
 **Given** the endpoint returns a response
 **When** it does
@@ -321,6 +341,22 @@ So that the review screen can get everything it needs without multiple round tri
 **Given** the AI service fails with a genuine, non-retryable error (invalid credentials, exhausted quota) rather than ordinary infeasibility
 **When** this happens
 **Then** `planner.py` no longer returns the same `{"feasible": false}` shape used for ordinary infeasibility - it raises/propagates the failure distinctly, and the endpoint maps it to a real non-2xx status (required architecture fix, enables FR-9's technical-vs-honest distinction)
+
+**Given** every offered option in the Option Menu is mathematically feasible but none is genuinely relevant/interesting for the requested topic (confirmed real gap, Codex review 2026-10-18: today's `SELECTION_SCHEMA` has no escape from picking one of the offered keys)
+**When** AI judges this
+**Then** it can return an explicit `none_suitable` outcome instead of being forced to pick a weak option, and the endpoint treats this as FR-9's relevance-based honest fallback - distinct from "zero feasible combinations" (caught before AI is ever called) and distinct from a genuine AI-service failure (architecture AD-7)
+
+**Given** the menu AI is actually offered
+**When** it is built
+**Then** every Stop appearing in at least one feasible combination appears in at least one offered menu option, before the remaining slots are filled by budget-usage ratio as today - a plain top-N-by-ratio slice can otherwise let a worthwhile Stop disappear from every option AI ever sees, which would also starve Story 1.9's preference and Story 3.4's variety of any real Stops to act on (architecture AD-7)
+
+**Given** the full request (routing matrix + AI selection + content generation + grounding check, once all exist)
+**When** it runs
+**Then** it targets roughly 90 seconds end-to-end for the typical case - a provisional, not-yet-measured number (architecture AD-3) that must be replaced with a real timed measurement once this story is actually built, with any per-call retry budget bounded by what's left of the overall deadline, not stacked independently
+
+**Given** malformed or invalid input (a non-numeric or out-of-range coordinate, a time outside 30-120, an unrecognized topic string, or an oversized/malformed request body)
+**When** the endpoint receives it
+**Then** it is rejected immediately with a clear error, before any routing-provider or AI call is made and before any expensive computation runs - not yet defined anywhere in this story before this correction (Codex review 2026-10-18)
 
 ### Story 1.5: Review and approve the proposed Route (Must)
 
@@ -350,7 +386,11 @@ So that I know exactly what I'm about to walk before committing.
 
 **Given** a Stop's content is shown
 **When** I view it
-**Then** a visible reference to where it came from (Wikipedia, OSM tags, council dataset, or NSW Heritage) is shown alongside the content, not only available on request (FR-20)
+**Then** a visible reference to where it came from (Wikipedia, OSM tags, council dataset, or NSW Heritage) is shown alongside the content, not only available on request (FR-20) - every source in the stop's attribution list is shown when more than one was used (architecture AD-3, corrected 2026-10-18), never only the first
+
+**Given** FR-20 also requires attribution for OSM, the routing provider, Wikipedia, NSW Heritage, and Inner West Council as providers of the app's data generally, not just per-stop (confirmed gap, Codex review 2026-10-18: this story only specified per-stop source references)
+**When** this story is built
+**Then** a shared attribution/credits UI element (e.g. a footer or an accessible "about this data" panel) names all five providers somewhere in the app, not only inferred from individual stop citations
 
 **Given** I am satisfied with the proposed Route
 **When** I tap the explicit approval action
@@ -358,7 +398,15 @@ So that I know exactly what I'm about to walk before committing.
 
 **Given** the planning response is received
 **When** it is
-**Then** the complete route+stops+content is persisted to the browser's own active-trip `localStorage` key (architecture AD-2)
+**Then** the complete route+stops+content is persisted to the browser's own active-trip `localStorage` key, tagged with an explicit `phase: "reviewing"` and a `schema_version` (architecture AD-2, corrected 2026-10-18) - "saves the payload" alone doesn't define refresh recovery; a refresh here must re-show Route Review, not guess
+
+**Given** a saved trip is loaded back from `localStorage` on refresh
+**When** its `schema_version` doesn't match, or its shape fails basic validation
+**Then** it is treated as unusable and triggers a safe reset to a fresh trip - never a crash, and never a silently wrong recovery screen (architecture AD-2)
+
+**Given** the interactive controls on this screen (the stop list, the approve button, the map)
+**When** they are built
+**Then** basic keyboard operability is checked (tab order reaches every control, Enter/Space activates it) and every informational image (a stop's rights-cleared photo) carries real alt text describing the place, not the filename or a generic label - confirmed required by the course's own grading rubric (Sensorveiledning, criterion 4: "tastaturnavigasjon, alternativtekst og fornuftige skjemaetiketter"), not yet covered by any UX-DR or prior story in this document
 
 **Given** the stop-list bottom sheet (UX-DR11) is this project's first real use of the ink-on-cream/surface text pairing at reading length (not just short labels)
 **When** this story is built
@@ -378,9 +426,13 @@ So that I never get a weak result or a dead end.
 
 **Acceptance Criteria:**
 
-**Given** Story 1.4's endpoint returns `{"feasible": false}`
+**Given** Story 1.4's endpoint returns `{"feasible": false}` (zero feasible Stop combinations exist at all)
 **When** this happens
 **Then** the honest fallback message is shown instead of a weak Route, using Jarrod's dedicated sad pose and plain language (FR-9)
+
+**Given** Story 1.4's endpoint instead returns AD-7's `none_suitable` outcome (feasible combinations exist, but AI judged none of them genuinely relevant/interesting for the requested topic)
+**When** this happens
+**Then** the same honest fallback screen is shown - this is also FR-9's "or sufficiently relevant" case, not a separate UI, though the copy may differ slightly from the zero-feasible case (e.g. a different-Topic suggestion is the natural fix here, more directly than a time adjustment - the walk was already time-feasible)
 
 **Given** the fallback suggests a time adjustment
 **When** that suggestion is shown
@@ -446,6 +498,10 @@ So that I can fine-tune a Route I otherwise like.
 **When** I tap a stop's "X" remove affordance
 **Then** that specific stop is excluded and a replacement search runs against the remaining shortlist (FR-11, UX-DR12, EXPERIENCE.md State Patterns)
 
+**Given** the other stops in the Route that I did not remove (confirmed real gap, Codex review 2026-10-18: `excluded_ids` alone only stops the rejected stop from reappearing - it doesn't stop an unconstrained re-search from dropping everything else too)
+**When** the replacement search runs
+**Then** those stops are passed as `retained_ids` and the search looks only for a feasible combination containing every retained stop plus one replacement - not a fresh, unconstrained route generation that happens to exclude one id (architecture AD-5, corrected 2026-10-18)
+
 **Given** a stop is removed/replaced
 **When** this happens
 **Then** the Route's time feasibility is re-validated before approval is allowed again (FR-11)
@@ -494,7 +550,7 @@ So that the stops Jaunt picks actually match what I'm looking for.
 
 ### Story 1.10: Use current location for starting point (Should)
 
-Depends on Story 1.1 (same screen). Fully independent of Epic 2's continuous-tracking work (FR-14) - a one-shot read only.
+Depends on Story 1.1 (same screen). Fully independent of Epic 2's continuous-tracking work (FR-14) - a one-shot read only. Shares Story 2.2's testing prerequisite: real-device verification needs the same phone-accessible HTTPS setup (Geolocation is secure-context-only on every modern browser), not just a LAN-reachable dev server.
 
 As a user who doesn't know or can't find a landmark to tap,
 I want to use my current location as my starting point,
@@ -593,6 +649,8 @@ So that I can follow my walk at my own pace without being pressured.
 ### Story 2.2: Show live position during the walk (Should)
 
 Depends on Story 2.1.
+
+**Testing prerequisite, confirmed real (Codex review 2026-10-18):** this story cannot be verified on a real phone without two things resolved first, neither of which is production hosting. (1) The dev server must bind `host="0.0.0.0"`, not Flask's default loopback-only `127.0.0.1` - a phone on the same network cannot reach a laptop's `127.0.0.1` at all. (2) The Geolocation API requires a secure context (HTTPS, or literally `localhost`) in every modern browser - a phone loading the laptop's plain-HTTP LAN address will have `navigator.geolocation` silently blocked, confirmed against the current W3C spec and Chrome/Firefox's documented behavior, not assumed. A small phone-accessible HTTPS setup (e.g. a tunnel tool, or a `mkcert`-signed local certificate for the LAN IP) must be established and documented before this story - or Story 1.10 - can be tested on a real device, not deferred until "later."
 
 As a user walking an approved Route,
 I want to see my live position on the map when I grant permission,
@@ -722,6 +780,36 @@ So that I don't accidentally walk past something without noticing it.
 **When** it is shown
 **Then** it is subtle and non-intrusive - a quiet visual signal (e.g. a pill/badge), no sound or vibration by default, never a modal or alert that interrupts the walk. Exact visual treatment is genuinely undesigned (Scope Tiers table lists FR-15 as "not designed in detail") - this constraint (subtle, never intrusive) is the one firm requirement to decide it against when the story is actually built
 
+### Story 2.6: Real-world validation - tester sessions and an outdoor walk (Must)
+
+Added 2026-10-18 (Codex review: confirmed real gap - `prd.md`'s own §8 explicitly makes this part of V1 Must-tier completion, "not a free afterthought," but no story in this document assigned it or its evidence before this correction). Depends on Epic 1's Must-tier stories (1.1-1.6) and Epic 2's Story 2.1 - the full setup-through-walk path must exist first. Not tied to one FR; validates SM-1, SM-2, SM-3, SM-5, SM-6, SM-7 directly.
+
+As the team preparing to submit V1,
+I want real tester sessions and an actual outdoor walk against the app, not just passing automated tests,
+So that the course's required validation evidence actually exists, and timing/relevance problems surface before submission, not after.
+
+**Acceptance Criteria:**
+
+**Given** the Must-tier flow is built and reachable on a real phone (Story 2.2's testing prerequisite resolved)
+**When** at least one real outdoor walk is completed end to end
+**Then** actual elapsed time is compared against the requested time, against SM-2's asymmetric tolerance (up to 25% under is acceptable, more than 10% over is not) - this is the first time this gets checked against real walking, not the routing provider's own estimate
+
+**Given** `docs/ai-development-log.md` already records the routing provider's duration estimates running roughly 20-30% optimistic against comparison apps
+**When** the real-world walk's actual-vs-estimated gap is measured
+**Then** this is treated as a flag to investigate (and recalibrate the time budget if confirmed), not as proof of an error on its own - the PRD's own framing (SM-C1) warns against over-indexing on a single metric
+
+**Given** the walk is completed
+**When** the experience is assessed
+**Then** stop relevance (SM-3, SM-5: can a tester say why each stop was included, without prompting) and content accuracy (SM-4: does generated content hold up against its real source on spot-check) are evaluated alongside timing, not just timing alone
+
+**Given** tester sessions are run (not only the person who built the app)
+**When** they happen
+**Then** at least one tester completes the full flow - setup through an approved, walkable route - on a phone browser (SM-7), and rates the completed walk as "worth taking" (SM-1)
+
+**Given** a deliberately infeasible test request (SM-6)
+**When** it is tried during this validation pass
+**Then** the honest fallback (Story 1.6) is confirmed to behave correctly against a real request, not just the automated test suite's fixtures
+
 ---
 
 ## Epic 3: Remember and Vary
@@ -816,6 +904,10 @@ So that future Jaunts can recognize places I've already experienced.
 **When** this happens
 **Then** it is recorded with Engagement State `proposed` if it has no stronger state yet, live as Epic 1/2's existing screens are used - not only retroactively at the end-of-walk catch-up/summary flow
 
+**Given** this story keys history/favourites on a Stop's catalogue `id` (architecture AD-6), and some of those ids (public_art records imported from the street-art spreadsheet) are derived from the source sheet's row number rather than a stable identifier (a known, already-accepted limitation from Sprint 5 - `import_street_art.py`)
+**When** this story is built
+**Then** that fragility is noted explicitly here as now consequential, not just a data-import footnote: a resorted or edited source sheet could silently shift which real place an existing history/favourite entry points to. Not required to be fixed by this story (the source file is a frozen snapshot today), but the risk must be documented where it's actually relevant - a future refresh of the street-art data needs stable source-to-place identities first, not after favourites already depend on today's row numbers
+
 **Given** a Stop's content is then opened, pre-walk or during the walk
 **When** this happens
 **Then** its state upgrades to `opened_engaged`, never downgrading an existing stronger state (e.g. `visited_completed`)
@@ -875,6 +967,8 @@ Once the Newtown experience works end to end, the same app can be pointed at a s
 **FRs covered:** FR-21
 
 ### Story 4.1: Move Newtown/English-specific values into configuration (Should)
+
+**Not gated behind the rest of Epic 4 (clarified 2026-10-18, Codex review).** NFR-5 itself reads as a V1 codebase posture ("must be kept as configuration"), not something that only matters if Story 4.2's second-area demonstration is actually attempted. Since this story only touches `import_places.py` and depends on nothing in Epics 1-3, it can reasonably be done early and cheaply (it's described as "a small refactor," not a big one) rather than left to the very end of an explicitly-optional, deliberately-last epic where it could end up skipped along with everything else in Epic 4. Only Story 4.2 (the actual second-area demonstration) is the genuinely optional, deferrable part.
 
 As a developer preparing to support a second area,
 I want Newtown-specific and English-specific values extracted into configuration,
