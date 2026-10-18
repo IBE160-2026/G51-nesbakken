@@ -26,9 +26,30 @@ SHORTLIST_RADIUS_METERS = 2000  # configurable straight-line pre-filter
 SHORTLIST_CAP = 12
 DWELL_MINUTES_PER_STOP = 5
 MIN_STOPS = 2
-MAX_STOPS = 5
 MIN_REQUESTED_MINUTES = 30
 MAX_REQUESTED_MINUTES = 120
+
+# Revised 2026-10-18: the stop count no longer has one fixed ceiling - the
+# PRD (FR-5) wants it to depend on time, dwell, and real candidate
+# availability, not an arbitrary constant. ABSOLUTE_MAX_STOPS is a measured
+# safety ceiling, not a target: compute_best_order() brute-forces every
+# ordering of a combination (k! orderings), and direct timing against a
+# 12-candidate shortlist showed this stays cheap only at small k - 5 stops
+# ~0.06s, 6 ~0.45s, 7 ~2.9s, growing ~6-7x per added stop (so 8 would be
+# roughly 15-20s, 10 several minutes - checked by extrapolation from the
+# measured growth rate, not assumed). 7 is deliberately conservative, not
+# the planner's permanent limit; going higher would need a real
+# ordering-heuristic change, not just raising this number.
+ABSOLUTE_MAX_STOPS = 7
+
+
+def max_stops_for_request(requested_minutes, dwell_minutes_per_stop):
+    """The per-request upper bound on stop count: dwell time alone already
+    rules out large combinations for a short request (e.g. 30 min / 5 min
+    dwell can't fit more than 6 stops' worth of dwelling, before any
+    walking time is even considered), so there's no need to brute-force
+    sizes that could never be feasible anyway. Never below MIN_STOPS."""
+    return max(MIN_STOPS, min(ABSOLUTE_MAX_STOPS, requested_minutes // dwell_minutes_per_stop))
 
 # Sprint 4 retry policy - see docs/ai-development-log.md.
 MAX_AI_RETRIES = 2
@@ -151,8 +172,10 @@ def check_feasibility(
     if len(set(stop_indices)) != len(stop_indices):
         return _infeasible("duplicate stop selected")
 
-    if not (MIN_STOPS <= len(stop_indices) <= MAX_STOPS):
-        return _infeasible(f"stop count must be between {MIN_STOPS} and {MAX_STOPS}")
+    if not (MIN_STOPS <= len(stop_indices) <= ABSOLUTE_MAX_STOPS):
+        return _infeasible(
+            f"stop count must be between {MIN_STOPS} and {ABSOLUTE_MAX_STOPS}"
+        )
 
     order, walking_seconds = compute_best_order(start_index, stop_indices, duration_matrix)
     if order is None:
@@ -204,19 +227,21 @@ def _plan_failure(reason, attempts, attempts_log=None):
 def _enumerate_feasible_combinations(
     shortlist, matrix, requested_minutes, dwell_minutes_per_stop
 ):
-    """Every feasible 2-5 stop combination from the shortlist, each already
-    checked (via check_feasibility() - unchanged) for its best order and
-    exact total time. This is the full feasible universe AI can be offered
-    to choose among by relevance, rather than being asked to discover a
-    feasible combination itself by guessing at arithmetic - see "Redesign
-    after live testing" in docs/ai-development-log.md for why.
+    """Every feasible stop combination from the shortlist (2 up to
+    max_stops_for_request()'s per-request bound), each already checked (via
+    check_feasibility() - unchanged) for its best order and exact total
+    time. This is the full feasible universe AI can be offered to choose
+    among by relevance, rather than being asked to discover a feasible
+    combination itself by guessing at arithmetic - see "Redesign after live
+    testing" in docs/ai-development-log.md for why.
 
-    At the shortlist cap (12), this is at most 1,573 combinations, each a
-    cheap check_feasibility() call - negligible compute, no change to any
-    arithmetic already covered by Sprint 3's tests.
+    The upper bound is computed per request (FR-5, revised 2026-10-18) -
+    see max_stops_for_request()'s own comment for why it isn't just
+    ABSOLUTE_MAX_STOPS every time.
     """
     feasible = []
-    for size in range(MIN_STOPS, MAX_STOPS + 1):
+    max_size = max_stops_for_request(requested_minutes, dwell_minutes_per_stop)
+    for size in range(MIN_STOPS, max_size + 1):
         for combo in itertools.combinations(range(1, len(shortlist) + 1), size):
             result = check_feasibility(
                 0, list(combo), matrix, requested_minutes, dwell_minutes_per_stop
@@ -272,7 +297,8 @@ def plan_route(
     dwell_minutes_per_stop=DWELL_MINUTES_PER_STOP,
 ):
     """Sprint 4: shortlist real candidates, fetch a real duration matrix,
-    deterministically enumerate every feasible 2-5 stop combination, and let
+    deterministically enumerate every feasible stop combination (2 up to
+    the per-request bound from max_stops_for_request()), and let
     AI choose the most relevant and interesting one from that pre-validated
     menu.
 
@@ -309,8 +335,9 @@ def plan_route(
         shortlist, matrix, requested_minutes, dwell_minutes_per_stop
     )
     if not feasible_combos:
+        max_size = max_stops_for_request(requested_minutes, dwell_minutes_per_stop)
         return _plan_failure(
-            f"no combination of {MIN_STOPS}-{MAX_STOPS} stops from the "
+            f"no combination of {MIN_STOPS}-{max_size} stops from the "
             f"shortlist fits within {requested_minutes} min",
             attempts=0,
         )

@@ -3,13 +3,16 @@ from unittest.mock import patch
 
 from ai import AiFatalError, AiSelectionError
 from planner import (
+    ABSOLUTE_MAX_STOPS,
     AI_OPTION_MENU_SIZE,
     DWELL_MINUTES_PER_STOP,
+    MIN_STOPS,
     SHORTLIST_CAP,
     _build_ai_options,
     _enumerate_feasible_combinations,
     check_feasibility,
     compute_best_order,
+    max_stops_for_request,
     plan_route,
     shortlist_candidates,
 )
@@ -196,10 +199,29 @@ class TestFeasibility(unittest.TestCase):
 
     def test_rejects_too_many_stops(self):
         # Bounds are checked before the matrix is ever touched, so
-        # out-of-range indices here don't matter.
-        result = check_feasibility(0, [1, 2, 3, 4, 5, 6], self.matrix, requested_minutes=120)
+        # out-of-range indices here don't matter. 8 exceeds the measured,
+        # deliberately conservative ABSOLUTE_MAX_STOPS=7 ceiling (see
+        # planner.py's comment on brute-force ordering cost).
+        result = check_feasibility(0, [1, 2, 3, 4, 5, 6, 7, 8], self.matrix, requested_minutes=120)
         self.assertFalse(result["feasible"])
         self.assertIn("between", result["reason"])
+
+
+class TestMaxStopsForRequest(unittest.TestCase):
+    """FR-5, revised 2026-10-18: stop count depends on time/dwell, not a
+    fixed constant - see planner.py's comment on measured ordering cost."""
+
+    def test_short_request_is_bounded_by_dwell_time_not_the_absolute_ceiling(self):
+        # 30 min / 5 min dwell = 6, below ABSOLUTE_MAX_STOPS (7).
+        self.assertEqual(max_stops_for_request(30, 5), 6)
+
+    def test_long_request_is_capped_at_the_absolute_ceiling(self):
+        # 120 min / 5 min dwell = 24, far above the measured-safe ceiling.
+        self.assertEqual(max_stops_for_request(120, 5), ABSOLUTE_MAX_STOPS)
+
+    def test_never_drops_below_min_stops(self):
+        # Pathologically large dwell time would otherwise compute 0 or 1.
+        self.assertEqual(max_stops_for_request(30, 50), MIN_STOPS)
 
 
 FAKE_SHORTLIST = [
@@ -257,6 +279,21 @@ class TestEnumerateFeasibleCombinations(unittest.TestCase):
         self.assertEqual(len(combos), 1)
         self.assertEqual(combos[0]["order"], [1, 2])  # a, b
 
+    def test_a_long_request_can_reach_more_than_five_stops(self):
+        # FR-5, revised 2026-10-18: no fixed 5-stop ceiling. 120 min against
+        # a uniform-cost 6-place shortlist should reach the full 6-stop combo.
+        combos = _enumerate_feasible_combinations(BIG_SHORTLIST, BIG_MATRIX, 120, DWELL_MINUTES_PER_STOP)
+        sizes = {len(c["order"]) for c in combos}
+        self.assertIn(6, sizes)
+
+    def test_a_short_request_never_tries_sizes_dwell_time_alone_rules_out(self):
+        # 30 min / 5 min dwell = 6 max by max_stops_for_request, but the
+        # real walking-time check should still rule out anything that large
+        # here - this asserts no 6-stop combo is ever returned as feasible.
+        combos = _enumerate_feasible_combinations(BIG_SHORTLIST, BIG_MATRIX, 30, DWELL_MINUTES_PER_STOP)
+        sizes = {len(c["order"]) for c in combos}
+        self.assertNotIn(6, sizes)
+
 
 class TestBuildAiOptions(unittest.TestCase):
     def test_ranks_options_by_budget_usage_descending(self):
@@ -281,7 +318,7 @@ class TestBuildAiOptions(unittest.TestCase):
 
     def test_caps_the_menu_at_ai_option_menu_size(self):
         combos = _enumerate_feasible_combinations(BIG_SHORTLIST, BIG_MATRIX, 120, DWELL_MINUTES_PER_STOP)
-        self.assertGreater(len(combos), AI_OPTION_MENU_SIZE)  # 56 feasible combinations
+        self.assertGreater(len(combos), AI_OPTION_MENU_SIZE)  # 57 feasible combinations (56 at sizes 2-5, +1 new size-6 combo since the FR-5 dynamic-stop-count change)
         ai_options, _ = _build_ai_options(BIG_SHORTLIST, combos)
         self.assertEqual(len(ai_options), AI_OPTION_MENU_SIZE)
 
