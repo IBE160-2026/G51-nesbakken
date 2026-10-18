@@ -165,6 +165,19 @@ class TestSelectStops(unittest.TestCase):
             with self.assertRaises(AiSelectionError):
                 select_stops(SAMPLE_OPTIONS, "public_art", 60)
 
+    def test_malformed_json_body_on_a_200_raises_ai_selection_error(self):
+        # Regression (Codex review, 2026-10-18): a successful HTTP status
+        # with a body that isn't valid JSON raised an uncaught
+        # json.JSONDecodeError from response.json() - that call sat outside
+        # the guarded try/except, so it bypassed AiSelectionError/retry
+        # entirely. Reproduced without network access.
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.side_effect = ValueError("not valid JSON")
+        with patch("ai.requests.post", return_value=mock_response):
+            with self.assertRaises(AiSelectionError):
+                select_stops(SAMPLE_OPTIONS, "public_art", 60)
+
     def test_http_failure_raises_ai_selection_error_not_swallowed(self):
         with patch("ai.requests.post", side_effect=requests.exceptions.ConnectionError("boom")):
             with self.assertRaises(AiSelectionError):

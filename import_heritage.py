@@ -144,10 +144,23 @@ def apply_manual_duplicate_overrides(records_by_id):
     """Applies CROSS_SOURCE_DUPLICATES after the automatic mark_duplicates()
     pass. Only rejects a still-`ready` OSM record - never overrides another
     rejection reason already present, and never touches the heritage record
-    being kept."""
+    being kept.
+
+    Checked 2026-10-18 (Codex review): also requires the replacement to
+    actually be `ready` before rejecting the original. Without this, a
+    heritage record whose Statement of Significance hasn't been filled in
+    yet (data/heritage_source_text.json) would still cause its OSM
+    duplicate to be rejected, leaving the place unusable from either
+    source - not currently happening with today's two real pairs (both
+    replacements are ready), but a real latent risk for any future entry
+    added to CROSS_SOURCE_DUPLICATES before its seed text exists.
+    """
     for osm_id, kept_id in CROSS_SOURCE_DUPLICATES.items():
         record = records_by_id.get(osm_id)
         if record is None or record.get("status") != "ready":
+            continue
+        replacement = records_by_id.get(kept_id)
+        if replacement is None or replacement.get("status") != "ready":
             continue
         record["status"] = "rejected"
         record["rejection_reason"] = f"duplicate of {kept_id} (reviewed cross-source match)"

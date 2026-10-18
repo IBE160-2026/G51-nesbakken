@@ -190,7 +190,10 @@ def _call_openai(prompt):
     except requests.RequestException as exc:
         raise AiSelectionError(f"OpenAI request failed: {exc}") from exc
 
-    body = response.json()
+    try:
+        body = response.json()
+    except ValueError as exc:
+        raise AiSelectionError(f"OpenAI response was not valid JSON: {exc}") from exc
     try:
         return body["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:

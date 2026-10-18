@@ -86,11 +86,33 @@ class TestSourceTextValidation(unittest.TestCase):
 class TestHeritageOsmCrossSourceDuplicates(unittest.TestCase):
     def test_each_approved_pair_rejects_the_osm_side(self):
         for osm_id, kept_id in import_heritage.CROSS_SOURCE_DUPLICATES.items():
-            records_by_id = {osm_id: {"status": "ready", "rejection_reason": None}}
+            records_by_id = {
+                osm_id: {"status": "ready", "rejection_reason": None},
+                kept_id: {"status": "ready", "rejection_reason": None},
+            }
             import_heritage.apply_manual_duplicate_overrides(records_by_id)
             record = records_by_id[osm_id]
             self.assertEqual(record["status"], "rejected")
             self.assertIn(kept_id, record["rejection_reason"])
+
+    def test_osm_side_kept_when_replacement_is_not_ready(self):
+        # Regression (Codex review, 2026-10-18): rejecting the OSM original
+        # must not happen if the heritage replacement isn't actually ready
+        # (e.g. its Statement of Significance hasn't been filled in yet) -
+        # that would leave the place unusable from either source.
+        osm_id, kept_id = next(iter(import_heritage.CROSS_SOURCE_DUPLICATES.items()))
+        records_by_id = {
+            osm_id: {"status": "ready", "rejection_reason": None},
+            kept_id: {"status": "limited", "rejection_reason": "no seed text yet"},
+        }
+        import_heritage.apply_manual_duplicate_overrides(records_by_id)
+        self.assertEqual(records_by_id[osm_id]["status"], "ready")
+
+    def test_osm_side_kept_when_replacement_is_missing(self):
+        osm_id = next(iter(import_heritage.CROSS_SOURCE_DUPLICATES))
+        records_by_id = {osm_id: {"status": "ready", "rejection_reason": None}}
+        import_heritage.apply_manual_duplicate_overrides(records_by_id)
+        self.assertEqual(records_by_id[osm_id]["status"], "ready")
 
     def test_heritage_record_being_kept_is_never_touched(self):
         records_by_id = {

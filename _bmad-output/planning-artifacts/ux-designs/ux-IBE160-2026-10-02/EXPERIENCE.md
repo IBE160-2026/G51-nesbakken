@@ -93,7 +93,7 @@ Behavioral rules only — visual specs (fills, radii, shadows) live in `DESIGN.m
 | State | Surface | Treatment |
 |---|---|---|
 | Cold launch | Splash | Full wordmark reveal (~3.2s) → crossfade into a looping hillside-scene idle animation. Plays once per session; not shown again once Trip Setup begins. |
-| Starting point outside Pilot Area | Starting point | Rejected with a clear message, never silently accepted (`prd.md` FR-1). |
+| Starting point outside Pilot Area | Starting point | **Corrected 2026-10-18 (Codex review caught this row was stale):** any tapped point is accepted — there is no separate rejection. A start too far from any real Stop is handled once the planning request runs, via the honest fallback (`prd.md` FR-1, revised 2026-10-18). This row previously described a rejection that was removed from the PRD and epics.md but missed here. |
 | Topic — at rest vs. Choose Topic page | Topic | "At rest" shows both Choose Topic and Wild Jaunt plus the preference control. The Choose Topic page is a genuine separate screen (not an in-place expand) and **does not show Wild Jaunt** — committing to a topic removes the instant-surprise option from that screen. |
 | Confirmation sheet | Over whichever screen triggered it | Dimmed background, a happy Jarrod pose, one primary confirm action, a quieter secondary "wait, let me change that" dismiss link back to the triggering screen. |
 | Route Review loaded | Route Review | Map (full available height) + stop-list sheet; "Re-Jaunt" and "Start my jaunt" sit as an equal-prominence pair, never one buried beneath the other. |
