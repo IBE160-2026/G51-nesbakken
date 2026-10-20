@@ -422,7 +422,7 @@ input:focus-visible,
   right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--ink-soft);
   z-index: 2;
