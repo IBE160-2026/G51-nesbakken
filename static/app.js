@@ -134,7 +134,129 @@ async function loadPlaces() {
   });
 }
 
-map.on("load", loadPlaces);
+// =====================================================================
+// ROUTE REVIEW (Story 1.5, architecture AD-1) - the route line and the
+// numbered stop circles are data-driven GeoJSON sources + paint layers,
+// never one DOM marker per stop (that per-marker pattern is AD-1's
+// explicitly-named "known non-compliant scaffolding" in loadPlaces() above
+// - not a pattern to extend).
+// =====================================================================
+
+const ROUTE_LINE_SOURCE_ID = "route-line";
+const ROUTE_STOPS_SOURCE_ID = "route-stops";
+let mapStyleLoaded = false;
+
+function emptyFeatureCollection() {
+  return { type: "FeatureCollection", features: [] };
+}
+
+function setupRouteLayers() {
+  map.addSource(ROUTE_LINE_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
+  map.addSource(ROUTE_STOPS_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
+
+  map.addLayer({
+    id: "route-line-layer",
+    type: "line",
+    source: ROUTE_LINE_SOURCE_ID,
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#1E4A3A",
+      "line-width": 4,
+    },
+  });
+
+  map.addLayer({
+    id: "route-stops-circle",
+    type: "circle",
+    source: ROUTE_STOPS_SOURCE_ID,
+    paint: {
+      "circle-radius": 12,
+      "circle-color": "#1E4A3A",
+      "circle-stroke-color": "#AFC29A",
+      "circle-stroke-width": 2.5,
+    },
+  });
+
+  // Best-effort number labels on top of each circle - wrapped separately
+  // since it depends on the base style actually shipping usable glyphs; a
+  // missing font must degrade (no numbers on the circles) rather than
+  // crash route rendering entirely.
+  try {
+    map.addLayer({
+      id: "route-stops-label",
+      type: "symbol",
+      source: ROUTE_STOPS_SOURCE_ID,
+      layout: {
+        "text-field": ["to-string", ["get", "order"]],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 11,
+        "text-allow-overlap": true,
+      },
+      paint: {
+        "text-color": "#FFFFFF",
+      },
+    });
+  } catch (err) {
+    console.error("Could not add stop-number label layer:", err);
+  }
+}
+
+// Rewrites both route sources from the current trip's stops/geometry.
+// geometry is nullable (AD-3's degrade-don't-fail philosophy, carried into
+// the frontend per this story's I/O matrix): when it's null, the stops
+// still render as circles, just with no connecting line.
+function updateRouteLayers() {
+  const stops = Array.isArray(trip.stops) ? trip.stops : [];
+
+  const stopFeatures = stops.map((stop) => ({
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [stop.longitude, stop.latitude] },
+    properties: { id: stop.id, order: stop.order },
+  }));
+  map.getSource(ROUTE_STOPS_SOURCE_ID).setData({
+    type: "FeatureCollection",
+    features: stopFeatures,
+  });
+
+  if (Array.isArray(trip.geometry) && trip.geometry.length > 1) {
+    map.getSource(ROUTE_LINE_SOURCE_ID).setData({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: trip.geometry },
+    });
+  } else {
+    map.getSource(ROUTE_LINE_SOURCE_ID).setData(emptyFeatureCollection());
+  }
+
+  if (stopFeatures.length > 0) {
+    const bounds = stopFeatures.reduce(
+      (b, feature) => b.extend(feature.geometry.coordinates),
+      new maplibregl.LngLatBounds(
+        stopFeatures[0].geometry.coordinates,
+        stopFeatures[0].geometry.coordinates
+      )
+    );
+    map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 0 });
+  }
+}
+
+// The reviewing screen can be the very first thing shown (resuming a
+// stored trip on reload) before the map's own "load" event has fired -
+// guards against calling setData on a source that doesn't exist yet.
+function refreshMapRouteLayers() {
+  if (!mapStyleLoaded) return;
+  updateRouteLayers();
+}
+
+map.on("load", () => {
+  loadPlaces();
+  setupRouteLayers();
+  mapStyleLoaded = true;
+  if (trip.phase === "reviewing") updateRouteLayers();
+});
 
 // =====================================================================
 // TRIP SETUP - active-trip persistence (architecture AD-2)
@@ -170,18 +292,72 @@ function defaultTrip() {
     available_minutes: 60,
     topic: null,
     preference: 0.5,
+    // Populated from a successful POST /api/plan response once the trip
+    // moves past Trip Setup (Story 1.5) - null throughout "setting_up".
+    stops: null,
+    geometry: null,
+    total_minutes: null,
+    unused_minutes: null,
   };
 }
 
-// Basic shape validation beyond the schema_version check (architecture AD-2:
-// "a payload that fails basic shape validation is treated as unusable and
-// triggers a safe reset"). Keeps a partially-corrupted object from reaching
-// the screen logic and crashing it.
-function isValidTrip(candidate) {
-  if (!candidate || typeof candidate !== "object") return false;
-  if (candidate.schema_version !== SCHEMA_VERSION) return false;
-  if (candidate.phase !== "setting_up") return false;
-  if (!SETUP_STEPS.includes(candidate.setup_step)) return false;
+function isValidStartingPoint(sp) {
+  return (
+    typeof sp === "object" &&
+    sp !== null &&
+    Number.isFinite(sp.lat) &&
+    Number.isFinite(sp.lng) &&
+    sp.lat >= -90 &&
+    sp.lat <= 90 &&
+    sp.lng >= -180 &&
+    sp.lng <= 180 &&
+    typeof sp.label === "string"
+  );
+}
+
+function isValidAttributionEntry(entry) {
+  return (
+    entry &&
+    typeof entry === "object" &&
+    (entry.source_type === null || typeof entry.source_type === "string") &&
+    (entry.source_title === null || typeof entry.source_title === "string") &&
+    (entry.source_url === null || typeof entry.source_url === "string")
+  );
+}
+
+function isValidStop(stop) {
+  return (
+    stop &&
+    typeof stop === "object" &&
+    typeof stop.id === "string" &&
+    Number.isInteger(stop.order) &&
+    typeof stop.name === "string" &&
+    Number.isFinite(stop.latitude) &&
+    Number.isFinite(stop.longitude) &&
+    Array.isArray(stop.topics) &&
+    typeof stop.content === "string" &&
+    Array.isArray(stop.attribution) &&
+    stop.attribution.every(isValidAttributionEntry)
+  );
+}
+
+function isValidGeometry(geometry) {
+  if (geometry === null) return true;
+  return (
+    Array.isArray(geometry) &&
+    geometry.every(
+      (point) =>
+        Array.isArray(point) &&
+        point.length === 2 &&
+        Number.isFinite(point[0]) &&
+        Number.isFinite(point[1])
+    )
+  );
+}
+
+// Fields every phase shares, checked once regardless of which phase branch
+// runs next.
+function hasValidCommonFields(candidate) {
   if (
     !Number.isInteger(candidate.available_minutes) ||
     candidate.available_minutes < 30 ||
@@ -200,22 +376,14 @@ function isValidTrip(candidate) {
   if (candidate.topic !== null && !VALID_TOPICS.includes(candidate.topic)) {
     return false;
   }
-  if (candidate.starting_point !== null) {
-    const sp = candidate.starting_point;
-    if (
-      typeof sp !== "object" ||
-      sp === null ||
-      !Number.isFinite(sp.lat) ||
-      !Number.isFinite(sp.lng) ||
-      sp.lat < -90 ||
-      sp.lat > 90 ||
-      sp.lng < -180 ||
-      sp.lng > 180 ||
-      typeof sp.label !== "string"
-    ) {
-      return false;
-    }
+  if (candidate.starting_point !== null && !isValidStartingPoint(candidate.starting_point)) {
+    return false;
   }
+  return true;
+}
+
+function isValidSettingUpShape(candidate) {
+  if (!SETUP_STEPS.includes(candidate.setup_step)) return false;
   // Every step past the first one requires a starting point to already
   // be set; the confirm sheet additionally requires a candidate topic
   // (needed to know which screen it was opened over).
@@ -226,6 +394,42 @@ function isValidTrip(candidate) {
     return false;
   }
   return true;
+}
+
+// Shared by "reviewing" and "walking" (Story 1.5 Implementation Notes: the
+// "walking" phase's real shape is Epic 2's job - reusing this shape
+// verbatim is the minimal thing that lets Approve do something real and
+// keeps safe-reset working, pending that later story).
+function isValidReviewingShape(candidate) {
+  if (candidate.setup_step !== null) return false;
+  if (candidate.starting_point === null) return false;
+  if (candidate.topic === null) return false;
+  if (!Array.isArray(candidate.stops) || candidate.stops.length === 0) return false;
+  if (!candidate.stops.every(isValidStop)) return false;
+  if (!isValidGeometry(candidate.geometry)) return false;
+  if (!Number.isFinite(candidate.total_minutes)) return false;
+  if (!Number.isFinite(candidate.unused_minutes)) return false;
+  return true;
+}
+
+// Basic shape validation beyond the schema_version check (architecture AD-2:
+// "a payload that fails basic shape validation is treated as unusable and
+// triggers a safe reset"). Keeps a partially-corrupted object from reaching
+// the screen logic and crashing it. Branches on `phase` (Story 1.5) since
+// "reviewing"/"walking" payloads carry a genuinely different shape from
+// "setting_up" - a single flat shape can't validate both honestly.
+function isValidTrip(candidate) {
+  if (!candidate || typeof candidate !== "object") return false;
+  if (candidate.schema_version !== SCHEMA_VERSION) return false;
+  if (!hasValidCommonFields(candidate)) return false;
+
+  if (candidate.phase === "setting_up") {
+    return isValidSettingUpShape(candidate);
+  }
+  if (candidate.phase === "reviewing" || candidate.phase === "walking") {
+    return isValidReviewingShape(candidate);
+  }
+  return false;
 }
 
 function loadActiveTrip() {
@@ -276,7 +480,10 @@ const screenStartingPoint = document.getElementById("screen-starting-point");
 const screenAvailableTime = document.getElementById("screen-available-time");
 const screenTopicAtRest = document.getElementById("screen-topic-at-rest");
 const screenChooseTopic = document.getElementById("screen-choose-topic");
-const screenStub = document.getElementById("screen-stub");
+const screenLoading = document.getElementById("screen-loading");
+const screenReviewing = document.getElementById("screen-reviewing");
+const screenReviewUnavailable = document.getElementById("screen-review-unavailable");
+const screenWalkingStub = document.getElementById("screen-walking-stub");
 
 const startingPointTitleEl = document.getElementById("starting-point-title");
 const startChipEls = Array.from(document.querySelectorAll(".start-chip"));
@@ -310,8 +517,38 @@ const confirmHeadingEl = document.getElementById("confirm-sheet-heading");
 const confirmBtn = document.getElementById("confirm-btn");
 const dismissLink = document.getElementById("dismiss-link");
 
-const stubHeadingEl = document.getElementById("stub-heading");
-const stubDetailEl = document.getElementById("stub-detail");
+const loadingHeadingEl = document.getElementById("loading-heading");
+
+const reviewingTitleEl = document.getElementById("reviewing-title");
+const reviewSummaryEl = document.getElementById("review-summary");
+const openStopListBtn = document.getElementById("open-stop-list-btn");
+const openCreditsBtn = document.getElementById("open-credits-btn");
+const approveRouteBtn = document.getElementById("approve-route-btn");
+
+const stopListSheetWrapEl = document.getElementById("stop-list-sheet-wrap");
+const stopListSheetEl = document.getElementById("stop-list-sheet");
+const stopListCloseBtn = document.getElementById("stop-list-close-btn");
+const stopListEl = document.getElementById("stop-list");
+
+const stopOverlayWrapEl = document.getElementById("stop-overlay-wrap");
+const stopOverlaySheetEl = document.getElementById("stop-overlay-sheet");
+const stopOverlayCloseBtn = document.getElementById("stop-overlay-close-btn");
+const stopOverlayHeadingEl = document.getElementById("stop-overlay-heading");
+const stopOverlayBodyEl = document.getElementById("stop-overlay-body");
+const stopOverlayAttributionEl = document.getElementById("stop-overlay-attribution");
+
+const creditsSheetWrapEl = document.getElementById("credits-sheet-wrap");
+const creditsSheetEl = document.getElementById("credits-sheet");
+const creditsCloseBtn = document.getElementById("credits-close-btn");
+
+const reviewUnavailableHeadingEl = document.getElementById("review-unavailable-heading");
+const reviewUnavailableDetailEl = document.getElementById("review-unavailable-detail");
+const reviewUnavailableBackBtn = document.getElementById("review-unavailable-back-btn");
+
+const walkingStubHeadingEl = document.getElementById("walking-stub-heading");
+const walkingStubDetailEl = document.getElementById("walking-stub-detail");
+
+let stopOverlayTriggerEl = null;
 
 // Which screen's control led into a given step - used to send keyboard/
 // screen-reader focus back to the exact control that triggered navigation
@@ -454,7 +691,10 @@ function hideAllScreens() {
   screenAvailableTime.hidden = true;
   screenTopicAtRest.hidden = true;
   screenChooseTopic.hidden = true;
-  screenStub.hidden = true;
+  screenLoading.hidden = true;
+  screenReviewing.hidden = true;
+  screenReviewUnavailable.hidden = true;
+  screenWalkingStub.hidden = true;
 }
 
 // Shows one of the 4 real setup screens (the confirm sheet is a separate
@@ -465,10 +705,16 @@ function hideAllScreens() {
 // trigger).
 function showStep(step, { focusDefault = true } = {}) {
   hideAllScreens();
-  trip.setup_step = step;
-  saveActiveTrip(trip);
 
-  mapStageEl.hidden = step !== "starting_point";
+  // Only a real Trip Setup step is persisted as setup_step - "reviewing"/
+  // "walking" (Story 1.5) aren't setup steps at all, and setup_step stays
+  // null once the trip has moved past setup (Code Map, AD-2).
+  if (SETUP_STEPS.includes(step)) {
+    trip.setup_step = step;
+    saveActiveTrip(trip);
+  }
+
+  mapStageEl.hidden = step !== "starting_point" && step !== "reviewing";
 
   if (step === "starting_point") {
     screenStartingPoint.hidden = false;
@@ -497,7 +743,30 @@ function showStep(step, { focusDefault = true } = {}) {
     updatePrefBalancedTags();
     refreshTopicPills();
     if (focusDefault) chooseTopicTitleEl.focus();
+  } else if (step === "reviewing") {
+    screenReviewing.hidden = false;
+    reviewSummaryEl.textContent = buildReviewSummary();
+    refreshMapRouteLayers();
+    if (focusDefault) reviewingTitleEl.focus();
+  } else if (step === "walking") {
+    screenWalkingStub.hidden = false;
+    const stopCount = Array.isArray(trip.stops) ? trip.stops.length : 0;
+    walkingStubDetailEl.textContent =
+      `${stopCount} stop${stopCount === 1 ? "" : "s"} - Epic 2 builds the real walking screen here.`;
+    if (focusDefault) walkingStubHeadingEl.focus();
   }
+}
+
+function buildReviewSummary() {
+  const stopCount = Array.isArray(trip.stops) ? trip.stops.length : 0;
+  // total_minutes/unused_minutes come from real walking-speed arithmetic
+  // (distance / speed), so they're rarely whole numbers - round only for
+  // this display, never for the stored/compared values.
+  const total = Number.isFinite(trip.total_minutes) ? Math.round(trip.total_minutes) : "?";
+  const unused = Number.isFinite(trip.unused_minutes) ? Math.round(trip.unused_minutes) : null;
+  const stopsPart = `${stopCount} stop${stopCount === 1 ? "" : "s"}`;
+  const timePart = unused !== null ? `${total} min walk - ${unused} min to spare` : `${total} min walk`;
+  return `${stopsPart} - ${timePart}`;
 }
 
 function goBack(fromStep) {
@@ -575,7 +844,7 @@ function closeConfirmSheet({ restoreFocus = true } = {}) {
 
 confirmBtn.addEventListener("click", () => {
   closeConfirmSheet({ restoreFocus: false });
-  showStub();
+  startRoutePlanning();
 });
 
 dismissLink.addEventListener("click", () => {
@@ -590,23 +859,234 @@ dismissLink.addEventListener("click", () => {
 });
 
 // =====================================================================
-// TRIP SETUP - stub completion screen (throwaway - Stories 1.4/1.5 replace
-// this wholesale with the real loading/review screens)
+// ROUTE REVIEW (Story 1.5) - bridges Trip Setup's held values into the
+// real POST /api/plan endpoint (Story 1.4). No other story's AC assigns
+// this call explicitly (see spec's Design Notes); it's done here since
+// this is the first screen that needs the response.
 // =====================================================================
 
-function showStub() {
+const PLANNING_FAILURE_MESSAGE =
+  "Something went wrong finding your route. (Temporary placeholder - Story 1.6 builds the real experience.)";
+const PLANNING_HONEST_FALLBACK_MESSAGE =
+  "Jarrod couldn't find a route that fits this time. (Temporary placeholder - Story 1.6 builds the real experience.)";
+
+function showLoadingScreen() {
   hideAllScreens();
   mapStageEl.hidden = true;
-
-  const label = confirmSheetTopicLabel();
-  const lat = trip.starting_point.lat.toFixed(5);
-  const lng = trip.starting_point.lng.toFixed(5);
-  stubDetailEl.textContent =
-    `Setup complete - ${label}, ${trip.available_minutes} min, ${lat}, ${lng}`;
-
-  screenStub.hidden = false;
-  stubHeadingEl.focus();
+  screenLoading.hidden = false;
+  loadingHeadingEl.focus();
 }
+
+// Both non-feasible response shapes (honest fallback and a real technical
+// failure) land here - this story's only job for either is a minimal,
+// clearly-temporary placeholder with a way back; Story 1.6 owns the real
+// fallback copy/visuals.
+function showReviewUnavailable(message) {
+  hideAllScreens();
+  mapStageEl.hidden = true;
+  reviewUnavailableDetailEl.textContent = message;
+  screenReviewUnavailable.hidden = false;
+  reviewUnavailableHeadingEl.focus();
+}
+
+async function startRoutePlanning() {
+  showLoadingScreen();
+
+  const payload = {
+    start_lat: trip.starting_point.lat,
+    start_lon: trip.starting_point.lng,
+    topic: trip.topic,
+    requested_minutes: trip.available_minutes,
+  };
+
+  let response;
+  try {
+    response = await fetch("/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("Planning request failed to send:", err);
+    showReviewUnavailable(PLANNING_FAILURE_MESSAGE);
+    return;
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (err) {
+    console.error("Planning response was not valid JSON:", err);
+    showReviewUnavailable(PLANNING_FAILURE_MESSAGE);
+    return;
+  }
+
+  // Non-2xx is a real technical failure (app.py reserves it for genuine
+  // service failures) - logged for debugging, never surfaced raw to the
+  // user (I/O matrix).
+  if (!response.ok) {
+    console.error(`Planning request failed with status ${response.status}:`, data);
+    showReviewUnavailable(PLANNING_FAILURE_MESSAGE);
+    return;
+  }
+
+  // A 200 with feasible:false is the honest "no suitable walk" outcome,
+  // distinct from a technical failure - same minimal placeholder here,
+  // but logged with its own real reason.
+  if (!data.feasible) {
+    console.error("No feasible route:", data.reason);
+    showReviewUnavailable(PLANNING_HONEST_FALLBACK_MESSAGE);
+    return;
+  }
+
+  trip.phase = "reviewing";
+  trip.setup_step = null;
+  trip.stops = data.stops;
+  trip.geometry = data.geometry ?? null;
+  trip.total_minutes = data.total_minutes;
+  trip.unused_minutes = data.unused_minutes;
+  saveActiveTrip(trip);
+  showStep("reviewing");
+}
+
+// =====================================================================
+// ROUTE REVIEW - stop-list bottom sheet, stop-content overlay, and the
+// shared credits panel. All three reuse the confirm-sheet's dim+sheet
+// shell (.sheet-wrap/.dim-overlay/.confirm-sheet) and the same
+// inert-the-screen-behind-it pattern already established for the confirm
+// sheet above.
+// =====================================================================
+
+function humanizeSourceType(sourceType) {
+  if (!sourceType) return "Source";
+  return sourceType
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function renderStopList() {
+  stopListEl.innerHTML = "";
+  (trip.stops || []).forEach((stop) => {
+    const li = document.createElement("li");
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "stop-list-btn";
+    btn.setAttribute("aria-label", `View details for stop ${stop.order}, ${stop.name}`);
+
+    const orderEl = document.createElement("span");
+    orderEl.className = "stop-list-order";
+    orderEl.textContent = String(stop.order);
+    orderEl.setAttribute("aria-hidden", "true");
+
+    const textWrap = document.createElement("span");
+    textWrap.className = "stop-list-text";
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "stop-list-name";
+    nameEl.textContent = stop.name || "Unnamed stop";
+
+    const topicsEl = document.createElement("span");
+    topicsEl.className = "stop-list-topics";
+    topicsEl.textContent = (stop.topics || []).join(", ");
+
+    textWrap.appendChild(nameEl);
+    textWrap.appendChild(topicsEl);
+    btn.appendChild(orderEl);
+    btn.appendChild(textWrap);
+    btn.addEventListener("click", () => {
+      closeStopListSheet({ restoreFocus: false });
+      openStopOverlay(stop);
+    });
+
+    li.appendChild(btn);
+    stopListEl.appendChild(li);
+  });
+}
+
+function openStopListSheet() {
+  if ("inert" in screenReviewing) screenReviewing.inert = true;
+  renderStopList();
+  stopListSheetWrapEl.hidden = false;
+  stopListSheetEl.focus();
+}
+
+function closeStopListSheet({ restoreFocus = true } = {}) {
+  stopListSheetWrapEl.hidden = true;
+  if ("inert" in screenReviewing) screenReviewing.inert = false;
+  if (restoreFocus) openStopListBtn.focus();
+}
+
+// Shows a stop's full generated content and every attribution entry (not
+// only the first - AD-3) in the shared overlay shell.
+function openStopOverlay(stop) {
+  stopOverlayTriggerEl = openStopListBtn;
+  if ("inert" in screenReviewing) screenReviewing.inert = true;
+
+  stopOverlayHeadingEl.textContent = stop.name || "Stop";
+  stopOverlayBodyEl.textContent = stop.content || "";
+
+  stopOverlayAttributionEl.innerHTML = "";
+  (stop.attribution || []).forEach((entry) => {
+    const li = document.createElement("li");
+    const label = document.createTextNode(`${humanizeSourceType(entry.source_type)}: `);
+    li.appendChild(label);
+    if (entry.source_url) {
+      const link = document.createElement("a");
+      link.href = entry.source_url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = entry.source_title || entry.source_url;
+      li.appendChild(link);
+    } else {
+      li.appendChild(document.createTextNode(entry.source_title || "unknown"));
+    }
+    stopOverlayAttributionEl.appendChild(li);
+  });
+
+  stopOverlayWrapEl.hidden = false;
+  stopOverlaySheetEl.focus();
+}
+
+function closeStopOverlay() {
+  stopOverlayWrapEl.hidden = true;
+  if ("inert" in screenReviewing) screenReviewing.inert = false;
+  if (stopOverlayTriggerEl) stopOverlayTriggerEl.focus();
+  stopOverlayTriggerEl = null;
+}
+
+// The shared, app-wide credits element (FR-20) - names all five data
+// providers regardless of which stops are in this particular route, and
+// is reachable independently of any single stop's own citation.
+function openCreditsSheet() {
+  if ("inert" in screenReviewing) screenReviewing.inert = true;
+  creditsSheetWrapEl.hidden = false;
+  creditsSheetEl.focus();
+}
+
+function closeCreditsSheet() {
+  creditsSheetWrapEl.hidden = true;
+  if ("inert" in screenReviewing) screenReviewing.inert = false;
+  openCreditsBtn.focus();
+}
+
+openStopListBtn.addEventListener("click", openStopListSheet);
+stopListCloseBtn.addEventListener("click", () => closeStopListSheet());
+stopOverlayCloseBtn.addEventListener("click", closeStopOverlay);
+openCreditsBtn.addEventListener("click", openCreditsSheet);
+creditsCloseBtn.addEventListener("click", closeCreditsSheet);
+
+approveRouteBtn.addEventListener("click", () => {
+  trip.phase = "walking";
+  saveActiveTrip(trip);
+  showStep("walking");
+});
+
+reviewUnavailableBackBtn.addEventListener("click", () => {
+  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  showStep(originStep);
+});
 
 // =====================================================================
 // TRIP SETUP - control wiring
@@ -706,6 +1186,10 @@ startJauntBtn.addEventListener("click", () => {
 // =====================================================================
 
 function initTripSetup() {
+  if (trip.phase === "reviewing" || trip.phase === "walking") {
+    showStep(trip.phase, { focusDefault: false });
+    return;
+  }
   if (trip.setup_step === "confirm_sheet") {
     const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
     showStep(originStep, { focusDefault: false });

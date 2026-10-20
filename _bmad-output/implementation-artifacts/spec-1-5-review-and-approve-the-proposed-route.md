@@ -1,0 +1,129 @@
+---
+title: 'Review and approve the proposed Route'
+type: 'feature'
+created: '2026-10-21'
+status: 'review'
+route: 'dispatch'
+review_loop_iteration: 0
+context: []
+baseline_commit: 'aa157f9438a86cdea9959e318b7441e657bf8d2f'
+---
+
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+
+## Intent
+
+**Problem:** Trip Setup (1.1) collects the request and the backend (1.4) can already generate a full route, but nothing in the frontend calls that endpoint or shows the result - there is no screen where the user sees the proposed walking path, reads a stop's generated content and sources, and explicitly approves before a walk begins (FR-6/FR-7/FR-8/FR-20).
+
+**Approach:** A new "Route Review" screen, added to `app.js`'s existing step/state-machine pattern. It calls `POST /api/plan` right after Trip Setup's confirm action, shows a brief loading state, then on a feasible response renders the walking path + numbered stops on the live map (AD-1 GeoJSON layers, not DOM markers), an expandable stop-list bottom sheet, a per-stop content overlay with its full attribution list, and a shared app-wide credits element naming all five data providers. An explicit "Approve" action transitions the trip's `localStorage` phase to `reviewing` -> `walking` (AD-2), handing off to Epic 2's not-yet-built walking screen via a minimal temporary stub. The two non-feasible response shapes (honest fallback / technical failure) get only a minimal non-crashing placeholder here - their real copy and visuals are Story 1.6's job, built next.
+
+## Boundaries & Constraints
+
+**Always:**
+- Trigger `POST /api/plan` once Trip Setup's existing confirm action completes; show a loading state while awaiting the response.
+- Render the route line and numbered stop circles as GeoJSON source + paint layers (AD-1) - never one DOM marker per stop.
+- Show every attribution entry for a stop, not only the first (AD-3); show total time on screen.
+- A shared, app-wide credits element names all five data providers (OSM, the routing provider, Wikipedia, NSW Heritage, Inner West Council), reachable independently of any single stop's citation.
+- Persist the full response (`stops`, `geometry`, `total_minutes`, `unused_minutes`) to the existing `jaunt_active_trip` key with `phase: "reviewing"`; `isValidTrip()` gains a phase-branching structure (not a single flat shape) so a `reviewing` payload is validated on its own terms, and a `schema_version` mismatch or bad shape still triggers the existing safe-reset.
+- The stop-list sheet and the stop-info overlay both reuse the confirm-sheet's dim+sheet shell and both gain a real, ≥44x44pt tappable close control (UX-DR25), alongside the existing swipe-down-to-dismiss.
+- Tab order reaches the stop list, stop overlay close, and Approve button; Enter/Space activates each.
+- The ink-on-cream/surface text contrast ratio is calculated and recorded, not assumed (UX-DR23).
+- Tapping Approve transitions `phase` to `walking`, persists, and navigates to a minimal temporary stub screen - not a real walking UI.
+- A non-feasible response (either honest-fallback shape, or a non-2xx technical failure) shows only a minimal, clearly-temporary placeholder with a way back - never a crash, never styled as the real Story 1.6 fallback.
+
+**Never:** No Epic 2 walking UI (live position, visited tracking). No Story 1.6 fallback copy/visuals (Jarrod sad pose, topic/time suggestions). No Stories 1.7-1.11 features (re-jaunt, remove/replace stop, preference re-tuning, current-location, stop photos - alt-text plumbing is added but there is no photo to attach it to yet). No change to `app.py`/`planner.py`/`ai.py`/`services.py` - the backend (1.4) is already complete and untouched here. No new persistent storage beyond the existing `jaunt_active_trip` key.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Feasible response | `stops`+`geometry` present | Map renders line + numbered stops; sheet lists every stop | N/A |
+| Geometry degraded | `stops` present, `geometry: null` | Map renders stop markers only, no line (AD-3's existing degrade-don't-fail philosophy) | N/A |
+| Honest fallback | `{"feasible": false, "reason": ...}` | Minimal temporary placeholder, not 1.6's real UI | N/A |
+| Technical failure | non-2xx | Minimal temporary placeholder, distinct enough not to claim a real route | logged, not surfaced raw |
+| Stale/invalid `reviewing` payload on reload | bad `schema_version` or shape | Existing safe-reset-to-fresh-trip path, now exercised for this phase | N/A |
+| Tap Approve | valid `reviewing` trip | `phase` -> `walking`, persisted, navigate to stub screen | N/A |
+
+</frozen-after-approval>
+
+## Code Map
+
+- `static/app.js:143-174` -- `jaunt_active_trip` shape: add `stops`/`geometry`/`total_minutes`/`unused_minutes` for `reviewing`/`walking`; null `setup_step` once `phase !== "setting_up"`.
+- `static/app.js:180-229` -- `isValidTrip()`: restructure into phase-branches (today it's one flat, setup-only shape hard-coded to reject anything but `phase: "setting_up"`); add a `reviewing` branch (and reuse it for `walking`, since Epic 2 hasn't defined that phase's real shape yet - documented as provisional in Implementation Notes).
+- `static/app.js:22-137` -- map setup has no `addSource`/`addLayer` call anywhere yet; add a GeoJSON line layer (route, nullable) and a GeoJSON circle layer (numbered stops) per AD-1 - do not extend `loadPlaces()`'s per-marker loop (AD-1 names it legacy, not a pattern to copy). `mapStageEl.hidden` (line ~471) currently only un-hides for the starting-point step; Route Review must un-hide it too.
+- `static/app.js:271-501` -- `showStep()`/`hideAllScreens()` state-machine: add a `reviewing` screen and a minimal `walking`-stub screen as one more branch each, following this exact pattern.
+- `style.css:683-747` -- confirm-sheet shell (`.dim-overlay`/`.confirm-sheet`/`.handle`) is the only sheet built so far; reuse for the stop-list sheet and stop-info overlay. `style.css:4-14` tokens: `--ink`, `--cream`, `--surface-muted` - reuse `--surface-muted` for the close-x background instead of porting the mockup's one-off `#F0EDE2`.
+- `templates/index.html:166-171` -- `#screen-stub`, already commented "replaced by Stories 1.4/1.5 wholesale"; delete and replace. The post-Approve `walking` placeholder reuses this same stub convention, not a new one.
+- `_bmad-output/planning-artifacts/ux-designs/ux-IBE160-2026-10-02/mockups/key-must-tier-skeleton.html:928-936,525-553` -- the one real close-x markup/CSS in this project (UX-DR25's cited exception); port its shape, swap its color for `--surface-muted`, and give the hit target real `≥44x44` padding (the mock's own circle is only 24px).
+- `app.py:188-242` (`api_plan`) -- response shape confirmed unchanged from Story 1.4: feasible -> `{feasible, total_minutes, unused_minutes, geometry, stops:[{id,order,name,latitude,longitude,topics,content,attribution:[...]}]}`; infeasible -> `{feasible:false, reason}`; non-2xx on a real failure. Read-only reference, no edits here.
+- `_bmad-output/planning-artifacts/architecture/architecture-IBE160-2026-10-07/ARCHITECTURE-SPINE.md` AD-1/AD-2/AD-3 -- binding constraints for map rendering, `localStorage` phase/schema, and attribution-as-a-list, respectively.
+
+## Tasks & Acceptance
+
+**Execution:**
+- [x] `static/app.js` -- after Trip Setup's confirm action, call `POST /api/plan` with the held trip values; show a loading state; on success persist `phase: "reviewing"` + the response and call `showStep("reviewing")`; on a non-feasible/error response, show the minimal placeholder -- bridges 1.1's held values into 1.4's endpoint, since no story currently does this
+- [x] `static/app.js` -- add the `reviewing` screen: GeoJSON route-line + numbered-stop-circle layers (nullable geometry), stop-list bottom sheet (reusing the confirm-sheet shell), tap-to-open stop-content overlay showing `content` + every `attribution` entry, Approve button
+- [x] `static/app.js` -- add a shared credits element (footer or panel) naming all five providers, reachable independently of the stop list
+- [x] `static/app.js` -- restructure `isValidTrip()` into phase branches; add the `reviewing`/`walking` branch; Approve handler transitions `phase` to `walking`, persists, navigates to a minimal stub screen
+- [x] `static/style.css` -- stop-list sheet / stop overlay styling (reusing the confirm-sheet shell); real close-x control (`--surface-muted`, ≥44x44 hit target) on both; verify and record the ink-on-cream/surface contrast ratio
+- [x] `templates/index.html` -- remove `#screen-stub`; add the `reviewing` screen and `walking`-stub markup following the existing `.setup-screen--full`/`--map-overlay` convention
+
+**Acceptance Criteria:**
+- Given a real feasible `/api/plan` response, when Route Review loads, then the map shows the full path and every stop, the sheet lists each stop's name/topic, and total time is visible on screen
+- Given a stop with more than one attribution entry, when its content overlay is opened, then every entry is shown, not only the first
+- Given the stop-list sheet or the stop overlay is open, when I use the keyboard alone, then tab order reaches every control and Enter/Space activates it, and a visible close-x exists alongside swipe-down
+- Given I tap Approve, when the action completes, then `jaunt_active_trip.phase` is `walking` and the screen navigates to the stub
+- Given a non-feasible or error response, when it's received, then the UI shows a minimal non-crashing placeholder with a way back, not a styled fallback screen
+- Given a `reviewing`-phase trip is reloaded with a mismatched `schema_version` or malformed shape, when `isValidTrip()` runs, then the existing safe-reset-to-fresh-trip path triggers
+
+## Implementation Notes
+
+**Files changed:** `static/app.js` (trip shape + phase-branched `isValidTrip()`, GeoJSON route/stop layers, `startRoutePlanning()`, loading/review-unavailable/reviewing/walking-stub screens, stop-list sheet, stop-content overlay, credits panel); `static/style.css` (shared `.sheet-wrap` shell, `.close-x`/`.sheet-header-row`, `.review-panel`, `.stop-list`/`.stop-overlay-body`/`.stop-attribution-list`/`.credits-list`, contrast-ratio comment); `templates/index.html` (`#screen-stub` removed; `#screen-loading`, `#screen-reviewing`, `#stop-list-sheet-wrap`, `#stop-overlay-wrap`, `#credits-sheet-wrap`, `#screen-review-unavailable`, `#screen-walking-stub` added). `app.py`/`planner.py`/`ai.py`/`services.py` untouched, as required.
+
+**Verified, not assumed:** `python3 -m unittest discover -s tests` stays green (unaffected, backend untouched). Full flow driven live against the running Flask app via Playwright MCP: Trip Setup -> confirm -> real `POST /api/plan` (History topic, Newtown Station, 60 min) returned a 6-stop route; map rendered the route line + numbered stop circles (GeoJSON `line`/`circle`/`symbol` layers, confirmed via live DOM/console, not DOM markers); stop-list sheet listed all 6 stops; a stop's content overlay showed its full body text plus every attribution entry (one stop had a real multi-source case verified in code review of the response shape); tab order reached the close-x then the attribution link, Enter activated the close-x and correctly restored focus to the triggering button; close-x `getBoundingClientRect()` measured exactly 44x44; Approve set `localStorage.jaunt_active_trip.phase === "walking"` and navigated to the stub; a reload mid-`walking` correctly resumed the stub; corrupting `stops` on a stored `walking`-phase trip and reloading correctly triggered the safe-reset back to a fresh `starting_point` screen, with the failure logged to console. The credits panel was opened and confirmed to list all five providers (OSM, OpenRouteService/routing, Wikipedia, NSW Heritage, Inner West Council).
+
+Two real bugs were caught and fixed during this live verification, not just written and assumed correct: (1) `line-cap`/`line-join` were originally placed under the line layer's `paint` object instead of `layout`, which MapLibre rejected outright (`unknown property`) and silently skipped the whole layer; (2) the review summary's total/unused minutes are real walking-speed arithmetic (rarely whole numbers, e.g. `59.99916666666667`) and needed `Math.round()` for display -- the stored values are left unrounded.
+
+**Design calls made where the spec left room:**
+- **Tapping a stop in the list closes the stop-list sheet before opening the stop overlay** (one sheet open at a time), rather than stacking the overlay on top of the still-open list sheet. `EXPERIENCE.md` describes the overlay opening "over whichever screen triggered it," which could mean stacking two dim+sheet layers; this implementation keeps the existing single-overlay mental model the confirm-sheet already established, closing the overlay returns focus to "View stops" rather than reopening the list. Simpler and consistent with the rest of the codebase's one-sheet-at-a-time pattern; flagging in case stacking was actually intended.
+- **No swipe-down-to-dismiss gesture was built.** The spec's Boundaries/Code Map text ("alongside the existing swipe-down-to-dismiss") assumes this gesture already exists on the confirm sheet; it does not -- the confirm sheet's only dismiss mechanism is a tap target (`dismiss-link`), with no touch/swipe handler anywhere in the codebase. Building a new generic swipe-to-dismiss gesture system wasn't in the Tasks list and isn't required by any Acceptance Criterion (which only requires tab order + Enter/Space + a visible close-x) -- added here per CLAUDE.md's "don't add features merely because they're technically possible." Flagging as a likely spec inaccuracy for human confirmation, not a silently dropped requirement.
+- **Attribution source-type labels are humanized generically** (`inner_west_perfect_match` -> "Inner West Perfect Match") rather than mapped through a bespoke display-name table, since the catalogue's real `source_type` values are machine-oriented snake_case strings with no existing human-label mapping anywhere in the codebase. Simple and generic over a new lookup table; cosmetically imperfect (e.g. "Nsw" not "NSW") but legible.
+- **The non-feasible placeholder's "Back" button returns to Choose Topic/Topic-at-rest** (based on `trip.topic`), re-entering Trip Setup at the same point the confirm sheet originally opened from, rather than a full reset -- the minimal "way back" the spec asks for without inventing new navigation.
+- Attribution entries with a `source_url` render as a real link (`target="_blank" rel="noopener noreferrer"`) rather than plain text, since the AC only requires every entry be *shown*, and a working link is strictly more useful at no extra complexity.
+
+**Ambiguity flagged, not resolved silently:** per the Design Notes already in this spec, nothing in Stories 1.1/1.4 explicitly assigns who calls `POST /api/plan` - this story does it, as the spec itself concludes by elimination.
+
+## Spec Change Log
+
+## Review Triage Log
+
+**Step-03 Matrix Test Audit (2026-10-21).** The implementing subagent's live Playwright verification covered matrix rows 1 (feasible response), 5 (stale/invalid reload), and 6 (Approve) directly, but not rows 2-4 (geometry degraded, honest fallback, technical failure) - those were asserted correct by code reading alone in its report, not demonstrated live. Per this project's standing "verify before trusting a report" discipline, I drove all three directly via Playwright against the real running app (fetch mocked only at the three response-shape boundaries, everything else - the real UI flow, real `isValidTrip()`, real `showStep()` - exercised unmocked):
+- **Geometry degraded:** confirmed `phase: "reviewing"` persisted correctly with `geometry: null`, 2 stops, no console errors, correct rounded summary text ("2 stops - 42 min walk - 18 min to spare" from `total_minutes: 42.3`/`unused_minutes: 17.7`) - matches the matrix's "stops render, no line, no crash" row exactly.
+- **Honest fallback:** confirmed the distinct placeholder copy ("Jarrod couldn't find a route...") shown, the real `reason` logged to console (not surfaced raw), and "Back" correctly returns to Topic-at-rest (the `surprise_me` origin) in a fully usable state - never a dead end.
+- **Technical failure:** confirmed a mocked `503` produces a *visually distinct* placeholder ("Something went wrong...") from the honest-fallback one, the raw `{error: "AI service unavailable"}` body only reaching the console, never the user-facing text, and the same working "Back" path.
+
+All 6 matrix rows are now covered by a test that actually ran and passed. No defects found in any of the three newly-exercised paths - the implementation matches the matrix exactly.
+
+**The swipe-down-to-dismiss discrepancy (subagent-flagged): confirmed real, verdict is spec inaccuracy, not missing work.** Checked the claim directly against `style.css`/`app.js` as they stood at `baseline_commit` - the confirm sheet's only dismissal mechanism is the `dismiss-link` text button; no touch/pointer swipe handler exists anywhere in the pre-Story-1.5 codebase. UX-DR25's own text in `epics.md` ("Add a visible, tappable close control alongside swipe-down-to-dismiss... every other sheet relies on a text hint alone") itself asserts a swipe gesture that was never actually built - this spec inherited that inaccuracy from the planning doc rather than catching it during investigation. Not treating this as unfinished work: no Task or Acceptance Criterion in this spec requires building a new swipe-to-dismiss system, and doing so now would be scope creep beyond what was asked. Recommend correcting UX-DR25's own wording in `epics.md` in a future pass (out of scope here), and noting that the close-x (the thing that actually mattered for this story's AC) is real, tested, and correctly sized.
+
+**Sheet-stacking interpretation: accepted as the right default.** The one-sheet-at-a-time behavior (closing the stop list before opening a stop's overlay) matches the confirm-sheet's established single-overlay pattern elsewhere in this codebase and isn't contradicted by any Acceptance Criterion. No change requested.
+
+**Minor, non-blocking observation:** an intermittent MapLibre console warning ("Expected value to be of type number, but found null instead") appeared on some page loads, both with and without Story 1.5's changes present (confirmed via a baseline `git stash` comparison) - not a regression introduced by this story, likely an upstream base-style/timing quirk. Not investigated further since it predates this change and caused no observable failure.
+
+## Design Notes
+
+**Who triggers `POST /api/plan`, since no story's AC says so explicitly.** Story 1.1 ends with the three values "held... not yet sent to the server"; Story 1.4 is explicitly backend-only; Story 1.5's own AC starts from "a successful planning response... Route Review loads." By elimination, the call (and its loading state) is this story's job - the only story that bridges 1.1's held state to 1.4's endpoint. Flagging this inference openly rather than silently assuming it.
+
+**Non-feasible responses get a placeholder, not real UI, in this story.** Story 1.6 ("Honest fallback") explicitly owns the copy/visuals for both non-feasible shapes and is the very next story in sequence. Building a throwaway placeholder here (rather than nothing, or rather than fully building 1.6's UI early) keeps this story single-goal and avoids a user-facing crash/blank-screen in the gap between 1.5 and 1.6 landing.
+
+**`walking`-phase shape is provisional.** Epic 2 hasn't defined what the `walking` phase actually needs (live position, visited-stop state, etc.). Reusing the `reviewing` shape verbatim for `walking` for now is the minimal thing that lets Approve do something real and safe-reset still work; Epic 2's own story is expected to extend (not replace) this validator branch.
+
+## Verification
+
+**Commands:**
+- Playwright MCP (`mcp__playwright__*`) against the running Flask app: complete Trip Setup, confirm, verify Route Review loads with a rendered map line + stop markers, open a stop's content overlay and check every attribution entry renders, tab through the sheet/overlay/Approve button and confirm focus order + Enter/Space activation, check the close-x's rendered `getBoundingClientRect()` is >=44x44, tap Approve and confirm `localStorage.jaunt_active_trip.phase === "walking"`
+- `python3 -m unittest discover -s tests` -- expected: unaffected, still green (no backend files touched)
+
+**Manual checks (if no CLI):**
+- A real phone: verify touch targets, swipe-down-to-dismiss still works alongside the new close-x, and that the credits element is actually reachable
+- Calculate and record the ink-on-cream and ink-on-surface contrast ratios directly (e.g. via a quick contrast-ratio tool) rather than eyeballing

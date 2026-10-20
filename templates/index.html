@@ -151,7 +151,7 @@
   </section>
 
   <!-- ============== CONFIRMATION BOTTOM SHEET (overlay above whichever screen opened it) ============== -->
-  <div id="confirm-sheet-wrap" hidden>
+  <div id="confirm-sheet-wrap" class="sheet-wrap" hidden>
     <div class="dim-overlay"></div>
     <div class="confirm-sheet" id="confirm-sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-sheet-heading" tabindex="-1">
       <div class="handle" aria-hidden="true"></div>
@@ -162,11 +162,101 @@
     </div>
   </div>
 
-  <!-- ============== THROWAWAY STUB: proves end-to-end capture; replaced by Stories 1.4/1.5 ============== -->
-  <section id="screen-stub" class="setup-screen setup-screen--full" hidden>
+  <!-- ============== LOADING: shown while POST /api/plan is in flight (Story 1.5) ============== -->
+  <section id="screen-loading" class="setup-screen setup-screen--full" hidden>
     <div class="content">
-      <h2 id="stub-heading" tabindex="-1">Setup complete</h2>
-      <p id="stub-detail"></p>
+      <h2 id="loading-heading" tabindex="-1">Finding your route&hellip;</h2>
+      <p>Jarrod's planning your walk - this takes a few seconds.</p>
+    </div>
+  </section>
+
+  <!-- ============== ROUTE REVIEW (Story 1.5): overlays the live map, same overlay
+       pattern as the starting-point screen - the map underneath shows the route
+       line + numbered stop circles (AD-1 GeoJSON layers). ============== -->
+  <div id="screen-reviewing" class="setup-screen setup-screen--map-overlay" hidden>
+    <header class="screen-header">
+      <span class="header-spacer" aria-hidden="true"></span>
+      <h1 class="header-title" id="reviewing-title" tabindex="-1">Your Jaunt</h1>
+      <span class="header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="start-panel review-panel">
+      <div class="review-summary" id="review-summary"></div>
+      <div class="review-actions">
+        <button type="button" class="btn-pill" id="open-stop-list-btn" aria-label="View all stops">View stops</button>
+        <button type="button" class="dismiss-link" id="open-credits-btn" aria-label="View data source credits">Data sources</button>
+      </div>
+      <button type="button" class="btn-full" id="approve-route-btn" aria-label="Approve this route and start walking">Approve &amp; start walking</button>
+    </div>
+  </div>
+
+  <!-- ============== STOP LIST BOTTOM SHEET (Story 1.5) - reuses the confirm-sheet
+       dim+sheet shell. ============== -->
+  <div id="stop-list-sheet-wrap" class="sheet-wrap" hidden>
+    <div class="dim-overlay"></div>
+    <div class="confirm-sheet sheet-scroll" id="stop-list-sheet" role="dialog" aria-modal="true" aria-labelledby="stop-list-heading" tabindex="-1">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="sheet-header-row">
+        <h2 id="stop-list-heading">Your stops</h2>
+        <button type="button" class="close-x" id="stop-list-close-btn" aria-label="Close stop list">&#10005;</button>
+      </div>
+      <ul class="stop-list" id="stop-list"></ul>
+    </div>
+  </div>
+
+  <!-- ============== STOP CONTENT OVERLAY (Story 1.5) - same shell, opened from a
+       stop-list row; shows every attribution entry (AD-3), not only the first. ============== -->
+  <div id="stop-overlay-wrap" class="sheet-wrap" hidden>
+    <div class="dim-overlay"></div>
+    <div class="confirm-sheet sheet-scroll" id="stop-overlay-sheet" role="dialog" aria-modal="true" aria-labelledby="stop-overlay-heading" tabindex="-1">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="sheet-header-row">
+        <h2 id="stop-overlay-heading"></h2>
+        <button type="button" class="close-x" id="stop-overlay-close-btn" aria-label="Close stop details">&#10005;</button>
+      </div>
+      <p class="stop-overlay-body" id="stop-overlay-body"></p>
+      <ul class="stop-attribution-list" id="stop-overlay-attribution"></ul>
+    </div>
+  </div>
+
+  <!-- ============== SHARED CREDITS PANEL (Story 1.5) - app-wide, reachable
+       independently of any one stop's own citation; names all five data
+       providers (FR-20). ============== -->
+  <div id="credits-sheet-wrap" class="sheet-wrap" hidden>
+    <div class="dim-overlay"></div>
+    <div class="confirm-sheet" id="credits-sheet" role="dialog" aria-modal="true" aria-labelledby="credits-heading" tabindex="-1">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="sheet-header-row">
+        <h2 id="credits-heading">Data sources</h2>
+        <button type="button" class="close-x" id="credits-close-btn" aria-label="Close data sources">&#10005;</button>
+      </div>
+      <ul class="credits-list">
+        <li>OpenStreetMap contributors</li>
+        <li>OpenRouteService</li>
+        <li>Wikipedia</li>
+        <li>NSW Heritage</li>
+        <li>Inner West Council</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============== NON-FEASIBLE PLACEHOLDER (Story 1.5): a minimal, clearly
+       temporary screen for both the honest-fallback shape and a technical
+       failure - Story 1.6 builds the real copy/visuals for the former. ============== -->
+  <section id="screen-review-unavailable" class="setup-screen setup-screen--full" hidden>
+    <div class="content">
+      <h2 id="review-unavailable-heading" tabindex="-1">Couldn't plan this Jaunt</h2>
+      <p id="review-unavailable-detail"></p>
+      <button type="button" class="btn-full" id="review-unavailable-back-btn" aria-label="Go back and change your Jaunt">Back</button>
+    </div>
+  </section>
+
+  <!-- ============== WALKING STUB (Story 1.5): throwaway landing screen after
+       Approve; replaced wholesale by Epic 2's real walking UI. ============== -->
+  <section id="screen-walking-stub" class="setup-screen setup-screen--full" hidden>
+    <div class="content">
+      <h2 id="walking-stub-heading" tabindex="-1">Walking (temporary)</h2>
+      <p id="walking-stub-detail"></p>
     </div>
   </section>
 
