@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2]
+stepsCompleted: [1, 2, 3]
 inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-IBE160-2026-09-29/prd.md
   - _bmad-output/planning-artifacts/prds/prd-IBE160-2026-09-29/addendum.md
