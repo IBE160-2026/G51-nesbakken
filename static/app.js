@@ -183,14 +183,15 @@ function isValidTrip(candidate) {
   if (candidate.phase !== "setting_up") return false;
   if (!SETUP_STEPS.includes(candidate.setup_step)) return false;
   if (
-    typeof candidate.available_minutes !== "number" ||
+    !Number.isInteger(candidate.available_minutes) ||
     candidate.available_minutes < 30 ||
-    candidate.available_minutes > 120
+    candidate.available_minutes > 120 ||
+    candidate.available_minutes % 5 !== 0
   ) {
     return false;
   }
   if (
-    typeof candidate.preference !== "number" ||
+    !Number.isFinite(candidate.preference) ||
     candidate.preference < 0 ||
     candidate.preference > 1
   ) {
@@ -203,8 +204,13 @@ function isValidTrip(candidate) {
     const sp = candidate.starting_point;
     if (
       typeof sp !== "object" ||
-      typeof sp.lat !== "number" ||
-      typeof sp.lng !== "number" ||
+      sp === null ||
+      !Number.isFinite(sp.lat) ||
+      !Number.isFinite(sp.lng) ||
+      sp.lat < -90 ||
+      sp.lat > 90 ||
+      sp.lng < -180 ||
+      sp.lng > 180 ||
       typeof sp.label !== "string"
     ) {
       return false;
@@ -280,8 +286,7 @@ const confirmStartBtn = document.getElementById("confirm-start-btn");
 const availableTimeBackBtn = document.getElementById("available-time-back-btn");
 const availableTimeTitleEl = document.getElementById("available-time-title");
 const recapAvailableTimeEl = document.getElementById("recap-available-time");
-const timeRangeEl = document.getElementById("time-range");
-const timeDisplayValueEl = document.getElementById("time-display-value");
+const timePickerListEl = document.getElementById("time-picker-list");
 const continueBtn = document.getElementById("continue-btn");
 
 const topicAtRestBackBtn = document.getElementById("topic-at-rest-back-btn");
@@ -333,6 +338,99 @@ function updatePrefBalancedTags() {
   });
 }
 
+// =====================================================================
+// TRIP SETUP - available-time wheel picker (a real vertical scroll-snap
+// list, not a horizontal range input - matches the agreed interaction).
+// The list is also a real role="slider" so arrow keys work with no
+// pointer at all; aria-valuenow/valuetext track whichever row is
+// centered, the same value a scroll/swipe or a row tap would land on.
+// =====================================================================
+
+const TIME_MIN = 30;
+const TIME_MAX = 120;
+const TIME_STEP = 5;
+const TIME_ROW_HEIGHT = 44;
+const TIME_VALUES = [];
+for (let m = TIME_MIN; m <= TIME_MAX; m += TIME_STEP) TIME_VALUES.push(m);
+
+const timePickerRowEls = [];
+
+function buildTimePicker() {
+  const topSpacer = document.createElement("div");
+  topSpacer.className = "picker-spacer";
+  timePickerListEl.appendChild(topSpacer);
+
+  TIME_VALUES.forEach((minutes) => {
+    const row = document.createElement("div");
+    row.className = "picker-row";
+    row.dataset.minutes = String(minutes);
+    row.textContent = String(minutes);
+    const unit = document.createElement("span");
+    unit.className = "unit";
+    unit.textContent = "min";
+    row.appendChild(unit);
+    row.addEventListener("click", () => selectTimeIndex(TIME_VALUES.indexOf(minutes), { smooth: true }));
+    timePickerListEl.appendChild(row);
+    timePickerRowEls.push(row);
+  });
+
+  const bottomSpacer = document.createElement("div");
+  bottomSpacer.className = "picker-spacer";
+  timePickerListEl.appendChild(bottomSpacer);
+}
+
+function syncTimePickerClasses(index) {
+  timePickerRowEls.forEach((row, i) => {
+    const distance = Math.abs(i - index);
+    row.classList.toggle("selected", distance === 0);
+    row.classList.toggle("near", distance === 1);
+  });
+}
+
+function selectTimeIndex(index, { smooth = false } = {}) {
+  const clamped = Math.max(0, Math.min(TIME_VALUES.length - 1, index));
+  const minutes = TIME_VALUES[clamped];
+  trip.available_minutes = minutes;
+  saveActiveTrip(trip);
+  syncTimePickerClasses(clamped);
+  timePickerListEl.setAttribute("aria-valuenow", String(minutes));
+  timePickerListEl.setAttribute("aria-valuetext", `${minutes} minutes`);
+  timePickerListEl.scrollTo({ top: clamped * TIME_ROW_HEIGHT, behavior: smooth ? "smooth" : "instant" });
+}
+
+function currentTimeIndex() {
+  return Math.max(0, Math.min(TIME_VALUES.length - 1, TIME_VALUES.indexOf(trip.available_minutes)));
+}
+
+// Swipe/drag ends up here too - debounced so it only commits once
+// scrolling has actually settled, not on every intermediate frame.
+let timeScrollDebounce = null;
+timePickerListEl.addEventListener("scroll", () => {
+  clearTimeout(timeScrollDebounce);
+  timeScrollDebounce = setTimeout(() => {
+    const index = Math.round(timePickerListEl.scrollTop / TIME_ROW_HEIGHT);
+    selectTimeIndex(index);
+  }, 120);
+});
+
+timePickerListEl.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+    event.preventDefault();
+    selectTimeIndex(currentTimeIndex() - 1, { smooth: true });
+  } else if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+    event.preventDefault();
+    selectTimeIndex(currentTimeIndex() + 1, { smooth: true });
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    selectTimeIndex(0, { smooth: true });
+  } else if (event.key === "End") {
+    event.preventDefault();
+    selectTimeIndex(TIME_VALUES.length - 1, { smooth: true });
+  }
+});
+
+buildTimePicker();
+
 function buildRecap() {
   const label = trip.starting_point ? trip.starting_point.label : "";
   return `${label} · ${trip.available_minutes} min`;
@@ -371,8 +469,7 @@ function showStep(step, { focusDefault = true } = {}) {
   } else if (step === "available_time") {
     screenAvailableTime.hidden = false;
     recapAvailableTimeEl.textContent = trip.starting_point ? trip.starting_point.label : "";
-    timeRangeEl.value = String(trip.available_minutes);
-    timeDisplayValueEl.textContent = String(trip.available_minutes);
+    selectTimeIndex(currentTimeIndex(), { smooth: false });
     if (focusDefault) availableTimeTitleEl.focus();
   } else if (step === "topic_at_rest") {
     screenTopicAtRest.hidden = false;
@@ -549,12 +646,6 @@ startChipEls.forEach((btn) => {
 });
 
 availableTimeBackBtn.addEventListener("click", () => goBack("available_time"));
-
-timeRangeEl.addEventListener("input", () => {
-  trip.available_minutes = Number(timeRangeEl.value);
-  timeDisplayValueEl.textContent = String(trip.available_minutes);
-  saveActiveTrip(trip);
-});
 
 continueBtn.addEventListener("click", () => {
   triggerElementByStep.topic_at_rest = continueBtn;
