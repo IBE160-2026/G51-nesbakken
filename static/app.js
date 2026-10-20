@@ -331,6 +331,17 @@ const PREV_STEP = {
 // permanently floating above the handle.
 const PREF_BALANCED_DEADZONE = 0.04;
 
+// trip.preference keeps its own meaning (0 = well-known, 1 = hidden gems)
+// regardless of layout; the labels read "Hidden gems" (left) -> "Well-known"
+// (right), so the native range input's own left-to-right direction (0..100)
+// is the inverse of trip.preference and needs converting both ways.
+function prefToInputValue(pref) {
+  return Math.round((1 - pref) * 100);
+}
+function inputValueToPref(value) {
+  return 1 - Number(value) / 100;
+}
+
 function updatePrefBalancedTags() {
   const isBalanced = Math.abs(trip.preference - 0.5) <= PREF_BALANCED_DEADZONE;
   prefBalancedTagEls.forEach((el) => {
@@ -365,10 +376,6 @@ function buildTimePicker() {
     row.className = "picker-row";
     row.dataset.minutes = String(minutes);
     row.textContent = String(minutes);
-    const unit = document.createElement("span");
-    unit.className = "unit";
-    unit.textContent = "min";
-    row.appendChild(unit);
     row.addEventListener("click", () => selectTimeIndex(TIME_VALUES.indexOf(minutes), { smooth: true }));
     timePickerListEl.appendChild(row);
     timePickerRowEls.push(row);
@@ -402,14 +409,20 @@ function currentTimeIndex() {
   return Math.max(0, Math.min(TIME_VALUES.length - 1, TIME_VALUES.indexOf(trip.available_minutes)));
 }
 
-// Swipe/drag ends up here too - debounced so it only commits once
-// scrolling has actually settled, not on every intermediate frame.
+// Visual classes (hence row font-size/color, via the CSS transition on
+// .picker-row) update on every raw scroll event, live - a row grows as it
+// scrolls into the grey highlight instead of only snapping to full size
+// once scrolling stops. The actual commit (trip.available_minutes, ARIA,
+// localStorage) stays debounced, so a fast swipe doesn't spam writes.
 let timeScrollDebounce = null;
 timePickerListEl.addEventListener("scroll", () => {
+  const liveIndex = Math.round(timePickerListEl.scrollTop / TIME_ROW_HEIGHT);
+  const liveClamped = Math.max(0, Math.min(TIME_VALUES.length - 1, liveIndex));
+  syncTimePickerClasses(liveClamped);
+
   clearTimeout(timeScrollDebounce);
   timeScrollDebounce = setTimeout(() => {
-    const index = Math.round(timePickerListEl.scrollTop / TIME_ROW_HEIGHT);
-    selectTimeIndex(index);
+    selectTimeIndex(liveClamped);
   }, 120);
 });
 
@@ -474,13 +487,13 @@ function showStep(step, { focusDefault = true } = {}) {
   } else if (step === "topic_at_rest") {
     screenTopicAtRest.hidden = false;
     recapTopicAtRestEl.textContent = buildRecap();
-    prefRangeRestEl.value = String(Math.round(trip.preference * 100));
+    prefRangeRestEl.value = String(prefToInputValue(trip.preference));
     updatePrefBalancedTags();
     if (focusDefault) topicAtRestTitleEl.focus();
   } else if (step === "choose_topic") {
     screenChooseTopic.hidden = false;
     recapChooseTopicEl.textContent = buildRecap();
-    prefRangeChooseEl.value = String(Math.round(trip.preference * 100));
+    prefRangeChooseEl.value = String(prefToInputValue(trip.preference));
     updatePrefBalancedTags();
     refreshTopicPills();
     if (focusDefault) chooseTopicTitleEl.focus();
@@ -665,7 +678,7 @@ wildJauntBtn.addEventListener("click", () => {
 
 [prefRangeRestEl, prefRangeChooseEl].forEach((input) => {
   input.addEventListener("input", () => {
-    trip.preference = Number(input.value) / 100;
+    trip.preference = inputValueToPref(input.value);
     saveActiveTrip(trip);
     prefRangeRestEl.value = input.value;
     prefRangeChooseEl.value = input.value;

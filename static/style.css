@@ -402,10 +402,13 @@ input:focus-visible,
   position: relative;
   width: 100%;
 }
+/* Highlight stops short of the right edge, leaving a fixed gutter for the
+   "min" unit label - that label is a single persistent element, not part
+   of each row, so it never pops in/out or changes size as rows scroll by. */
 .picker-highlight {
   position: absolute;
   left: 0;
-  right: 0;
+  right: 40px;
   top: 50%;
   transform: translateY(-50%);
   height: 44px;
@@ -413,6 +416,17 @@ input:focus-visible,
   border-radius: 14px;
   pointer-events: none;
   z-index: 0;
+}
+.picker-unit-label {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  z-index: 2;
+  pointer-events: none;
 }
 .picker-list {
   position: relative;
@@ -431,11 +445,17 @@ input:focus-visible,
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-right: 40px; /* matches the highlight's gutter, keeps numbers centered on the grey box, not the full row */
   scroll-snap-align: center;
   font-size: 14px;
   font-weight: 700;
   color: var(--ink-faint);
   cursor: pointer;
+  /* Rows are re-classed on every scroll tick (not just once scrolling
+     settles), so this transition is what makes growth/shrink read as a
+     continuous animation as a number crosses into/out of the grey box,
+     rather than a single jump once scrolling stops. */
+  transition: font-size 0.12s ease-out, color 0.12s ease-out;
 }
 .picker-row.near {
   color: var(--ink-soft);
@@ -445,16 +465,6 @@ input:focus-visible,
   color: var(--forest);
   font-size: 27px;
   font-weight: 800;
-}
-.picker-row .unit {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  margin-left: 4px;
-  visibility: hidden;
-}
-.picker-row.selected .unit {
-  visibility: visible;
 }
 .picker-spacer {
   height: 88px; /* (5-1)/2 rows, so values 30 and 120 can still reach center */
