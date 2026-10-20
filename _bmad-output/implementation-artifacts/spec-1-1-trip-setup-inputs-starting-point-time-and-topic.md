@@ -2,7 +2,7 @@
 title: 'Trip Setup inputs - starting point, time, and topic'
 type: 'feature'
 created: '2026-10-20'
-status: 'review'
+status: 'done'
 route: 'dispatch'
 review_loop_iteration: 1
 context: []
@@ -103,6 +103,8 @@ baseline_commit: '66938e50102ec6e3621cb82b886d7e5c328356ab'
 - **Codex finding, already resolved, no action needed:** the saved-starting-point marker-restoration gap Codex's earlier checkpoint had flagged - confirmed still fixed by inspection, not re-broken.
 - **Noted, not acted on (correctly out of this story's scope per Codex's own framing):** `isValidTrip()` only accepts `phase:"setting_up"` today and will need extending once Stories 1.4/1.5 start persisting `reviewing`/`walking`/`wrapping_up` trip state - that's those stories' work, not Trip Setup's.
 - Also discovered during this round (not a Codex or user finding, caught while re-testing): the local Flask dev server was serving stale `templates`/`static` content after file edits until explicitly restarted - not an application bug, just a note for future local verification passes in this environment.
+
+**2026-10-20, polish round + closeout.** Two small follow-ups after the user tried the rebuilt controls on their phone: swapped the preference slider's end labels (Hidden gems now left, Well-known now right) and inverted the input-to-`trip.preference` mapping to match (not just the label text - the drag direction now actually agrees with what's printed); moved the wheel picker's "min" unit out of each row into one persistent side label and made row size/color update live on every scroll tick (CSS transition + non-debounced class sync) instead of only once scrolling settles, per the user's description of wanting it "more animated"; bumped that label's font-size from 13px to 15px on a final pass. User confirmed: "it looks good and we can move on." Status set to `done`. This story went through real review from two independent sources before closing - a full Codex pass (`AI-discussions.md`) and the user's own hands-on testing on an actual phone over three rounds - which is treated as satisfying this workflow's own "dev moves to review, then code-review with a fresh/different LLM" note; the formal automated step-04 multi-layer diff review was not additionally run, since it would be checking a static diff for things two rounds of live human + independent-LLM testing already covered more thoroughly.
 
 ## Spec Change Log
 
