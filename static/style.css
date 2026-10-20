@@ -543,8 +543,13 @@ input:focus-visible,
   border-radius: 10px;
   white-space: nowrap;
 }
+/* visibility, not display:none - the tag must keep occupying its grid
+   column's width even while hidden, or the middle "auto" column collapses
+   and the two 1fr columns either side redistribute that space, visibly
+   nudging "Well-known"/"Hidden gems" sideways every time it toggles. */
 .pref-balanced-tag[hidden] {
-  display: none;
+  display: inline-block;
+  visibility: hidden;
 }
 /* 3-column grid (not flex space-between) so the middle "Balanced" tag sits
    at the row's true visual center regardless of the two end labels'
