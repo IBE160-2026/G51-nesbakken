@@ -562,7 +562,7 @@ So that the stops Jaunt picks actually match what I'm looking for.
 
 ### Story 1.10: Use current location for starting point (Should)
 
-Depends on Story 1.1 (same screen). Fully independent of Epic 2's continuous-tracking work (FR-14) - a one-shot read only. Shares Story 2.2's testing prerequisite: real-device verification needs the same phone-accessible HTTPS setup (Geolocation is secure-context-only on every modern browser), not just a LAN-reachable dev server.
+Depends on Story 1.1 (same screen). Fully independent of Epic 2's continuous-tracking work (FR-14) - a one-shot read only, with no dependency on Story 2.2. Real-device verification needs a phone-accessible HTTPS setup (Geolocation is secure-context-only on every modern browser), not just a LAN-reachable dev server - the same environment fact Story 2.2 also notes, each independently.
 
 As a user who doesn't know or can't find a landmark to tap,
 I want to use my current location as my starting point,
