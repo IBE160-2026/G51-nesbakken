@@ -2,7 +2,7 @@
 title: 'Generate a proposed Route via a new planning endpoint'
 type: 'feature'
 created: '2026-10-21'
-status: 'review'
+status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
 context: []
