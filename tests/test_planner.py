@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from ai import AiFatalError, AiSelectionError
+from ai import AiExhaustedError, AiFatalError, AiSelectionError
 from planner import (
     ABSOLUTE_MAX_STOPS,
     AI_OPTION_MENU_SIZE,
@@ -417,14 +417,17 @@ class TestPlanRoute(unittest.TestCase):
         self.assertIn("option_99", second_call_feedback)
         self.assertIn("not one of the offered", second_call_feedback)
 
-    def test_falls_back_after_max_retries_when_option_key_always_invalid(self):
+    def test_exhausted_retries_raises_instead_of_an_honest_fallback(self):
+        # Codex review 2026-10-21: exhausting every retry without AI ever
+        # producing a usable selection is a persistent technical problem,
+        # not an honest "no suitable walk" - must not share _plan_failure()'s
+        # {"feasible": false} shape (the same reasoning AiFatalError already
+        # gets).
         with patch("ai.select_stops", return_value=_selection("option_99")) as mock_select:
-            result = plan_route(START_LAT, START_LON, "public_art", 60)
-        self.assertFalse(result["feasible"])
-        self.assertIn("did not return a usable option", result["reason"])
-        self.assertEqual(result["attempts"], 3)
+            with self.assertRaises(AiExhaustedError) as cm:
+                plan_route(START_LAT, START_LON, "public_art", 60)
+        self.assertIn("3 attempts", str(cm.exception))
         self.assertEqual(mock_select.call_count, 3)
-        self.assertTrue(all(e["outcome"] == "unknown_option" for e in result["attempts_log"]))
 
     def test_ai_selection_error_is_treated_as_invalid_attempt_and_retried(self):
         with patch("ai.select_stops", side_effect=[AiSelectionError("boom"), _selection("option_1")]) as mock_select:

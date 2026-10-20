@@ -455,10 +455,16 @@ def plan_route(
             "attempts_log": attempts_log,
         }
 
-    return _plan_failure(
-        "AI did not return a usable option after all attempts",
-        attempts=attempts_used,
-        attempts_log=attempts_log,
+    # Codex review 2026-10-21: every attempt failed without ever producing
+    # a usable selection (an "accepted" or "none_suitable" outcome would
+    # have returned already, above) - a persistent, repeated failure to
+    # get anything usable from AI, not a judgement that no route is
+    # suitable. Raising ai.AiExhaustedError (re-raised the same way
+    # AiFatalError already is) keeps this out of _plan_failure()'s
+    # {"feasible": false} shape, so a caller can't mistake "AI kept
+    # failing" for an honest "no suitable walk" and suggest the wrong fix.
+    raise ai.AiExhaustedError(
+        f"AI did not return a usable option after {attempts_used} attempts"
     )
 
 

@@ -22,6 +22,19 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_DIR, "data", "sydney_places.json")
 
 app = Flask(__name__)
+# Codex review 2026-10-21 (follow-up): the spec promised oversized-body
+# rejection, but nothing actually enforced a limit - a real request body
+# here is 4 small fields (two floats, a short string, an int), so this is
+# generous, not tight. Flask/Werkzeug reject anything over this before the
+# body is even fully read into memory.
+app.config["MAX_CONTENT_LENGTH"] = 4096
+
+
+@app.errorhandler(413)
+def _request_too_large(_exc):
+    # Matches every other /api/plan error response's {"error": "..."}
+    # shape, rather than Werkzeug's default HTML error page.
+    return jsonify({"error": "request body too large"}), 413
 
 
 class CatalogueError(Exception):
@@ -104,16 +117,31 @@ def _validate_plan_request(data):
         raise PlanRequestError("start_lat must be a number between -90 and 90")
     if not is_number(start_lon) or not (-180 <= start_lon <= 180):
         raise PlanRequestError("start_lon must be a number between -180 and 180")
-    if topic not in planner.VALID_TOPICS:
+    # Codex review 2026-10-21: `topic not in VALID_TOPICS` on a set raises
+    # TypeError for an unhashable JSON value (a list or object) instead of
+    # a controlled rejection - a real crash, not just a theoretical one.
+    if not isinstance(topic, str) or topic not in planner.VALID_TOPICS:
         raise PlanRequestError(
             f"topic must be one of: {', '.join(sorted(planner.VALID_TOPICS))}"
         )
-    if not is_number(requested_minutes) or not (
-        planner.MIN_REQUESTED_MINUTES <= requested_minutes <= planner.MAX_REQUESTED_MINUTES
+    # Codex review 2026-10-21: a float like 30.0 passed is_number() and
+    # check_feasibility()'s own range check, but floor division on a float
+    # (max_stops_for_request()) produces a float max_size, which then
+    # crashes range() deep inside the planner instead of being rejected
+    # here. Also enforces the same 5-minute increments the UI already
+    # only ever sends (static/app.js's wheel picker), not just the 30-120
+    # range, for the same defense-in-depth reasoning as that client-side
+    # validation.
+    if (
+        not isinstance(requested_minutes, int)
+        or isinstance(requested_minutes, bool)
+        or not (planner.MIN_REQUESTED_MINUTES <= requested_minutes <= planner.MAX_REQUESTED_MINUTES)
+        or requested_minutes % 5 != 0
     ):
         raise PlanRequestError(
-            f"requested_minutes must be a number between "
-            f"{planner.MIN_REQUESTED_MINUTES} and {planner.MAX_REQUESTED_MINUTES}"
+            f"requested_minutes must be an integer between "
+            f"{planner.MIN_REQUESTED_MINUTES} and {planner.MAX_REQUESTED_MINUTES}, "
+            f"in 5-minute increments"
         )
 
     return start_lat, start_lon, topic, requested_minutes
@@ -145,6 +173,11 @@ def api_plan():
         result = planner.plan_route(start_lat, start_lon, topic, requested_minutes)
     except ai.AiFatalError as exc:
         return jsonify({"error": str(exc)}), 503
+    except ai.AiExhaustedError as exc:
+        # Every retry attempt failed without AI ever producing a usable
+        # selection - a persistent service/response problem, not an
+        # honest "no suitable walk" (Codex review 2026-10-21).
+        return jsonify({"error": str(exc)}), 503
     except requests.RequestException as exc:
         # A genuine routing-provider failure (fetch_duration_matrix) -
         # same "real service failure, not ordinary infeasibility" treatment
@@ -164,21 +197,37 @@ def api_plan():
             + [(start_lat, start_lon)]
         )
         geometry = services.fetch_route_geometry(ordered_points)
-    except requests.RequestException as exc:
+    except (requests.RequestException, KeyError, IndexError, TypeError) as exc:
         # User's explicit choice (Story 1.4 spec): geometry is a nice-to-
         # have for display, not what makes a route valid - degrade, don't
         # fail an otherwise-good route over it (matches AD-3's existing
-        # content-generation resilience philosophy).
+        # content-generation resilience philosophy). Codex review
+        # 2026-10-21: a malformed-but-200 provider response (e.g. an empty
+        # "features" array) raised KeyError/IndexError, which only the
+        # RequestException catch here missed entirely - this is the same
+        # "expected provider-shape failure" as a network error, not a real
+        # programming bug, so it gets the same controlled degradation.
         print(f"Route geometry fetch failed, continuing without it: {exc}")
         geometry = None
 
     content_results = ai.generate_stop_content(ordered_stops, topic)
     content_by_id = {c["id"]: c for c in content_results}
 
+    # Codex review 2026-10-21: the response originally carried only id/
+    # order/content/attribution - Route Review (Story 1.5) needs a name
+    # and coordinates to show a marker/list entry at all, and would
+    # otherwise have to separately fetch and join against /api/places
+    # (which returns the whole catalogue, not a lookup by id) just to
+    # render its own response. These four extra fields are already on
+    # each stop dict at zero extra cost - no second request required.
     stops_response = [
         {
             "id": stop["id"],
             "order": position,
+            "name": stop.get("name"),
+            "latitude": stop.get("latitude"),
+            "longitude": stop.get("longitude"),
+            "topics": stop.get("topics", []),
             "content": content_by_id[stop["id"]]["content"],
             "attribution": content_by_id[stop["id"]]["attribution"],
         }

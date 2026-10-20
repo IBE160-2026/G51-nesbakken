@@ -460,6 +460,26 @@ class TestMalformedProviderResponses(unittest.TestCase):
             result = ai._call_content_generation([], "history")
         self.assertEqual(set(result.keys()), {"good"})
 
+    def test_content_generation_null_used_evidence_ids_degrades_to_empty_list(self):
+        # Codex review 2026-10-21: `used_evidence_ids: null` crashed the
+        # list comprehension with TypeError ('NoneType' object is not
+        # iterable). A malformed citation declaration shouldn't discard
+        # otherwise-good content - degrade to [] instead.
+        mock_response = make_mock_response(make_openai_response(
+            {"stops": [{"stop_id": "x", "content": "Real content.", "used_evidence_ids": None}]}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_content_generation([], "history")
+        self.assertEqual(result["x"], {"content": "Real content.", "used_evidence_ids": []})
+
+    def test_content_generation_non_string_item_in_used_evidence_ids_is_dropped(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"stops": [{"stop_id": "x", "content": "Real content.", "used_evidence_ids": ["own", 42, None]}]}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_content_generation([], "history")
+        self.assertEqual(result["x"]["used_evidence_ids"], ["own"])
+
     def test_grounding_batch_null_items_list_raises_ai_selection_error(self):
         mock_response = make_mock_response(make_openai_response({"items": None}))
         with patch("ai.requests.post", return_value=mock_response):
@@ -689,6 +709,29 @@ class TestGenerateStopContent(unittest.TestCase):
             results = generate_stop_content([SAMPLE_STOP_RICH], "history")
         self.assertEqual(len(results[0]["attribution"]), 1)
         self.assertEqual(results[0]["attribution"][0]["source_url"], SAMPLE_STOP_RICH["source_url"])
+
+    def test_grounding_check_scoped_to_cited_evidence_not_every_offered_source(self):
+        # Codex review 2026-10-21: evidence_texts used to be built from ALL
+        # offered evidence, not just the sources the model actually declared
+        # using - so a fabricated claim could be wrongly "grounded" against
+        # a Contextual Source the stop was merely offered but never cited.
+        fake_sources = [{"id": "ctx", "topics": ["history"], "source_type": "wikipedia",
+                          "source_title": "C", "source_url": "https://c",
+                          "text": "Designed by Walter Liberty Vernon in 1887."}]
+        generated = self._generated(
+            {SAMPLE_STOP_RICH["id"]: "Designed by Walter Liberty Vernon in 1887."},
+            used_evidence_ids={SAMPLE_STOP_RICH["id"]: ["own"]},  # did NOT cite "ctx"
+        )
+        with patch("ai.load_contextual_sources", return_value=fake_sources), \
+             patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch") as mock_semantic:
+            results = generate_stop_content([SAMPLE_STOP_RICH], "history")
+        # The fabricated name/date aren't in the own excerpt and the source
+        # that does contain them was never cited - must fall back, not pass
+        # the rule-based check by accident, and never even reach the
+        # semantic layer for an already-rejected candidate.
+        mock_semantic.assert_not_called()
+        self.assertEqual(results[0]["content"], SAMPLE_STOP_RICH["source_excerpt"])
 
     def test_declared_source_id_never_offered_is_ignored(self):
         generated = self._generated(

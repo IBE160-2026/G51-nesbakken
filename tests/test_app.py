@@ -7,7 +7,7 @@ from unittest.mock import patch
 import requests
 
 import app as app_module
-from ai import AiFatalError
+from ai import AiExhaustedError, AiFatalError
 
 FIXTURE_RECORDS = [
     {
@@ -256,6 +256,31 @@ class TestApiPlanValidation(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         mock_plan.assert_not_called()
 
+    def test_non_string_topic_rejected_not_a_crash(self):
+        # Codex review 2026-10-21: `topic not in VALID_TOPICS` on a set used
+        # to raise TypeError for an unhashable JSON value instead of a
+        # controlled 400.
+        for topic in ([], {}, 42, None):
+            body = dict(VALID_PLAN_BODY, topic=topic)
+            response, mock_plan = self._post(body)
+            self.assertEqual(response.status_code, 400)
+            mock_plan.assert_not_called()
+
+    def test_non_integer_requested_minutes_rejected_not_a_crash(self):
+        # Codex review 2026-10-21: a float like 30.0 passed the old range
+        # check, then crashed range() deep inside the planner instead of
+        # being rejected here.
+        body = dict(VALID_PLAN_BODY, requested_minutes=60.0)
+        response, mock_plan = self._post(body)
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
+    def test_non_five_minute_increment_rejected(self):
+        body = dict(VALID_PLAN_BODY, requested_minutes=61)
+        response, mock_plan = self._post(body)
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
     def test_valid_topics_all_accepted(self):
         for topic in ("history", "architecture", "public_art", "surprise_me"):
             body = dict(VALID_PLAN_BODY, topic=topic)
@@ -296,6 +321,16 @@ class TestApiPlanOutcomes(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertIn("error", response.get_json())
 
+    def test_ai_exhausted_error_returns_503_not_the_feasible_false_shape(self):
+        # Codex review 2026-10-21: exhausted AiSelectionError retries used
+        # to collapse into the same {"feasible": False} shape as an honest
+        # "no suitable walk" - indistinguishable from genuine infeasibility.
+        with patch("app.planner.plan_route", side_effect=AiExhaustedError("AI did not return a usable option after 3 attempts")):
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("error", response.get_json())
+        self.assertNotIn("feasible", response.get_json())
+
     def test_feasible_route_returns_full_response(self):
         with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
              patch("app.services.fetch_route_geometry", return_value=[[151.179, -33.898]]), \
@@ -308,10 +343,13 @@ class TestApiPlanOutcomes(unittest.TestCase):
         self.assertEqual(body["geometry"], [[151.179, -33.898]])
         self.assertEqual(len(body["stops"]), 2)
         self.assertEqual(body["stops"][0], {
-            "id": "a", "order": 1, "content": "Generated content.",
+            "id": "a", "order": 1,
+            "name": "Stop A", "latitude": -33.899, "longitude": 151.180, "topics": [],
+            "content": "Generated content.",
             "attribution": [{"source_type": "wikipedia", "source_title": "T", "source_url": "https://x"}],
         })
         self.assertEqual(body["stops"][1]["order"], 2)
+        self.assertEqual(body["stops"][1]["name"], "Stop B")
 
     def test_geometry_failure_degrades_gracefully_not_a_request_failure(self):
         # User's explicit choice (Story 1.4 spec): a geometry-fetch failure
@@ -326,6 +364,21 @@ class TestApiPlanOutcomes(unittest.TestCase):
         self.assertTrue(body["feasible"])
         self.assertIsNone(body["geometry"])
         self.assertEqual(len(body["stops"]), 2)  # route/content still intact
+
+    def test_malformed_geometry_response_degrades_gracefully(self):
+        # Codex review 2026-10-21: a malformed-but-200 provider response
+        # (e.g. an empty "features" array) raises KeyError/IndexError in
+        # fetch_route_geometry, which the old `except requests.RequestException`
+        # alone did not catch.
+        with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
+             patch("app.services.fetch_route_geometry", side_effect=IndexError("list index out of range")), \
+             patch("app.ai.generate_stop_content", return_value=[fake_content("a"), fake_content("b")]):
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["feasible"])
+        self.assertIsNone(body["geometry"])
+        self.assertEqual(len(body["stops"]), 2)
 
     def test_content_generation_called_with_ordered_stops_and_requested_topic(self):
         with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
@@ -347,6 +400,21 @@ class TestApiPlanOutcomes(unittest.TestCase):
         self.assertEqual(points_arg[-1], (VALID_PLAN_BODY["start_lat"], VALID_PLAN_BODY["start_lon"]))
         self.assertEqual(points_arg[1], (-33.899, 151.180))  # Stop A
         self.assertEqual(points_arg[2], (-33.897, 151.178))  # Stop B
+
+
+class TestRequestBodySizeLimit(unittest.TestCase):
+    """Follow-up from the Story 1.4 Codex review 2026-10-21: the spec
+    promised oversized-body rejection but nothing enforced it."""
+
+    def setUp(self):
+        self.client = app_module.app.test_client()
+
+    def test_oversized_body_rejected_with_json_error(self):
+        oversized_topic = "x" * (app_module.app.config["MAX_CONTENT_LENGTH"] + 1)
+        body = dict(VALID_PLAN_BODY, topic=oversized_topic)
+        response = self.client.post("/api/plan", json=body)
+        self.assertEqual(response.status_code, 413)
+        self.assertIn("error", response.get_json())
 
 
 if __name__ == "__main__":

@@ -95,6 +95,18 @@ class AiFatalError(AiSelectionError):
     attempts repeating an identical, doomed request."""
 
 
+class AiExhaustedError(AiSelectionError):
+    """Raised by planner.py (not ai.py itself) when every retry attempt
+    failed with an ordinary (non-fatal) AiSelectionError and none ever
+    produced a usable selection - a persistent, repeated failure to get
+    any response from AI at all, not a judgement that no route is
+    suitable. Codex review 2026-10-21: the retry-exhaustion fallthrough
+    previously returned the same {"feasible": false} shape as ordinary
+    infeasibility, masquerading a real technical problem as an honest "no
+    suitable walk" - a caller (the UI) could wrongly suggest changing the
+    request when the actual problem is an unavailable AI service."""
+
+
 NON_RETRYABLE_STATUS_CODES = {401, 403}
 
 
@@ -735,7 +747,14 @@ def _call_content_generation(stops_with_evidence, topic):
         content = s.get("content")
         if not isinstance(stop_id, str) or not isinstance(content, str) or not content.strip():
             continue
-        used_evidence_ids = [e for e in s.get("used_evidence_ids", []) if isinstance(e, str)]
+        # Codex review 2026-10-21: used_evidence_ids: null (present but not
+        # a list) raised an uncaught TypeError iterating it - a less
+        # destructive degradation than discarding the whole entry, since
+        # the content itself can still be perfectly good even if its
+        # citation declaration is malformed; attribution always includes
+        # the stop's own source regardless (see generate_stop_content()).
+        raw_used_ids = s.get("used_evidence_ids", [])
+        used_evidence_ids = [e for e in raw_used_ids if isinstance(e, str)] if isinstance(raw_used_ids, list) else []
         result[stop_id] = {"content": content, "used_evidence_ids": used_evidence_ids}
     return result
 
@@ -776,11 +795,23 @@ def generate_stop_content(stops, topic):
     fallback_stops = []
     for stop, evidence in stops_with_evidence:
         generated = generated_by_id.get(stop["id"])
-        # The stop's own real name is known, legitimate grounding material
-        # too - referring to a place by its actual name isn't a fabricated
-        # claim (prototype bug #2, see Design Notes).
-        evidence_texts = [e["text"] for e in evidence] + [stop.get("name") or ""]
-        if generated is None or not check_grounding(generated["content"], evidence_texts):
+        if generated is None:
+            fallback_stops.append(stop)
+            continue
+        # Both grounding checks verify against exactly the evidence that
+        # will actually be cited (used_evidence_ids, always including the
+        # stop's own source) - never every source merely offered. Codex
+        # review 2026-10-21: verifying against the full offered set while
+        # attribution lists only declared-used sources let a claim
+        # supported solely by an undeclared Contextual Source pass
+        # verification while that source never appeared in its citations.
+        # The stop's own real name is also legitimate grounding material -
+        # referring to a place by its actual name isn't fabrication
+        # (prototype bug #2, see Design Notes).
+        used_ids = set(generated["used_evidence_ids"]) | {OWN_EVIDENCE_ID}
+        cited_evidence = [e for e in evidence if e["id"] in used_ids]
+        evidence_texts = [e["text"] for e in cited_evidence] + [stop.get("name") or ""]
+        if not check_grounding(generated["content"], evidence_texts):
             fallback_stops.append(stop)
             continue
         candidates.append((stop, evidence, generated, evidence_texts))
