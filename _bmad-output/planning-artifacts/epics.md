@@ -292,6 +292,10 @@ So that I never get fabricated information.
 **When** this story is built
 **Then** Contextual Sources are drawn from a small, human-curated seed file (`data/contextual_sources.json`), following the same maintained pattern `data/heritage_source_text.json` already establishes - each entry real, verbatim text with its own source_type/source_title/source_url, reviewed before being added, never AI-generated or live-searched (PRD Open Question 13, resolved 2026-10-20)
 
+**Given** the user's explicit forward-compatibility request - V1 ships a small curated set, but Jaunt should be able to grow into Jarrod actively researching/retrieving sources later "without redoing everything" (2026-10-20, see addendum.md's Post-V1 vision)
+**When** this story is built
+**Then** the seed-file lookup lives behind its own function with a fixed contract (given a Stop and the requested Topic, return a list of candidate `{source_type, source_title, source_url, text}` entries) - content generation calls that one function and never reads `data/contextual_sources.json` directly itself. This is the seam a future real retrieval system replaces; everything downstream (generation, the grounding check, the payload shape, the UI) stays unchanged either way (architecture AD-3)
+
 **Given** content blends a Stop's own Source Excerpt with a Contextual Source (confirmed real gap, Codex review 2026-10-18, user's explicit choice: support this properly rather than constraining V1 to single-source content)
 **When** the attribution reference is produced
 **Then** it is a list of `{source_type, source_title, source_url}` entries, one per source actually drawn from - never a single triple that can only represent one source (architecture AD-3, corrected 2026-10-18). The grounding check runs against every source in that list, not just the first one.
