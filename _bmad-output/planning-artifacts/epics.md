@@ -51,7 +51,7 @@ NFR-1 (Privacy - no account): No account creation or login is required for any V
 NFR-2 (Privacy - local-only in V1, revised 2026-10-07): Visit History, Favourites, and mark-visited state are stored locally on the device for V1; nothing is persisted server-side in V1; a planning request may transmit the minimal signal needed for that one computation (same transient posture as the one-shot location coordinate). This is a V1 implementation fact, not a permanent promise - it does not foreclose a future server-side account system.
 NFR-3 (Privacy - live position): The continuous GPS stream during a walk is never transmitted to or stored on a server - it only drives the client's own map display; a one-shot "use my current location" coordinate is, by design, sent to the routing/planning service, same as any other chosen starting coordinate.
 NFR-4 (Source integrity): AI never originates a Stop's existence - only the verified catalogue does; AI never generates content without grounding; both an automated grounding check and manual spot-checking are required, not either alone.
-NFR-5 (Extensibility): Language and Pilot Area boundary must be kept as configuration, not inline literals, so a second area or language is additive, not a rewrite - an architectural posture for V1, not a commitment to build it now.
+NFR-5 (Extensibility): Language and Pilot Area boundary must be kept as configuration, not inline literals, so a second area or language is additive, not a rewrite - an architectural posture for V1, not a commitment to build it now. Served by Epic 4 Story 4.1 (promoted to Must-tier 2026-10-20 - this is a V1 codebase property, not contingent on Story 4.2's optional second-area demonstration).
 NFR-6 (Platform): Mobile-first web app, phone browser primary, desktop secondary; built and tested mobile-first from the start, not retrofitted.
 NFR-7 (Reliability/regression): The existing automated test suite (169/169 passing as of 2026-10-07) must continue passing as V1 features are added; new Must/Should features get their own tests.
 
@@ -133,7 +133,7 @@ FR-17: Epic 3 - Local visit history and favourites
 FR-18: Epic 3 - Repeat-use route variety
 FR-19: Epic 1 - AI content generation, grounded and checked
 FR-20: Epic 1 - Source attribution shown to the user
-FR-21: Epic 4 - Second pilot-area demonstration
+FR-21: Epic 4, Story 4.2 - Second pilot-area demonstration (Should/stretch); NFR-5's configuration work itself is Epic 4 Story 4.1 (Must)
 FR-22: Epic 1 - Stop photo, rights-cleared only
 FR-23: Epic 2 - Muted background amenities at high zoom
 FR-24: Epic 1 - Use current location for starting point
@@ -155,8 +155,8 @@ After finishing, a user gets a short, honest AI-generated summary of only the st
 **FRs covered:** FR-16, FR-17, FR-18
 
 ### Epic 4: Expand to a Second Area
-Once the Newtown experience works end to end, the same app can be pointed at a second Sydney-area bounding box and produce a real, working Catalogue there too - proving the architecture's configuration-not-hard-coding posture (NFR-5) actually holds. Explicit stretch goal, deliberately last, never allowed to delay Epics 1-3. Standalone: touches only the offline import pipeline (`import_places.py`, `import_street_art.py`, a second area's heritage source), not `planner.py`, `ai.py`, or the frontend.
-**FRs covered:** FR-21
+Once the Newtown experience works end to end, the same app can be pointed at a second Sydney-area bounding box and produce a real, working Catalogue there too - proving the architecture's configuration-not-hard-coding posture (NFR-5) actually holds. Story 4.2 (the actual demonstration) is an explicit stretch goal, deliberately last, never allowed to delay Epics 1-3; Story 4.1 (the configuration refactor, NFR-5) is Must-tier and doesn't wait for it (2026-10-20). Standalone: touches only the offline import pipeline (`import_places.py`, `import_street_art.py`, a second area's heritage source), not `planner.py`, `ai.py`, or the frontend.
+**FRs covered:** FR-21 (Story 4.2)
 
 ---
 
@@ -276,13 +276,21 @@ So that I never get fabricated information.
 **When** that content is produced
 **Then** an automated grounding check runs against it before it is returned to the planning pipeline (FR-19)
 
-**Given** a Stop's generated content fails its automated grounding check
+**Given** a Stop's generated content fails its automated grounding check, OR the content-generation call itself fails or times out for that stop
 **When** this happens
-**Then** that one Stop's content falls back to its raw Source Excerpt rather than being silently passed through or failing the whole Route (architecture AD-3)
+**Then** that one Stop's content falls back to its raw Source Excerpt rather than being silently passed through or failing the whole Route - broadened 2026-10-20 (user-caught gap): the original wording only covered a failed grounding check, not a failed/timed-out generation call itself, but both need the same fallback (architecture AD-3)
+
+**Given** AI content generation and the automated grounding check need real mechanism decisions, not just a described contract (resolved 2026-10-20, grounded in real timing measurements - see architecture AD-3)
+**When** this story is built
+**Then** content generation is one batched call per route (all the route's stops in one request), not one call per stop - at ~2s per real OpenAI call, N sequential calls would add real, avoidable latency and complexity; and the grounding check is a rule-based (non-LLM) check by default, not a second model call - this prototype's own thin/rich test pass (below) is where that default gets validated, escalating to a model call only if it proves insufficient there
 
 **Given** a Stop's content blends its own Source Excerpt with Contextual Source material
 **When** the content is generated
 **Then** the Contextual Source's general information is never phrased or implied as something specifically known about that particular Stop (FR-19)
+
+**Given** "a reliable Contextual Source" needed a concrete mechanism, not just a description (resolved 2026-10-20, user's explicit call: a few approved sources is enough for now)
+**When** this story is built
+**Then** Contextual Sources are drawn from a small, human-curated seed file (`data/contextual_sources.json`), following the same maintained pattern `data/heritage_source_text.json` already establishes - each entry real, verbatim text with its own source_type/source_title/source_url, reviewed before being added, never AI-generated or live-searched (PRD Open Question 13, resolved 2026-10-20)
 
 **Given** content blends a Stop's own Source Excerpt with a Contextual Source (confirmed real gap, Codex review 2026-10-18, user's explicit choice: support this properly rather than constraining V1 to single-source content)
 **When** the attribution reference is produced
@@ -352,7 +360,7 @@ So that the review screen can get everything it needs without multiple round tri
 
 **Given** the full request (routing matrix + AI selection + content generation + grounding check, once all exist)
 **When** it runs
-**Then** it targets roughly 90 seconds end-to-end for the typical case - a provisional, not-yet-measured number (architecture AD-3) that must be replaced with a real timed measurement once this story is actually built, with any per-call retry budget bounded by what's left of the overall deadline, not stacked independently
+**Then** it targets roughly 30-45 seconds end-to-end for the typical case - revised 2026-10-20 against real measurements (the earlier 90s figure was an unfounded guess, correctly challenged by the user): `fetch_duration_matrix()` ≈1.8s, `ai.select_stops()` ≈1.9-2.6s per real call, so the already-built pieces alone run in ≈4-5s; content generation (one batched call per route, per Story 1.3) and a rule-based grounding check (near-instant, not a second model call) are the remaining unknowns this estimate accounts for. Still provisional until Story 1.3 is actually built and timed end to end - any per-call retry budget is bounded by what's left of the overall deadline, not stacked independently
 
 **Given** malformed or invalid input (a non-numeric or out-of-range coordinate, a time outside 30-120, an unrecognized topic string, or an oversized/malformed request body)
 **When** the endpoint receives it
@@ -962,13 +970,13 @@ So that repeat use doesn't just show me the same things.
 
 ## Epic 4: Expand to a Second Area
 
-Once the Newtown experience works end to end, the same app can be pointed at a second Sydney-area bounding box and produce a real, working Catalogue there too - proving the architecture's configuration-not-hard-coding posture (NFR-5) actually holds. Explicit stretch goal, deliberately last, never allowed to delay Epics 1-3. Touches only the offline import pipeline, not `planner.py`, `ai.py`, or the frontend.
+Once the Newtown experience works end to end, the same app can be pointed at a second Sydney-area bounding box and produce a real, working Catalogue there too - proving the architecture's configuration-not-hard-coding posture (NFR-5) actually holds. The actual second-area demonstration (Story 4.2) is an explicit stretch goal, deliberately last, never allowed to delay Epics 1-3; the configuration refactor itself (Story 4.1) is Must-tier and does not wait for the rest of this epic (clarified 2026-10-20, promoted from Should - see Story 4.1). Touches only the offline import pipeline, not `planner.py`, `ai.py`, or the frontend.
 
-**FRs covered:** FR-21
+**FRs covered:** FR-21 (Story 4.2 only - Story 4.1 serves NFR-5 directly, see below)
 
-### Story 4.1: Move Newtown/English-specific values into configuration (Should)
+### Story 4.1: Move Newtown/English-specific values into configuration (Must - promoted from Should, 2026-10-20)
 
-**Not gated behind the rest of Epic 4 (clarified 2026-10-18, Codex review).** NFR-5 itself reads as a V1 codebase posture ("must be kept as configuration"), not something that only matters if Story 4.2's second-area demonstration is actually attempted. Since this story only touches `import_places.py` and depends on nothing in Epics 1-3, it can reasonably be done early and cheaply (it's described as "a small refactor," not a big one) rather than left to the very end of an explicitly-optional, deliberately-last epic where it could end up skipped along with everything else in Epic 4. Only Story 4.2 (the actual second-area demonstration) is the genuinely optional, deferrable part.
+**Why Must, not Should:** this story serves NFR-5 directly ("Language and Pilot Area boundary must be kept as configuration... an architectural posture for V1"), which reads as a V1 codebase property, not something contingent on whether a second area ever gets demonstrated. Bundling it inside an explicitly-optional, deliberately-last epic (clarified 2026-10-18, promoted 2026-10-20 at the user's request) risked it being skipped along with everything else in Epic 4 if time runs short - exactly the outcome NFR-5 is meant to prevent. It's a small, cheap, self-contained refactor (only touches `import_places.py`, depends on nothing in Epics 1-3) - keep it simple, do it early. Only Story 4.2 (the actual second-area demonstration) stays the genuinely optional, deferrable part.
 
 As a developer preparing to support a second area,
 I want Newtown-specific and English-specific values extracted into configuration,

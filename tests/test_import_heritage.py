@@ -114,6 +114,36 @@ class TestHeritageOsmCrossSourceDuplicates(unittest.TestCase):
         import_heritage.apply_manual_duplicate_overrides(records_by_id)
         self.assertEqual(records_by_id[osm_id]["status"], "ready")
 
+    def test_osm_side_is_restored_if_replacement_later_becomes_not_ready(self):
+        # Regression (user-caught, 2026-10-20): a prior run rejected the OSM
+        # record because the replacement was ready then. The replacement has
+        # since become limited (e.g. its seed text was removed) - the OSM
+        # record must come back to ready, not stay stuck rejected forever.
+        osm_id, kept_id = next(iter(import_heritage.CROSS_SOURCE_DUPLICATES.items()))
+        records_by_id = {
+            osm_id: {
+                "status": "rejected",
+                "rejection_reason": f"duplicate of {kept_id} (reviewed cross-source match)",
+            },
+            kept_id: {"status": "limited", "rejection_reason": "no seed text yet"},
+        }
+        import_heritage.apply_manual_duplicate_overrides(records_by_id)
+        self.assertEqual(records_by_id[osm_id]["status"], "ready")
+        self.assertIsNone(records_by_id[osm_id]["rejection_reason"])
+
+    def test_unrelated_rejection_reason_is_never_touched(self):
+        # A record rejected for some other reason entirely (missing
+        # coordinates, etc.) must never be "restored" by this function -
+        # only a rejection this function itself applied is reversible.
+        osm_id, kept_id = next(iter(import_heritage.CROSS_SOURCE_DUPLICATES.items()))
+        records_by_id = {
+            osm_id: {"status": "rejected", "rejection_reason": "missing coordinates"},
+            kept_id: {"status": "limited", "rejection_reason": "no seed text yet"},
+        }
+        import_heritage.apply_manual_duplicate_overrides(records_by_id)
+        self.assertEqual(records_by_id[osm_id]["status"], "rejected")
+        self.assertEqual(records_by_id[osm_id]["rejection_reason"], "missing coordinates")
+
     def test_heritage_record_being_kept_is_never_touched(self):
         records_by_id = {
             "heritage/5045004": {"status": "ready", "rejection_reason": None},

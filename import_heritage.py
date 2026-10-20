@@ -154,16 +154,38 @@ def apply_manual_duplicate_overrides(records_by_id):
     source - not currently happening with today's two real pairs (both
     replacements are ready), but a real latent risk for any future entry
     added to CROSS_SOURCE_DUPLICATES before its seed text exists.
+
+    Fixed 2026-10-20 (symmetric recovery, user-caught): the above guard
+    stops a NEW rejection when the replacement isn't ready, but on a
+    rerun the OSM record is loaded via load_existing() already carrying
+    whatever status a PRIOR run gave it. If that prior run rejected it
+    (replacement was ready then) and the replacement has since become
+    `limited` (e.g. its seed text was removed), the old guard would
+    leave the OSM record stuck `rejected` forever, with no path back to
+    `ready` - the place becomes permanently unusable even though the
+    override that caused it no longer applies. Every rejection this
+    function makes is tagged with a specific, checkable reason string,
+    so a record found in that exact state is recognized as "ours" and
+    restored, never silently left wrong.
     """
+    override_reason_for = lambda kept_id: f"duplicate of {kept_id} (reviewed cross-source match)"
     for osm_id, kept_id in CROSS_SOURCE_DUPLICATES.items():
         record = records_by_id.get(osm_id)
-        if record is None or record.get("status") != "ready":
+        if record is None:
             continue
         replacement = records_by_id.get(kept_id)
-        if replacement is None or replacement.get("status") != "ready":
-            continue
-        record["status"] = "rejected"
-        record["rejection_reason"] = f"duplicate of {kept_id} (reviewed cross-source match)"
+        replacement_ready = replacement is not None and replacement.get("status") == "ready"
+        override_reason = override_reason_for(kept_id)
+        currently_overridden = (
+            record.get("status") == "rejected"
+            and record.get("rejection_reason") == override_reason
+        )
+        if replacement_ready and record.get("status") == "ready":
+            record["status"] = "rejected"
+            record["rejection_reason"] = override_reason
+        elif not replacement_ready and currently_overridden:
+            record["status"] = "ready"
+            record["rejection_reason"] = None
 
 
 def build_state_records(seed):
