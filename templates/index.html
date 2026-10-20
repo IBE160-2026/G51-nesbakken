@@ -8,9 +8,163 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <div id="status" role="status" aria-live="polite"></div>
-  <div id="instructions"></div>
-  <div id="map"></div>
+
+  <!-- Real interactive MapLibre map (AD-1) + its existing status/instructions
+       strips. Only visible while the starting-point screen is active - every
+       later Trip Setup screen covers it with an opaque full-screen panel. -->
+  <div id="map-stage">
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="instructions"></div>
+    <div id="map"></div>
+  </div>
+
+  <!-- ============== SCREEN 1: STARTING POINT (overlay on top of the map) ============== -->
+  <div id="screen-starting-point" class="setup-screen setup-screen--map-overlay">
+    <header class="screen-header">
+      <span class="header-spacer" aria-hidden="true"></span>
+      <h1 class="header-title" id="starting-point-title" tabindex="-1">Start your Jaunt</h1>
+      <span class="header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="jaunty-overlay" aria-hidden="true">
+      <div class="jaunty-backing"></div>
+      <div class="jaunty jaunty-wave-sm"></div>
+      <div class="bubble">Where are we jaunting from?</div>
+    </div>
+
+    <div class="start-panel">
+      <div class="pending-pin-row" id="pending-pin-row" hidden>
+        <span id="pending-pin-label">Dropped pin</span>
+        <button type="button" class="btn-pill" id="confirm-start-btn" aria-label="Confirm this starting point">Confirm this spot</button>
+      </div>
+      <div class="panel-label" id="start-panel-label">Or pick a spot</div>
+      <div class="chip-scroll" role="group" aria-labelledby="start-panel-label">
+        <button type="button" class="chip start-chip" data-start-id="newtown_station" aria-label="Set starting point to Newtown Station">Newtown Station</button>
+        <button type="button" class="chip start-chip" data-start-id="king_st" aria-label="Set starting point to King St">King St</button>
+        <button type="button" class="chip start-chip" data-start-id="camperdown_park" aria-label="Set starting point to Camperdown Park">Camperdown Park</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== SCREEN 2: AVAILABLE TIME ============== -->
+  <section id="screen-available-time" class="setup-screen setup-screen--full" hidden>
+    <header class="screen-header">
+      <button type="button" class="back-btn" id="available-time-back-btn" aria-label="Back to starting point">‹</button>
+      <span class="recap" id="recap-available-time"></span>
+      <span class="header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="content-time">
+      <div class="jaunty-greet">
+        <div class="jaunty jaunty-wave-md" aria-hidden="true"></div>
+        <div class="bubble-main" id="available-time-title" tabindex="-1">How much time have you got?</div>
+      </div>
+
+      <div class="picker-card">
+        <div class="picker-display" aria-hidden="true">
+          <span class="display-time" id="time-display-value">60</span><span class="unit">min</span>
+        </div>
+        <input type="range" id="time-range" class="time-range"
+               min="30" max="120" step="5" value="60"
+               aria-label="Available time in minutes, from 30 to 120 in 5 minute steps">
+        <div class="picker-range-note">Swipe to adjust · 30–120 min, 5-min steps</div>
+      </div>
+
+      <button type="button" class="btn-full continue-btn" id="continue-btn" aria-label="Continue to topic selection">Continue</button>
+    </div>
+  </section>
+
+  <!-- ============== SCREEN 3: TOPIC - AT REST ============== -->
+  <section id="screen-topic-at-rest" class="setup-screen setup-screen--full" hidden>
+    <header class="screen-header">
+      <button type="button" class="back-btn" id="topic-at-rest-back-btn" aria-label="Back to available time">‹</button>
+      <span class="recap" id="recap-topic-at-rest"></span>
+      <span class="header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="content">
+      <div class="jaunty-greet">
+        <div class="jaunty jaunty-wave" aria-hidden="true"></div>
+        <div class="bubble" id="topic-at-rest-title" tabindex="-1">A topic in mind, or feeling spontaneous?</div>
+      </div>
+
+      <div class="cta-row">
+        <button type="button" class="cta-btn primary" id="choose-topic-btn" aria-label="Choose a topic">Choose Topic</button>
+        <button type="button" class="cta-btn secondary" id="wild-jaunt-btn" aria-label="Wild Jaunt - let Jarrod surprise you with any topic">
+          <span class="jaunty jaunty-icon" aria-hidden="true"></span>
+          Wild Jaunt
+        </button>
+      </div>
+
+      <div class="pref-control">
+        <div class="pref-caption" id="pref-caption-rest">Landmarks or hidden gems? <span class="opt">optional</span></div>
+        <div class="pref-track-wrap">
+          <div class="pref-track" aria-hidden="true"></div>
+          <input type="range" id="preference-range-rest" class="pref-range"
+                 min="0" max="100" step="1" value="50"
+                 aria-label="Preference between well-known landmarks and hidden gems, optional">
+        </div>
+        <div class="pref-labels" aria-hidden="true"><span>Well-known</span><span class="pref-balanced-tag">Balanced</span><span>Hidden gems</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== SCREEN 4: CHOOSE TOPIC ============== -->
+  <section id="screen-choose-topic" class="setup-screen setup-screen--full" hidden>
+    <header class="screen-header">
+      <button type="button" class="back-btn" id="choose-topic-back-btn" aria-label="Back to topic">‹</button>
+      <span class="recap" id="recap-choose-topic"></span>
+      <span class="header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="content">
+      <div class="jaunty jaunty-walk-lg" aria-hidden="true"></div>
+      <h2 class="page-title" id="choose-topic-title" tabindex="-1">Pick a topic</h2>
+
+      <div class="scroller-wrap">
+        <div class="scroller-label" id="topic-scroller-label">Swipe to pick one</div>
+        <div class="topic-scroll" role="radiogroup" aria-labelledby="topic-scroller-label">
+          <button type="button" class="chip topic-pill" role="radio" aria-checked="false" data-topic="history" aria-label="History topic">History</button>
+          <button type="button" class="chip topic-pill" role="radio" aria-checked="false" data-topic="architecture" aria-label="Architecture topic">Architecture</button>
+          <button type="button" class="chip topic-pill" role="radio" aria-checked="false" data-topic="public_art" aria-label="Public Art topic">Public Art</button>
+        </div>
+      </div>
+
+      <div class="pref-control">
+        <div class="pref-caption" id="pref-caption-choose">Landmarks or hidden gems? <span class="opt">optional</span></div>
+        <div class="pref-track-wrap">
+          <div class="pref-track" aria-hidden="true"></div>
+          <input type="range" id="preference-range-choose" class="pref-range"
+                 min="0" max="100" step="1" value="50"
+                 aria-label="Preference between well-known landmarks and hidden gems, optional">
+        </div>
+        <div class="pref-labels" aria-hidden="true"><span>Well-known</span><span class="pref-balanced-tag">Balanced</span><span>Hidden gems</span></div>
+      </div>
+
+      <button type="button" class="btn-pill start-jaunt-btn" id="start-jaunt-btn" disabled aria-label="Start my Jaunt - pick a topic first">Start my Jaunt</button>
+    </div>
+  </section>
+
+  <!-- ============== CONFIRMATION BOTTOM SHEET (overlay above whichever screen opened it) ============== -->
+  <div id="confirm-sheet-wrap" hidden>
+    <div class="dim-overlay"></div>
+    <div class="confirm-sheet" id="confirm-sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-sheet-heading" tabindex="-1">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="jaunty jaunty-happy" aria-hidden="true"></div>
+      <h2 id="confirm-sheet-heading">Ready for your Jaunt?</h2>
+      <button type="button" class="btn-full confirm-btn" id="confirm-btn" aria-label="Confirm and start my Jaunt">Start my Jaunt</button>
+      <button type="button" class="dismiss-link" id="dismiss-link" aria-label="Wait, let me change that - go back">Wait, let me change that</button>
+    </div>
+  </div>
+
+  <!-- ============== THROWAWAY STUB: proves end-to-end capture; replaced by Stories 1.4/1.5 ============== -->
+  <section id="screen-stub" class="setup-screen setup-screen--full" hidden>
+    <div class="content">
+      <h2 id="stub-heading" tabindex="-1">Setup complete</h2>
+      <p id="stub-detail"></p>
+    </div>
+  </section>
+
   <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

@@ -1,3 +1,18 @@
+/* ===================== DESIGN TOKENS =====================
+   Ported from DESIGN.md / mockups/flow-01-setup.html - same hex values,
+   no new colors invented. */
+:root {
+  --forest: #1E4A3A;      /* primary brand green - route/primary actions/text */
+  --cream: #F6F4EC;        /* screen background, warm cream */
+  --sage: #AFC29A;         /* secondary brand green */
+  --surface-muted: #EDEAE2; /* unselected chip/pill fill */
+  --ink: #16302A;          /* primary text */
+  --ink-soft: #5C6D64;     /* secondary text */
+  --ink-faint: #8C9284;    /* tertiary text / captions */
+  --surface: #FFFFFF;      /* card/bubble/sheet surfaces */
+  --sheet-handle: #DDD8C8;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -7,6 +22,14 @@ html, body {
   padding: 0;
   width: 100%;
   overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+}
+
+/* ===================== MAP STAGE (existing behavior, unchanged) ===================== */
+#map-stage {
+  position: fixed;
+  inset: 0;
 }
 
 #map {
@@ -43,4 +66,672 @@ html, body {
   bottom: 12px;
   left: 12px;
   max-width: 70%; /* stays clear of the bottom-right zoom control */
+}
+
+#map-stage[hidden] {
+  display: none;
+}
+
+/* ===================== SHARED SCREEN CHROME ===================== */
+.setup-screen {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.screen-header {
+  padding: 14px 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.header-spacer {
+  width: 28px;
+  flex-shrink: 0;
+}
+.header-title {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+  flex: 1;
+}
+.back-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  flex-shrink: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.back-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.recap {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--surface-muted);
+  padding: 8px 14px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 14px;
+  letter-spacing: 0.01em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Visible focus ring for every interactive control - keyboard-only
+   navigation relies on this being obvious. */
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--forest);
+  outline-offset: 2px;
+}
+
+/* ---- Jarrod: real PNG crops of jaunty-mascot-sheet-v2-eyes-transparent.png.
+   Values ported verbatim from mockups/flow-01-setup.html - never re-derived,
+   never hand-drawn. Class names say "jaunty" (internal asset naming only,
+   kept from the mockup's own convention - the character is "Jarrod" in all
+   user-facing copy). */
+.jaunty {
+  background-image: url('jaunty-mascot-sheet-v2-eyes-transparent.png');
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+  z-index: 1;
+}
+/* wave pose, 84px - starting-point screen's small map overlay */
+.jaunty-wave-sm {
+  width: 84px;
+  height: 88.69px;
+  background-size: 399.63px 266.42px;
+  background-position: -158.465px -5.22px;
+}
+/* wave pose, 150px - available-time screen's persistent figure */
+.jaunty-wave-md {
+  width: 150px;
+  height: 158.37px;
+  background-size: 713.63px 475.75px;
+  background-position: -282.97px -9.32px;
+}
+/* wave pose, 168px - topic-at-rest screen's main greeting figure, also
+   reused unscaled behind the confirmation sheet */
+.jaunty-wave {
+  width: 168px;
+  height: 177.37px;
+  background-size: 799.26px 532.84px;
+  background-position: -316.93px -10.44px;
+}
+/* fist-up/excited pose, 30px - small icon on the Wild Jaunt button */
+.jaunty-icon {
+  width: 30px;
+  height: 35.92px;
+  background-size: 146.66px 97.77px;
+  background-position: -14.89px -30.35px;
+}
+/* plain-walk pose, 168px - Choose-Topic page's central figure */
+.jaunty-walk-lg {
+  width: 168px;
+  height: 150.64px;
+  background-size: 754.53px 503.02px;
+  background-position: -77.61px -25.63px;
+  align-self: center;
+}
+/* fist-up/excited pose, 100px - confirmation sheet's happy pose */
+.jaunty-happy {
+  width: 100px;
+  height: 123.13px;
+  background-size: 502.75px 335.17px;
+  background-position: -52.45px -104.05px;
+}
+
+/* ===================== STARTING-POINT SCREEN (overlay on the map) ===================== */
+.setup-screen--map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none; /* map taps pass straight through by default */
+}
+.setup-screen--map-overlay[hidden] {
+  display: none;
+}
+.setup-screen--map-overlay .screen-header {
+  background: rgba(246, 244, 236, 0.92);
+}
+
+.jaunty-overlay {
+  position: absolute;
+  top: 60px;
+  left: 15px;
+  right: 15px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.jaunty-overlay .bubble {
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 16px;
+  box-shadow: 0 6px 16px -8px rgba(22, 48, 42, 0.25);
+  margin-top: 6px;
+  max-width: 220px;
+  line-height: 1.35;
+}
+.jaunty-backing {
+  position: absolute;
+  top: -5px;
+  left: -4px;
+  width: 92px;
+  height: 98px;
+  background: var(--cream);
+  border-radius: 50%;
+  box-shadow: 0 6px 14px -6px rgba(22, 48, 42, 0.22);
+  z-index: 0;
+}
+
+.start-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--surface);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(22, 48, 42, 0.18);
+  padding: 14px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  pointer-events: auto; /* the one interactive piece of this overlay screen */
+  max-width: 480px;
+  margin: 0 auto;
+}
+.pending-pin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pending-pin-row[hidden] {
+  display: none;
+}
+.pending-pin-row span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.pending-pin-row .btn-pill {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+.start-panel .panel-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 9px;
+}
+
+/* ===================== FULL-SCREEN SETUP SCREENS ===================== */
+.setup-screen--full {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.setup-screen--full[hidden] {
+  display: none;
+}
+
+.content-time,
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 16px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.jaunty-greet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.bubble-main,
+.bubble {
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 6px 16px -8px rgba(22, 48, 42, 0.18);
+}
+.page-title {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+}
+
+/* ===================== CHIP / PILL (shared, auto-width, horizontal scroll) =====================
+   Selected state is a fill inversion only - forest fill + cream text - never
+   color alone (the label itself stays readable either way). */
+.chip-scroll,
+.topic-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: none;
+}
+.chip-scroll::-webkit-scrollbar,
+.topic-scroll::-webkit-scrollbar {
+  display: none;
+}
+.chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: var(--surface-muted);
+  color: var(--ink);
+  border: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip.selected {
+  background: var(--forest);
+  color: var(--cream);
+}
+
+/* ===================== TIME PICKER CARD ===================== */
+.picker-card {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 24px;
+  padding: 18px 20px 16px;
+  box-shadow: 0 6px 20px -10px rgba(22, 48, 42, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.picker-display {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.display-time {
+  font-size: 27px;
+  font-weight: 800;
+  color: var(--forest);
+}
+.picker-display .unit {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.picker-range-note {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+
+/* Native range inputs (time picker, preference slider) keep real <input
+   type="range"> semantics - value/min/max/step are programmatically exposed
+   natively, never faked with styled divs. Visuals are restyled; the thumb
+   is sized to a real ~44x44pt touch target, not just assumed from padding. */
+.time-range,
+.pref-range {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 44px;
+  margin: 0;
+  cursor: pointer;
+}
+.time-range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--surface-muted);
+}
+.time-range::-moz-range-track {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--surface-muted);
+}
+.time-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--forest);
+  border: 3px solid var(--surface);
+  box-shadow: 0 2px 6px rgba(22, 48, 42, 0.3);
+  margin-top: -17px;
+}
+.time-range::-moz-range-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--forest);
+  border: 3px solid var(--surface);
+  box-shadow: 0 2px 6px rgba(22, 48, 42, 0.3);
+}
+
+/* ===================== PREFERENCE CONTROL (visual + captured value only -
+   no real selection-weighting wiring in this story, Story 1.9's job) ===================== */
+.pref-control {
+  width: 100%;
+}
+.pref-caption {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.pref-caption .opt {
+  font-weight: 500;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+.pref-track-wrap {
+  position: relative;
+  height: 44px;
+}
+/* DESIGN.md: "a circular forest-filled handle (18px)" - the touch target
+   stays a full 44px-tall input (tapping/dragging anywhere along the track
+   moves a native range thumb, so the vertical hit-zone doesn't need to
+   match the visual dot), but the dot itself renders at the spec size. The
+   track line and the input share the same `top:50%` centering against the
+   wrap's full box so the thumb always sits exactly on the line - they
+   previously disagreed (input centered via flex within a padding-shrunk
+   box) and the thumb rendered ~9px below the line because of it. */
+.pref-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 5px;
+  background: var(--sage);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.pref-range {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.pref-range::-webkit-slider-runnable-track {
+  height: 5px;
+  background: transparent;
+}
+.pref-range::-moz-range-track {
+  height: 5px;
+  background: transparent;
+}
+.pref-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--forest);
+  box-shadow: 0 2px 6px rgba(22, 48, 42, 0.3);
+  margin-top: -6.5px; /* (track 5px - thumb 18px) / 2, centers on the track */
+}
+.pref-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: var(--forest);
+  box-shadow: 0 2px 6px rgba(22, 48, 42, 0.3);
+}
+/* Lives in the .pref-labels row (middle grid column), not above the track -
+   visible only near the Balanced default, hidden once the value moves away
+   from center (toggled by app.js, not pure CSS). */
+.pref-balanced-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--forest);
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.pref-balanced-tag[hidden] {
+  display: none;
+}
+/* 3-column grid (not flex space-between) so the middle "Balanced" tag sits
+   at the row's true visual center regardless of the two end labels'
+   different text widths. */
+.pref-labels {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.pref-labels > span:last-child {
+  justify-self: end;
+}
+
+/* ===================== BUTTONS =====================
+   Full-width primary vs. compact auto-width pill are deliberately distinct
+   components (recurring bug per the spec's Boundaries) - never shared
+   between a "exactly one dominant action" context and a short-label action. */
+.btn-full {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  background: var(--forest);
+  color: var(--cream);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 14px 8px;
+  border-radius: 18px;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+.btn-full:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn-pill {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 44px;
+  max-width: 90%;
+  background: var(--forest);
+  color: var(--cream);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px 24px;
+  border-radius: 28px;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 8px;
+}
+.btn-pill:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Equal-weight CTA pair - "Choose Topic" / "Wild Jaunt". Reserved for
+   genuinely co-equal choices, never a single dominant action. */
+.cta-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.cta-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 13px 10px;
+  border-radius: 18px;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+.cta-btn.primary {
+  background: var(--forest);
+  color: var(--cream);
+}
+.cta-btn.secondary {
+  background: var(--sage);
+  color: var(--ink);
+}
+
+.scroller-wrap {
+  width: 100%;
+}
+.scroller-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 7px;
+}
+
+/* ===================== CONFIRMATION BOTTOM SHEET ===================== */
+#confirm-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+#confirm-sheet-wrap[hidden] {
+  display: none;
+}
+.dim-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 48, 42, 0.45);
+  z-index: 40;
+}
+.confirm-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 30px rgba(22, 48, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 24px calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 41;
+  gap: 10px;
+}
+.confirm-sheet .handle {
+  width: 36px;
+  height: 4px;
+  background: var(--sheet-handle);
+  border-radius: 4px;
+  margin: 2px auto 0;
+  flex-shrink: 0;
+}
+.confirm-sheet .jaunty-happy {
+  margin-top: 4px;
+}
+.confirm-sheet h2 {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+}
+.confirm-btn {
+  margin-top: 4px;
+}
+.dismiss-link {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 6px 10px;
+}
+
+/* ===================== STUB (throwaway completion screen) ===================== */
+#screen-stub .content {
+  text-align: center;
+  gap: 10px;
+}
+#screen-stub h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+#screen-stub p {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0;
 }
