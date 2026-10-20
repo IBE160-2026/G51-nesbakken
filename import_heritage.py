@@ -1,7 +1,13 @@
-"""Third candidate-place source, for a new `heritage` topic: a small, hand-
-curated list of 29 real NSW heritage items (7 State Heritage Register, 22
-locally-listed under a council LEP) in and around the Newtown pilot area.
-See docs/ai-development-log.md for how this list was chosen.
+"""Third candidate-place source: a small, hand-curated list of 29 real NSW
+heritage items (7 State Heritage Register, 22 locally-listed under a council
+LEP) in and around the Newtown pilot area. See docs/ai-development-log.md
+for how this list was chosen.
+
+These records carry no `heritage` Topic - FR-3 never made it a user-facing
+choice. Each record's actual Topics (`history`/`architecture`, where its own
+Statement of Significance genuinely supports them) come from a human-
+reviewed `data/heritage_topic_overrides.json` (Story 1.2), not a hardcoded
+default - see `load_topic_overrides()`.
 
 Unlike import_places.py and import_street_art.py, this importer does not
 scrape or fetch descriptive text automatically. NSW's official heritage
@@ -35,10 +41,10 @@ LAYER_STATE_HERITAGE_REGISTER = f"{MAPSERVER_URL}/5"
 LAYER_LOCAL_ENVIRONMENTAL_PLAN = f"{MAPSERVER_URL}/4"
 
 SEED_PATH = os.path.join("data", "heritage_source_text.json")
+TOPIC_OVERRIDES_PATH = os.path.join("data", "heritage_topic_overrides.json")
 HMS_URL_TEMPLATE = "https://www.hms.heritage.nsw.gov.au/App/Item/ViewItem?itemId={item_id}"
 
 SOURCE_TYPE = "nsw_state_heritage_inventory"
-TOPIC = "heritage"
 
 # The 29 items approved after manual review of the ArcGIS structured data -
 # see docs/ai-development-log.md for how these were chosen (geographic
@@ -99,13 +105,24 @@ def load_seed(path=SEED_PATH):
         return json.load(f).get("items", {})
 
 
-def build_record(heritage_id, name, latitude, longitude, significance_level, seed_entry):
+def load_topic_overrides(path=TOPIC_OVERRIDES_PATH):
+    """Human-reviewed history/architecture Topic assignments (Story 1.2).
+    Mirrors load_seed()'s shape/missing-file handling. An id with no entry
+    here gets no topics at all - 'heritage' is retired project-wide (FR-3)
+    and is never a fallback."""
+    if not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f).get("overrides", {})
+
+
+def build_record(heritage_id, name, latitude, longitude, significance_level, seed_entry, topic_override=None):
     record = {
         "id": f"heritage/{heritage_id}",
         "name": name,
         "latitude": latitude,
         "longitude": longitude,
-        "topics": [TOPIC],
+        "topics": list((topic_override or {}).get("topics", [])),
         "significance_level": significance_level,
         "source_type": None,
         "source_title": None,
@@ -188,7 +205,8 @@ def apply_manual_duplicate_overrides(records_by_id):
             record["rejection_reason"] = None
 
 
-def build_state_records(seed):
+def build_state_records(seed, topic_overrides=None):
+    topic_overrides = topic_overrides or {}
     features = query_layer(LAYER_STATE_HERITAGE_REGISTER, "HOITEMID", APPROVED_STATE_HOITEMIDS)
     found_ids = set()
     records = []
@@ -198,13 +216,14 @@ def build_state_records(seed):
         found_ids.add(heritage_id)
         records.append(build_record(
             heritage_id, attrs["ITEMNAME"], attrs["Lat"], attrs["Long_"],
-            "State", seed.get(str(heritage_id)),
+            "State", seed.get(str(heritage_id)), topic_overrides.get(str(heritage_id)),
         ))
     missing = set(APPROVED_STATE_HOITEMIDS) - found_ids
     return records, missing
 
 
-def build_local_records(seed):
+def build_local_records(seed, topic_overrides=None):
+    topic_overrides = topic_overrides or {}
     features = query_layer(
         LAYER_LOCAL_ENVIRONMENTAL_PLAN, "HeritageItemID", APPROVED_LOCAL_HERITAGE_ITEM_IDS,
         extra_where="LAY_CLASS='Item - General' AND SIG='Local'",
@@ -224,7 +243,7 @@ def build_local_records(seed):
         geometry = feature.get("geometry", {})
         records.append(build_record(
             heritage_id, attrs["H_NAME"], geometry.get("y"), geometry.get("x"),
-            "Local", seed.get(str(heritage_id)),
+            "Local", seed.get(str(heritage_id)), topic_overrides.get(str(heritage_id)),
         ))
     missing = set(APPROVED_LOCAL_HERITAGE_ITEM_IDS) - set(first_seen)
     return records, missing
@@ -235,11 +254,14 @@ def main():
     filled = sum(1 for entry in seed.values() if entry.get("statement_of_significance"))
     print(f"Loaded {SEED_PATH}: {len(seed)} entries, {filled} with a Statement of Significance.")
 
+    topic_overrides = load_topic_overrides()
+    print(f"Loaded {TOPIC_OVERRIDES_PATH}: {len(topic_overrides)} topic override entries.")
+
     print("Querying the State Heritage Register layer for the approved items...")
-    state_records, missing_state = build_state_records(seed)
+    state_records, missing_state = build_state_records(seed, topic_overrides)
 
     print("Querying the Local Environmental Plan layer for the approved items...")
-    local_records, missing_local = build_local_records(seed)
+    local_records, missing_local = build_local_records(seed, topic_overrides)
 
     if missing_state or missing_local:
         print(

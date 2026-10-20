@@ -5,7 +5,13 @@ import unittest
 from unittest.mock import Mock, patch
 
 import import_heritage
-from import_heritage import build_local_records, build_record, build_state_records, load_seed
+from import_heritage import (
+    build_local_records,
+    build_record,
+    build_state_records,
+    load_seed,
+    load_topic_overrides,
+)
 
 
 class TestBuildRecord(unittest.TestCase):
@@ -18,8 +24,24 @@ class TestBuildRecord(unittest.TestCase):
         self.assertEqual(record["source_title"], "Test Item")
         self.assertIn("itemId=123", record["source_url"])
         self.assertEqual(record["id"], "heritage/123")
-        self.assertEqual(record["topics"], ["heritage"])
+        # Story 1.2: no default "heritage" tag at all - topics come only
+        # from an explicit topic_override, never from a fallback here.
+        self.assertEqual(record["topics"], [])
         self.assertIsNone(record["rejection_reason"])
+
+    def test_topic_override_applied_verbatim(self):
+        seed_entry = {"statement_of_significance": "A real, verbatim statement."}
+        record = build_record(
+            123, "Test Item", -33.9, 151.18, "State", seed_entry,
+            topic_override={"topics": ["history", "architecture"]},
+        )
+        self.assertEqual(record["topics"], ["history", "architecture"])
+
+    def test_missing_topic_override_defaults_to_empty_never_heritage(self):
+        seed_entry = {"statement_of_significance": "A real, verbatim statement."}
+        record = build_record(123, "Test Item", -33.9, 151.18, "State", seed_entry, topic_override=None)
+        self.assertEqual(record["topics"], [])
+        self.assertNotIn("heritage", record["topics"])
 
     def test_limited_when_statement_missing(self):
         record = build_record(123, "Test Item", -33.9, 151.18, "Local", None)
@@ -261,6 +283,7 @@ class TestMainAbortsOnMissingApprovedIds(unittest.TestCase):
 
     def test_missing_id_aborts_without_saving(self):
         with patch("import_heritage.load_seed", return_value={}), \
+             patch("import_heritage.load_topic_overrides", return_value={}), \
              patch("import_heritage.build_state_records", return_value=([], {5045479})), \
              patch("import_heritage.build_local_records", return_value=([], set())), \
              patch("import_heritage.load_existing", return_value={}), \
@@ -275,6 +298,7 @@ class TestMainAbortsOnMissingApprovedIds(unittest.TestCase):
     def test_no_missing_ids_proceeds_to_save(self):
         fake_record = {"id": "heritage/1", "status": "ready", "rejection_reason": None}
         with patch("import_heritage.load_seed", return_value={}), \
+             patch("import_heritage.load_topic_overrides", return_value={}), \
              patch("import_heritage.build_state_records", return_value=([fake_record], set())), \
              patch("import_heritage.build_local_records", return_value=([], set())), \
              patch("import_heritage.load_existing", return_value={}), \
@@ -333,6 +357,43 @@ class TestLoadSeedAndEndToEnd(unittest.TestCase):
         )
         self.assertEqual(record["status"], "ready")
         self.assertEqual(record["source_excerpt"], statement)
+
+
+class TestLoadTopicOverrides(unittest.TestCase):
+    """Story 1.2: data/heritage_topic_overrides.json is the maintained
+    override a routine rerun of this importer must keep reading - mirrors
+    load_seed()'s own missing-file/real-file test coverage above."""
+
+    def test_missing_override_file_returns_empty_dict_not_an_error(self):
+        overrides = load_topic_overrides(
+            os.path.join(tempfile.gettempdir(), "does-not-exist-topic-overrides.json")
+        )
+        self.assertEqual(overrides, {})
+
+    def test_reads_a_real_populated_override_file(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, "overrides.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"overrides": {"5045479": {"topics": ["architecture"]}}}, f)
+            overrides = load_topic_overrides(path)
+
+        self.assertEqual(overrides["5045479"]["topics"], ["architecture"])
+
+    def test_the_real_shipped_override_file_covers_every_seed_id_with_no_heritage_tag(self):
+        """Regression guard for this story's own acceptance criteria: every
+        id in the real seed file has a real override entry, and none of
+        them assign the retired 'heritage' topic."""
+        seed = load_seed()
+        overrides = load_topic_overrides()
+
+        self.assertEqual(set(overrides.keys()), set(seed.keys()))
+        for heritage_id, entry in overrides.items():
+            self.assertNotIn("heritage", entry["topics"])
+
+        history_count = sum(1 for e in overrides.values() if "history" in e["topics"])
+        architecture_count = sum(1 for e in overrides.values() if "architecture" in e["topics"])
+        self.assertGreaterEqual(history_count, 2)
+        self.assertGreaterEqual(architecture_count, 2)
 
 
 if __name__ == "__main__":
