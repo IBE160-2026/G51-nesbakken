@@ -120,13 +120,17 @@ class TestSelectStops(unittest.TestCase):
         self.addCleanup(get_model_patcher.stop)
 
     def test_returns_selected_option_from_valid_response(self):
-        mock_response = make_mock_response(make_openai_response({"selected_option": "option_2"}))
+        mock_response = make_mock_response(make_openai_response(
+            {"selected_option": "option_2", "none_suitable_reason": ""}
+        ))
         with patch("ai.requests.post", return_value=mock_response):
             result = select_stops(SAMPLE_OPTIONS, "public_art", 60)
-        self.assertEqual(result, "option_2")
+        self.assertEqual(result, {"selected_option": "option_2", "none_suitable_reason": ""})
 
     def test_sends_authorization_header_and_model_and_schema(self):
-        mock_response = make_mock_response(make_openai_response({"selected_option": "option_1"}))
+        mock_response = make_mock_response(make_openai_response(
+            {"selected_option": "option_1", "none_suitable_reason": ""}
+        ))
         with patch("ai.requests.post", return_value=mock_response) as mock_post:
             select_stops(SAMPLE_OPTIONS, "public_art", 60)
         _, kwargs = mock_post.call_args
@@ -134,12 +138,14 @@ class TestSelectStops(unittest.TestCase):
         self.assertEqual(kwargs["json"]["model"], "test-model")
         self.assertEqual(kwargs["json"]["response_format"]["type"], "json_schema")
         self.assertEqual(
-            kwargs["json"]["response_format"]["json_schema"]["schema"]["required"],
-            ["selected_option"],
+            set(kwargs["json"]["response_format"]["json_schema"]["schema"]["required"]),
+            {"selected_option", "none_suitable_reason"},
         )
 
     def test_feedback_reaches_the_request_body(self):
-        mock_response = make_mock_response(make_openai_response({"selected_option": "option_1"}))
+        mock_response = make_mock_response(make_openai_response(
+            {"selected_option": "option_1", "none_suitable_reason": ""}
+        ))
         with patch("ai.requests.post", return_value=mock_response) as mock_post:
             select_stops(SAMPLE_OPTIONS, "public_art", 60, feedback="option_9 was not offered")
         _, kwargs = mock_post.call_args
@@ -159,10 +165,29 @@ class TestSelectStops(unittest.TestCase):
                 select_stops(SAMPLE_OPTIONS, "public_art", 60)
 
     def test_non_string_selected_option_raises_ai_selection_error(self):
-        mock_response = make_mock_response(make_openai_response({"selected_option": 123}))
+        mock_response = make_mock_response(make_openai_response(
+            {"selected_option": 123, "none_suitable_reason": ""}
+        ))
         with patch("ai.requests.post", return_value=mock_response):
             with self.assertRaises(AiSelectionError):
                 select_stops(SAMPLE_OPTIONS, "public_art", 60)
+
+    def test_non_string_none_suitable_reason_raises_ai_selection_error(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"selected_option": "option_1", "none_suitable_reason": 123}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            with self.assertRaises(AiSelectionError):
+                select_stops(SAMPLE_OPTIONS, "public_art", 60)
+
+    def test_none_suitable_outcome_is_returned_with_its_reason(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"selected_option": "none_suitable", "none_suitable_reason": "no option fit the topic"}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = select_stops(SAMPLE_OPTIONS, "public_art", 60)
+        self.assertEqual(result["selected_option"], "none_suitable")
+        self.assertEqual(result["none_suitable_reason"], "no option fit the topic")
 
     def test_unexpected_response_shape_raises_ai_selection_error(self):
         mock_response = make_mock_response({"unexpected": "shape"})

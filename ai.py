@@ -47,11 +47,24 @@ SYSTEM_PROMPT = (
     "invent one. Among options that are similarly relevant and interesting, "
     "prefer the one with the higher budget_usage_ratio (closer to fully "
     "using the requested time), but relevance and interest come first.\n\n"
+    "If - and only if - none of the offered options are genuinely relevant "
+    "or interesting for the requested topic, even though every one of them "
+    "is already time-feasible, set selected_option to the literal string "
+    "\"none_suitable\" instead of any option_key, and give a real one-line "
+    "reason in none_suitable_reason. This is honesty, not a last resort - "
+    "a mathematically feasible walk that doesn't actually suit the topic is "
+    "a worse result than telling the user no suitable walk was found. When "
+    "you do choose a real option_key, leave none_suitable_reason as an "
+    "empty string.\n\n"
     "Respond using only the required JSON schema - no extra commentary."
 )
 
-# Forces the response into {"selected_option": "..."} rather than free-form
-# prose that would need to be parsed hopefully-correctly.
+# Forces the response into {"selected_option": "...", "none_suitable_reason":
+# "..."} rather than free-form prose - and gives AI an explicit, always-
+# valid way to reject every offered option as genuinely unsuitable (AD-7),
+# rather than being structurally forced to pick one. none_suitable_reason
+# is always present (strict-mode schemas require every property), meaningful
+# only when selected_option is "none_suitable".
 SELECTION_SCHEMA = {
     "name": "option_selection",
     "strict": True,
@@ -59,11 +72,14 @@ SELECTION_SCHEMA = {
         "type": "object",
         "properties": {
             "selected_option": {"type": "string"},
+            "none_suitable_reason": {"type": "string"},
         },
-        "required": ["selected_option"],
+        "required": ["selected_option", "none_suitable_reason"],
         "additionalProperties": False,
     },
 }
+
+NONE_SUITABLE = "none_suitable"
 
 
 class AiSelectionError(Exception):
@@ -210,9 +226,12 @@ def _call_openai(prompt):
 
 def select_stops(options, topic, requested_minutes, feedback=None):
     """Asks AI to choose one option_key from the pre-validated options list
-    planner.py computed (each already confirmed feasible). Returns the raw
-    string AI chose - not yet checked that it's actually one of the offered
-    keys, that's planner.py's job.
+    planner.py computed (each already confirmed feasible) - or the literal
+    string NONE_SUITABLE if none are genuinely relevant (AD-7). Returns
+    {"selected_option": str, "none_suitable_reason": str} - not yet checked
+    that selected_option is actually one of the offered keys, that's
+    planner.py's job. none_suitable_reason is always a string (possibly
+    empty); only meaningful when selected_option == NONE_SUITABLE.
 
     Raises AiSelectionError if the request fails or the response isn't
     valid JSON in the expected shape.
@@ -223,6 +242,7 @@ def select_stops(options, topic, requested_minutes, feedback=None):
     try:
         parsed = json.loads(raw_content)
         selected_option = parsed["selected_option"]
+        none_suitable_reason = parsed["none_suitable_reason"]
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         raise AiSelectionError(
             f"AI response was not the expected JSON shape: {exc}"
@@ -230,8 +250,10 @@ def select_stops(options, topic, requested_minutes, feedback=None):
 
     if not isinstance(selected_option, str):
         raise AiSelectionError("AI response 'selected_option' must be a string")
+    if not isinstance(none_suitable_reason, str):
+        raise AiSelectionError("AI response 'none_suitable_reason' must be a string")
 
-    return selected_option
+    return {"selected_option": selected_option, "none_suitable_reason": none_suitable_reason}
 
 
 # =====================================================================

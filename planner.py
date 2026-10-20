@@ -28,6 +28,11 @@ DWELL_MINUTES_PER_STOP = 5
 MIN_STOPS = 2
 MIN_REQUESTED_MINUTES = 30
 MAX_REQUESTED_MINUTES = 120
+# The canonical topic list (Story 1.4) - lives here, not in app.py or ai.py,
+# since shortlist_candidates()'s own topic semantics already live in this
+# module. "surprise_me" is the sentinel that skips topic filtering, not a
+# real catalogue topic.
+VALID_TOPICS = {"history", "architecture", "public_art", "surprise_me"}
 
 # Revised 2026-10-18: the stop count no longer has one fixed ceiling - the
 # PRD (FR-5) wants it to depend on time, dwell, and real candidate
@@ -255,9 +260,20 @@ def _build_ai_options(shortlist, feasible_combos):
     """Ranks feasible combinations by budget usage (closest to fully using
     the requested time first) and caps the menu at AI_OPTION_MENU_SIZE, so
     AI's input stays small regardless of how many combinations exist (see
-    docs/architecture-plan.md). This is a plain top-N slice of every
-    feasible combination, not a minimum-usage filter - it never excludes
-    the only feasible option(s) just because their usage is low.
+    docs/architecture-plan.md).
+
+    AD-7 coverage pass (Story 1.4): a plain top-N-by-ratio slice could let a
+    worthwhile stop vanish from every option AI ever sees, just because
+    every combination containing it happened to rank outside the top N -
+    starving later preference/variety features (Story 1.9/3.4) of any real
+    stop to act on. So this first greedily adds the highest-ranked
+    not-yet-covered-stop-containing combo until every stop appearing in any
+    feasible combination is covered by at least one menu option (or the
+    menu is full - with this module's own SHORTLIST_CAP/ABSOLUTE_MAX_STOPS
+    constants, the universe of distinct stops across all feasible combos
+    can never exceed AI_OPTION_MENU_SIZE, so full coverage is always
+    achievable in practice, not just hoped for), then fills any remaining
+    slots by budget-usage ratio exactly as before.
 
     Returns (ai_options, combos_by_key): ai_options is the provider-agnostic
     list handed to ai.select_stops(); combos_by_key maps each option_key
@@ -265,7 +281,28 @@ def _build_ai_options(shortlist, feasible_combos):
     key AI picks.
     """
     ranked = sorted(feasible_combos, key=lambda c: c["budget_usage_ratio"], reverse=True)
-    menu = ranked[:AI_OPTION_MENU_SIZE]
+
+    needs_coverage = set()
+    for combo in feasible_combos:
+        needs_coverage.update(combo["order"])
+
+    menu = []
+    covered = set()
+    remaining = list(ranked)
+    i = 0
+    while covered != needs_coverage and len(menu) < AI_OPTION_MENU_SIZE and i < len(remaining):
+        combo = remaining[i]
+        if not set(combo["order"]) <= covered:
+            menu.append(combo)
+            covered.update(combo["order"])
+            remaining.pop(i)
+        else:
+            i += 1
+
+    for combo in remaining:
+        if len(menu) >= AI_OPTION_MENU_SIZE:
+            break
+        menu.append(combo)
 
     ai_options = []
     combos_by_key = {}
@@ -351,18 +388,20 @@ def plan_route(
     for _ in range(1 + MAX_AI_RETRIES):
         attempts_used += 1
         try:
-            selected_option = ai.select_stops(
+            selection = ai.select_stops(
                 ai_options, topic, requested_minutes, feedback=feedback
             )
-        except ai.AiFatalError as exc:
+        except ai.AiFatalError:
             # Invalid credentials, permission errors, or exhausted quota -
-            # retrying with an unmodified request cannot fix any of these,
-            # so stop now instead of repeating a doomed request.
-            attempts_log.append({
-                "attempt": attempts_used, "selected_option": None,
-                "outcome": "ai_fatal_error", "reason": str(exc),
-            })
-            return _plan_failure(str(exc), attempts=attempts_used, attempts_log=attempts_log)
+            # a genuine service failure, never ordinary infeasibility.
+            # Story 1.4: re-raise rather than collapse into _plan_failure()'s
+            # {"feasible": false} shape - a caller must be able to tell this
+            # apart from an honest "no suitable walk" (mirrors how
+            # CatalogueError already propagates to its own caller). Retrying
+            # an unmodified request cannot fix any of these causes, so this
+            # also correctly stops immediately instead of spending the rest
+            # of the retry budget on a doomed request.
+            raise
         except ai.AiSelectionError as exc:
             feedback = str(exc)
             attempts_log.append({
@@ -371,11 +410,31 @@ def plan_route(
             })
             continue
 
+        selected_option = selection["selected_option"]
+
+        if selected_option == ai.NONE_SUITABLE:
+            # AD-7: AI judged every offered option time-feasible but none
+            # genuinely relevant/interesting - a distinct, honest outcome,
+            # never forced into picking a weak option. Same wire shape as
+            # "zero feasible combinations" (both are honest, non-fatal
+            # 200s) - the real reason text is what tells them apart to a
+            # reader; nothing in this story's AC asks for a separate
+            # machine-readable field between the two.
+            attempts_log.append({
+                "attempt": attempts_used, "selected_option": selected_option,
+                "outcome": "none_suitable", "reason": selection["none_suitable_reason"],
+            })
+            return _plan_failure(
+                selection["none_suitable_reason"] or "no offered option was genuinely suitable",
+                attempts=attempts_used, attempts_log=attempts_log,
+            )
+
         if selected_option not in combos_by_key:
             reason = f"'{selected_option}' is not one of the offered option keys"
             feedback = (
                 f"your previous answer was '{selected_option}': {reason}. "
-                f"Choose one of: {', '.join(combos_by_key)}."
+                f"Choose one of: {', '.join(combos_by_key)}, or \"{ai.NONE_SUITABLE}\" "
+                f"if none are genuinely suitable."
             )
             attempts_log.append({
                 "attempt": attempts_used, "selected_option": selected_option,

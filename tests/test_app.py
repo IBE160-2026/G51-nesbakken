@@ -2,8 +2,12 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
+
+import requests
 
 import app as app_module
+from ai import AiFatalError
 
 FIXTURE_RECORDS = [
     {
@@ -156,6 +160,193 @@ class TestIndexRoute(unittest.TestCase):
         client = app_module.app.test_client()
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
+
+
+VALID_PLAN_BODY = {
+    "start_lat": -33.898, "start_lon": 151.179, "topic": "history", "requested_minutes": 60,
+}
+
+FEASIBLE_RESULT = {
+    "feasible": True,
+    "reason": None,
+    "order": [1, 2],
+    "total_minutes": 45.0,
+    "unused_minutes": 15.0,
+    "budget_usage_ratio": 0.75,
+    "shortlist": [
+        {"id": "a", "name": "Stop A", "latitude": -33.899, "longitude": 151.180},
+        {"id": "b", "name": "Stop B", "latitude": -33.897, "longitude": 151.178},
+    ],
+    "selected_ids": ["a", "b"],
+    "attempts": 1,
+    "attempts_log": [],
+}
+
+INFEASIBLE_RESULT = {
+    "feasible": False, "reason": "no combination fits", "order": None,
+    "total_minutes": None, "unused_minutes": None, "budget_usage_ratio": None,
+    "shortlist": None, "selected_ids": None, "attempts": 0, "attempts_log": [],
+}
+
+
+def fake_content(stop_id, content="Generated content."):
+    return {"id": stop_id, "content": content, "attribution": [
+        {"source_type": "wikipedia", "source_title": "T", "source_url": "https://x"}
+    ]}
+
+
+class TestApiPlanValidation(unittest.TestCase):
+    """Story 1.4: malformed/invalid input is rejected before any
+    routing-provider or AI call is made - each case here asserts the
+    external calls were never made, not just the status code."""
+
+    def setUp(self):
+        self.client = app_module.app.test_client()
+
+    def _post(self, body):
+        with patch("app.planner.plan_route") as mock_plan:
+            response = self.client.post("/api/plan", json=body)
+        return response, mock_plan
+
+    def test_non_json_body_rejected(self):
+        response = self.client.post("/api/plan", data="not json", content_type="text/plain")
+        self.assertEqual(response.status_code, 400)
+
+    def test_missing_fields_rejected(self):
+        response, mock_plan = self._post({"start_lat": -33.9})
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
+    def test_out_of_range_latitude_rejected(self):
+        body = dict(VALID_PLAN_BODY, start_lat=1000)
+        response, mock_plan = self._post(body)
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
+    def test_out_of_range_longitude_rejected(self):
+        body = dict(VALID_PLAN_BODY, start_lon=-200)
+        response, mock_plan = self._post(body)
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
+    def test_non_numeric_coordinate_rejected(self):
+        body = dict(VALID_PLAN_BODY, start_lat="not a number")
+        response, mock_plan = self._post(body)
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
+    def test_boolean_is_not_accepted_as_a_number(self):
+        # bool is technically an int subclass in Python - must not silently
+        # pass as 1/0 for a numeric field.
+        body = dict(VALID_PLAN_BODY, requested_minutes=True)
+        response, mock_plan = self._post(body)
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
+    def test_time_outside_30_120_rejected(self):
+        for minutes in (20, 150):
+            body = dict(VALID_PLAN_BODY, requested_minutes=minutes)
+            response, mock_plan = self._post(body)
+            self.assertEqual(response.status_code, 400)
+            mock_plan.assert_not_called()
+
+    def test_unrecognized_topic_rejected(self):
+        body = dict(VALID_PLAN_BODY, topic="gardening")
+        response, mock_plan = self._post(body)
+        self.assertEqual(response.status_code, 400)
+        mock_plan.assert_not_called()
+
+    def test_valid_topics_all_accepted(self):
+        for topic in ("history", "architecture", "public_art", "surprise_me"):
+            body = dict(VALID_PLAN_BODY, topic=topic)
+            with patch("app.planner.plan_route", return_value=INFEASIBLE_RESULT) as mock_plan:
+                response = self.client.post("/api/plan", json=body)
+            self.assertEqual(response.status_code, 200)
+            mock_plan.assert_called_once()
+
+
+class TestApiPlanOutcomes(unittest.TestCase):
+    def setUp(self):
+        self.client = app_module.app.test_client()
+
+    def test_infeasible_result_returns_200_with_reason(self):
+        with patch("app.planner.plan_route", return_value=INFEASIBLE_RESULT), \
+             patch("app.services.fetch_route_geometry") as mock_geo, \
+             patch("app.ai.generate_stop_content") as mock_content:
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertFalse(body["feasible"])
+        self.assertEqual(body["reason"], "no combination fits")
+        # Infeasible means no stops were ever selected - neither geometry
+        # nor content generation have anything to run against.
+        mock_geo.assert_not_called()
+        mock_content.assert_not_called()
+
+    def test_ai_fatal_error_returns_503_not_the_feasible_false_shape(self):
+        with patch("app.planner.plan_route", side_effect=AiFatalError("invalid API key")):
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("error", response.get_json())
+        self.assertNotIn("feasible", response.get_json())
+
+    def test_routing_provider_failure_returns_503(self):
+        with patch("app.planner.plan_route", side_effect=requests.exceptions.ConnectionError("boom")):
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("error", response.get_json())
+
+    def test_feasible_route_returns_full_response(self):
+        with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
+             patch("app.services.fetch_route_geometry", return_value=[[151.179, -33.898]]), \
+             patch("app.ai.generate_stop_content", return_value=[fake_content("a"), fake_content("b")]):
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["feasible"])
+        self.assertEqual(body["total_minutes"], 45.0)
+        self.assertEqual(body["geometry"], [[151.179, -33.898]])
+        self.assertEqual(len(body["stops"]), 2)
+        self.assertEqual(body["stops"][0], {
+            "id": "a", "order": 1, "content": "Generated content.",
+            "attribution": [{"source_type": "wikipedia", "source_title": "T", "source_url": "https://x"}],
+        })
+        self.assertEqual(body["stops"][1]["order"], 2)
+
+    def test_geometry_failure_degrades_gracefully_not_a_request_failure(self):
+        # User's explicit choice (Story 1.4 spec): a geometry-fetch failure
+        # never fails the whole request - the route, stops, and content
+        # are still good.
+        with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
+             patch("app.services.fetch_route_geometry", side_effect=requests.exceptions.ConnectionError("boom")), \
+             patch("app.ai.generate_stop_content", return_value=[fake_content("a"), fake_content("b")]):
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["feasible"])
+        self.assertIsNone(body["geometry"])
+        self.assertEqual(len(body["stops"]), 2)  # route/content still intact
+
+    def test_content_generation_called_with_ordered_stops_and_requested_topic(self):
+        with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
+             patch("app.services.fetch_route_geometry", return_value=None), \
+             patch("app.ai.generate_stop_content", return_value=[fake_content("a"), fake_content("b")]) as mock_content:
+            self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        args, _ = mock_content.call_args
+        stops_arg, topic_arg = args
+        self.assertEqual([s["id"] for s in stops_arg], ["a", "b"])  # walking order
+        self.assertEqual(topic_arg, "history")
+
+    def test_geometry_fetched_in_start_stops_start_order(self):
+        with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
+             patch("app.services.fetch_route_geometry", return_value=None) as mock_geo, \
+             patch("app.ai.generate_stop_content", return_value=[fake_content("a"), fake_content("b")]):
+            self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        points_arg = mock_geo.call_args.args[0]
+        self.assertEqual(points_arg[0], (VALID_PLAN_BODY["start_lat"], VALID_PLAN_BODY["start_lon"]))
+        self.assertEqual(points_arg[-1], (VALID_PLAN_BODY["start_lat"], VALID_PLAN_BODY["start_lon"]))
+        self.assertEqual(points_arg[1], (-33.899, 151.180))  # Stop A
+        self.assertEqual(points_arg[2], (-33.897, 151.178))  # Stop B
 
 
 if __name__ == "__main__":

@@ -316,6 +316,35 @@ class TestBuildAiOptions(unittest.TestCase):
             actual_ids = [stop["id"] for stop in option["stops"]]
             self.assertEqual(actual_ids, expected_ids)
 
+    def test_ad7_coverage_pass_rescues_a_low_ranked_stop(self):
+        """AD-7 (Story 1.4): a stop whose only feasible combination has a
+        low budget_usage_ratio must still get a menu slot, not silently
+        vanish because a plain top-N-by-ratio slice filled up on other
+        combos first. Hand-constructed combos (not real routing math) for
+        full control over exactly which stop would be excluded without the
+        fix, since real combinatorics are hard to predict by hand."""
+        shortlist = [make_place(f"s{i}", -33.901, 151.181, ["public_art"]) for i in range(16)]
+
+        def fake_combo(order, ratio):
+            return {"feasible": True, "reason": None, "order": order,
+                    "total_minutes": ratio * 60, "unused_minutes": (1 - ratio) * 60,
+                    "budget_usage_ratio": ratio}
+
+        # 15 high-ranked pairs covering stops 1-15 (never 16) - already
+        # exactly fills AI_OPTION_MENU_SIZE on its own, pre-fix.
+        high_ranked = [fake_combo([i, i + 1], 0.9) for i in range(1, 15)]
+        high_ranked.append(fake_combo([1, 3], 0.9))  # 15th combo, still never touches 16
+        # Stop 16's only feasible combination - ranks last.
+        low_ranked = fake_combo([16], 0.1)
+        combos = high_ranked + [low_ranked]
+        self.assertEqual(len(high_ranked), AI_OPTION_MENU_SIZE)
+
+        ai_options, _ = _build_ai_options(shortlist, combos)
+
+        self.assertEqual(len(ai_options), AI_OPTION_MENU_SIZE)
+        covered_ids = {stop["id"] for opt in ai_options for stop in opt["stops"]}
+        self.assertIn("s15", covered_ids)  # shortlist index 16 -> id "s15"
+
     def test_caps_the_menu_at_ai_option_menu_size(self):
         combos = _enumerate_feasible_combinations(BIG_SHORTLIST, BIG_MATRIX, 120, DWELL_MINUTES_PER_STOP)
         self.assertGreater(len(combos), AI_OPTION_MENU_SIZE)  # 57 feasible combinations (56 at sizes 2-5, +1 new size-6 combo since the FR-5 dynamic-stop-count change)
@@ -329,6 +358,12 @@ class TestBuildAiOptions(unittest.TestCase):
         ai_options, _ = _build_ai_options(FAKE_SHORTLIST, combos)
         self.assertEqual(len(ai_options), 1)
         self.assertLess(ai_options[0]["budget_usage_ratio"], 0.5)
+
+
+def _selection(option_key, none_suitable_reason=""):
+    """ai.select_stops()'s real return shape (Story 1.4) - a dict, not a
+    bare string. Use this everywhere a test mocks ai.select_stops()."""
+    return {"selected_option": option_key, "none_suitable_reason": none_suitable_reason}
 
 
 class TestPlanRoute(unittest.TestCase):
@@ -349,7 +384,7 @@ class TestPlanRoute(unittest.TestCase):
     def test_accepts_ai_choosing_the_first_offered_option(self):
         # option_1 is the highest-usage feasible combo: the 3-stop one
         # (45/60 = 75%), ranked ahead of the three tied 2-stop pairs.
-        with patch("ai.select_stops", return_value="option_1") as mock_select:
+        with patch("ai.select_stops", return_value=_selection("option_1")) as mock_select:
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         self.assertTrue(result["feasible"])
         self.assertEqual(set(result["selected_ids"]), {"a", "b", "c"})
@@ -361,12 +396,12 @@ class TestPlanRoute(unittest.TestCase):
         # picks, the result is always feasible - AI can no longer produce
         # the "guess again" failure mode the live test hit.
         for option_key in ["option_1", "option_2", "option_3", "option_4"]:
-            with patch("ai.select_stops", return_value=option_key):
+            with patch("ai.select_stops", return_value=_selection(option_key)):
                 result = plan_route(START_LAT, START_LON, "public_art", 60)
             self.assertTrue(result["feasible"], f"{option_key} should be feasible")
 
     def test_options_passed_to_ai_are_the_full_ranked_feasible_menu(self):
-        with patch("ai.select_stops", return_value="option_1") as mock_select:
+        with patch("ai.select_stops", return_value=_selection("option_1")) as mock_select:
             plan_route(START_LAT, START_LON, "public_art", 60)
         options_arg = mock_select.call_args.args[0]
         self.assertEqual(len(options_arg), 4)
@@ -374,7 +409,7 @@ class TestPlanRoute(unittest.TestCase):
         self.assertEqual(ratios, sorted(ratios, reverse=True))
 
     def test_retries_when_ai_returns_an_option_key_not_offered(self):
-        with patch("ai.select_stops", side_effect=["option_99", "option_1"]) as mock_select:
+        with patch("ai.select_stops", side_effect=[_selection("option_99"), _selection("option_1")]) as mock_select:
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         self.assertTrue(result["feasible"])
         self.assertEqual(result["attempts"], 2)
@@ -383,7 +418,7 @@ class TestPlanRoute(unittest.TestCase):
         self.assertIn("not one of the offered", second_call_feedback)
 
     def test_falls_back_after_max_retries_when_option_key_always_invalid(self):
-        with patch("ai.select_stops", return_value="option_99") as mock_select:
+        with patch("ai.select_stops", return_value=_selection("option_99")) as mock_select:
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         self.assertFalse(result["feasible"])
         self.assertIn("did not return a usable option", result["reason"])
@@ -392,23 +427,36 @@ class TestPlanRoute(unittest.TestCase):
         self.assertTrue(all(e["outcome"] == "unknown_option" for e in result["attempts_log"]))
 
     def test_ai_selection_error_is_treated_as_invalid_attempt_and_retried(self):
-        with patch("ai.select_stops", side_effect=[AiSelectionError("boom"), "option_1"]) as mock_select:
+        with patch("ai.select_stops", side_effect=[AiSelectionError("boom"), _selection("option_1")]) as mock_select:
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         self.assertTrue(result["feasible"])
         self.assertEqual(result["attempts"], 2)
 
-    def test_fatal_ai_error_stops_immediately_without_retrying(self):
+    def test_fatal_ai_error_propagates_without_retrying(self):
         # Invalid credentials, permission errors, or exhausted quota can
-        # never succeed by retrying an unmodified request - this should
-        # produce exactly one attempt, not the usual 3, and preserve the
-        # real reason rather than a generic "did not return a usable option".
+        # never succeed by retrying an unmodified request - and, since
+        # Story 1.4, this is no longer collapsed into _plan_failure()'s
+        # {"feasible": false} shape at all. plan_route() re-raises so a
+        # caller can map it to a real non-2xx distinct from ordinary
+        # infeasibility (mirrors how CatalogueError already propagates).
         with patch("ai.select_stops", side_effect=AiFatalError("invalid API key")) as mock_select:
+            with self.assertRaises(AiFatalError) as cm:
+                plan_route(START_LAT, START_LON, "public_art", 60)
+        self.assertIn("invalid API key", str(cm.exception))
+        self.assertEqual(mock_select.call_count, 1)
+
+    def test_none_suitable_is_an_honest_fallback_not_a_retry(self):
+        # AD-7: AI can honestly reject every offered option as not genuinely
+        # suitable, even though all are time-feasible - distinct from an
+        # unrecognized option_key (which retries) and from a fatal error
+        # (which propagates).
+        with patch("ai.select_stops", return_value=_selection("none_suitable", "none fit the mood")) as mock_select:
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         self.assertFalse(result["feasible"])
-        self.assertIn("invalid API key", result["reason"])
+        self.assertEqual(result["reason"], "none fit the mood")
         self.assertEqual(result["attempts"], 1)
         self.assertEqual(mock_select.call_count, 1)
-        self.assertEqual(result["attempts_log"][0]["outcome"], "ai_fatal_error")
+        self.assertEqual(result["attempts_log"][0]["outcome"], "none_suitable")
 
     def test_no_feasible_combination_short_circuits_without_calling_ai(self):
         # Nothing fits in 30 min with PLAN_MATRIX - detected up front,
@@ -446,7 +494,7 @@ class TestPlanRouteAttemptsLog(unittest.TestCase):
         self.addCleanup(matrix_patcher.stop)
 
     def test_records_one_entry_per_attempt_with_option_and_outcome(self):
-        with patch("ai.select_stops", side_effect=["option_99", "option_1"]):
+        with patch("ai.select_stops", side_effect=[_selection("option_99"), _selection("option_1")]):
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         log = result["attempts_log"]
         self.assertEqual(len(log), 2)
@@ -457,7 +505,7 @@ class TestPlanRouteAttemptsLog(unittest.TestCase):
         self.assertIsNone(log[1]["reason"])
 
     def test_records_ai_errors_with_no_selected_option(self):
-        with patch("ai.select_stops", side_effect=[AiSelectionError("boom"), "option_1"]):
+        with patch("ai.select_stops", side_effect=[AiSelectionError("boom"), _selection("option_1")]):
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         log = result["attempts_log"]
         self.assertEqual(log[0]["outcome"], "ai_error")
