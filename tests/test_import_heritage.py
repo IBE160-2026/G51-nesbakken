@@ -282,9 +282,16 @@ class TestMainAbortsOnMissingApprovedIds(unittest.TestCase):
     ever called - never persist a partial import as though it succeeded."""
 
     def test_missing_id_aborts_without_saving(self):
+        """Codex review 2026-10-20: this test must provide COMPLETE valid
+        topic overrides, or it no-longer exercises this guard at all - it
+        would short-circuit at the separate missing-override guard instead
+        and still pass for the wrong reason, silently losing coverage of a
+        regression in this guard specifically."""
+        all_ids = import_heritage.APPROVED_STATE_HOITEMIDS + import_heritage.APPROVED_LOCAL_HERITAGE_ITEM_IDS
+        full_overrides = {str(hid): {"topics": []} for hid in all_ids}
         with patch("import_heritage.load_seed", return_value={}), \
-             patch("import_heritage.load_topic_overrides", return_value={}), \
-             patch("import_heritage.build_state_records", return_value=([], {5045479})), \
+             patch("import_heritage.load_topic_overrides", return_value=full_overrides), \
+             patch("import_heritage.build_state_records", return_value=([], {5045479})) as mock_state, \
              patch("import_heritage.build_local_records", return_value=([], set())), \
              patch("import_heritage.load_existing", return_value={}), \
              patch("import_heritage.save_records") as mock_save, \
@@ -292,6 +299,9 @@ class TestMainAbortsOnMissingApprovedIds(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 import_heritage.main()
 
+        # Confirms this guard (not the earlier override guard) was actually
+        # the one that ran and caught the missing id.
+        mock_state.assert_called_once()
         mock_save.assert_not_called()
         mock_dedup.assert_not_called()
 

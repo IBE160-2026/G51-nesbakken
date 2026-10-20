@@ -1,28 +1,36 @@
-"""Sprint 4 (part 1): AI final stop selection.
+"""AI's two jobs for Jaunt: selecting stops, and generating their content.
 
-AI's role is bounded to one judgement call: given a menu of already-feasible
-walking-route options planner.py has computed, choose the one that is most
-relevant and interesting for the requested topic. AI never invents a place,
-never computes routing arithmetic, and never decides feasibility - it only
-picks among options planner.py has already proven walkable in the requested
-time (see "Redesign after live testing" in docs/ai-development-log.md for
-why an earlier version that asked AI to compute feasibility itself was
-replaced).
+Selection (Sprint 4): given a menu of already-feasible walking-route options
+planner.py has computed, choose the one that is most relevant and
+interesting for the requested topic. AI never invents a place, never
+computes routing arithmetic, and never decides feasibility - it only picks
+among options planner.py has already proven walkable in the requested time
+(see "Redesign after live testing" in docs/ai-development-log.md for why an
+earlier version that asked AI to compute feasibility itself was replaced).
+
+Content generation (Story 1.3): given a route's stops, each with its own
+source excerpt and whatever Contextual Sources match the requested topic,
+write short grounded content for each one, and check it with a rule-based
+(non-LLM) grounding check before it's used. A stop whose generation or
+grounding fails falls back to its own raw source excerpt - never fails the
+whole route. See generate_stop_content().
 
 Provider choice (OpenAI) is an implementation detail, not a permanent
 architectural dependency - see docs/ai-development-log.md. Every
-OpenAI-specific request/response detail is kept inside this module, behind
-select_stops(), so switching providers later means rewriting this file only.
+OpenAI-specific request/response detail is kept inside this module, so
+switching providers later means rewriting this file only.
 """
 
 import json
 import os
+import re
 
 import requests
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
 CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+CONTEXTUAL_SOURCES_PATH = os.path.join(BASE_DIR, "data", "contextual_sources.json")
 
 SYSTEM_PROMPT = (
     "You are selecting the stops for a short walking tour called Jaunt. "
@@ -224,3 +232,568 @@ def select_stops(options, topic, requested_minutes, feedback=None):
         raise AiSelectionError("AI response 'selected_option' must be a string")
 
     return selected_option
+
+
+# =====================================================================
+# CONTENT GENERATION (Story 1.3, architecture AD-3)
+# =====================================================================
+
+CONTENT_SYSTEM_PROMPT = (
+    "You write short content for stops on a walking tour called Jaunt. "
+    "You will be given a list of stops, each with its own name and its own "
+    "evidence list - source material for that stop and nothing else.\n\n"
+    "Ground every stop's content ONLY in that stop's own evidence. Never "
+    "invent a name, date, number, or fact that isn't in that stop's own "
+    "evidence - and never borrow a detail from a different stop, even one "
+    "listed elsewhere in this same request. If a stop's evidence is very "
+    "short, keep its content short and simple too - never pad it out with "
+    "invented detail just to sound fuller.\n\n"
+    "Some evidence entries are general background, not specific to any one "
+    "stop (you can tell because they describe something broader than the "
+    "stop itself, e.g. a whole suburb or a whole architectural style). If "
+    "you use one, keep its information phrased as general context - never "
+    "imply it is a fact specifically known about that particular stop.\n\n"
+    "Write in a warm, engaging, plain voice: a short story, an interesting "
+    "fact, or an observation prompt, 2-4 sentences.\n\n"
+    "Each evidence entry has its own evidence_id. Along with each stop's "
+    "content, list the evidence_ids you actually drew from in used_evidence_ids "
+    "- every evidence_id your content's facts or phrasing came from, not every "
+    "evidence_id you were merely given. Always include \"own\" (that stop's own "
+    "source) unless you genuinely used nothing from it.\n\n"
+    "Respond using only the required JSON schema - no extra commentary."
+)
+
+# Forces one content string per requested stop_id, keyed explicitly - keeps
+# per-stop evidence scoped in the request itself, not just checked after
+# the fact (see generate_stop_content()'s module-level note on cross-stop
+# leakage). used_evidence_ids (Codex review 2026-10-20) makes attribution
+# reflect sources actually drawn from, not merely offered - without this,
+# a stop generated purely from its own excerpt could still get credited
+# with an unrelated Contextual Source just because one happened to be
+# available for that topic.
+CONTENT_SCHEMA = {
+    "name": "stop_content_batch",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "stops": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "stop_id": {"type": "string"},
+                        "content": {"type": "string"},
+                        "used_evidence_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                    "required": ["stop_id", "content", "used_evidence_ids"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["stops"],
+        "additionalProperties": False,
+    },
+}
+
+
+def load_contextual_sources(path=CONTEXTUAL_SOURCES_PATH):
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f).get("sources", [])
+    except (json.JSONDecodeError, OSError, AttributeError) as exc:
+        # Codex review 2026-10-21: a corrupted/malformed file must degrade
+        # the same way a missing one already does (no contextual sources
+        # available), not crash generate_stop_content() before it even
+        # reaches its own try/except - that would break the "never raises"
+        # guarantee over a file this function doesn't control the content
+        # of. AttributeError covers a valid-JSON-but-wrong-shape file (e.g.
+        # a bare list instead of an object with "sources").
+        print(f"Could not read {path}, treating as no Contextual Sources available: {exc}")
+        return []
+
+
+def get_contextual_sources(stop, topic):
+    """Given a Stop and the requested Topic, returns a list of candidate
+    Contextual Source entries whose own topics include the requested Topic
+    - a fixed contract (architecture AD-3) deliberately kept behind this one
+    function. V1's body is a simple filter over the small, human-curated
+    data/contextual_sources.json seed file; a later real retrieval system
+    (vector search, live web/API search) can replace only this function's
+    internals without touching content generation, the grounding check, the
+    payload shape, or any caller. `stop` is accepted (not just `topic`) to
+    keep that door open even though V1's filter doesn't use it yet.
+    """
+    sources = load_contextual_sources()
+    matches = [s for s in sources if topic in s.get("topics", [])]
+    return [
+        {
+            "id": s["id"],
+            "source_type": s["source_type"],
+            "source_title": s["source_title"],
+            "source_url": s["source_url"],
+            "text": s["text"],
+        }
+        for s in matches
+    ]
+
+
+_NUMBER_PATTERN = re.compile(r"\b\d{3,4}\b")
+
+
+def _extract_numbers(text):
+    return set(_NUMBER_PATTERN.findall(text))
+
+
+def _extract_capitalized_phrases(text):
+    """Runs of 2+ consecutive capitalized words - likely a specific named
+    entity (a person, a place, an organisation). A lone capitalized word is
+    usually just a sentence-opener ("Take a moment...") or an ordinary
+    capitalized noun, not a specific claim - validated against real
+    generated content and hand-fabricated bad examples before this design
+    was settled on, not assumed (see the implementation spec's Design
+    Notes). Sentence-ending punctuation (.!?) breaks a run, so a new
+    sentence's capitalized opener never merges with the previous sentence's
+    real phrase; a comma does not break a run, so "Newtown, New South
+    Wales" stays one phrase.
+    """
+    tokens = re.findall(r"[A-Za-z][A-Za-z'-]*|[.!?]", text)
+    phrases = set()
+    run = []
+    for tok in tokens:
+        if tok in ".!?":
+            if len(run) >= 2:
+                phrases.add(" ".join(run))
+            run = []
+        elif tok[0].isupper():
+            run.append(tok)
+        else:
+            if len(run) >= 2:
+                phrases.add(" ".join(run))
+            run = []
+    if len(run) >= 2:
+        phrases.add(" ".join(run))
+    return phrases
+
+
+def _normalize_letters(text):
+    """Letters-only, lowercased, space-joined - so a phrase built by the
+    letters-only extractor above ("newtown new south wales") still matches
+    source text that has a comma in it ("Newtown, New South Wales"), since
+    that's the same claim, not an unsupported one."""
+    return " ".join(re.findall(r"[a-z']+", text.lower()))
+
+
+def check_grounding(generated_text, source_texts):
+    """Fast rule-based (non-LLM) PRE-FILTER: does generated_text contain any
+    number or multi-word capitalized phrase that isn't present anywhere in
+    source_texts? Deliberately generic (arbitrary text in, a list of
+    arbitrary source texts in, bool out) - no assumption anywhere in here
+    about a "Stop" shape.
+
+    Validated against real generated content (including this story's own
+    AC-named thin excerpts, "By Michael Snape." and "church in Newtown,
+    New South Wales") and hand-fabricated bad examples with an invented
+    date/name - 6/6 correct across three independent runs. See the
+    implementation spec's Design Notes for the two bugs found and fixed
+    during that process.
+
+    NOT the sole grounding mechanism (Codex review 2026-10-20, confirmed
+    with concrete counterexamples): this only catches fabricated dates and
+    named entities. It cannot catch a fabricated CLAIM, EVENT, or
+    RELATIONSHIP that introduces no new number or multi-word proper noun -
+    e.g. against the source "By Michael Snape.", both "This sculpture
+    commemorates workers killed in a factory fire." (no checkable tokens
+    at all) and "Michael Snape designed this church." (the name is real,
+    the relationship is invented) pass this check cleanly. This function
+    now exists only as a cheap pre-filter: used to skip the real
+    (LLM-based) check in check_grounding_semantic() for content that's
+    already obviously bad, never as the final word that content is safe to
+    show. See check_grounding_semantic() for the actual gate.
+    """
+    combined_source = " ".join(source_texts)
+    source_normalized = _normalize_letters(combined_source)
+
+    unsupported_numbers = _extract_numbers(generated_text) - _extract_numbers(combined_source)
+
+    gen_phrases = _extract_capitalized_phrases(generated_text)
+    unsupported_phrases = {
+        p for p in gen_phrases if _normalize_letters(p) not in source_normalized
+    }
+
+    return not unsupported_numbers and not unsupported_phrases
+
+
+GROUNDING_CHECK_SYSTEM_PROMPT = (
+    "You are a strict fact-checker. You will be given a list of items, "
+    "each with its own content and its own evidence. For each item, decide "
+    "whether EVERY claim, relationship, and event in its content is "
+    "directly stated or reasonably implied by its own evidence - not just "
+    "whether the same words/names/dates appear.\n\n"
+    "Mark an item unsupported if it invents or misstates what something "
+    "is, what happened, who did what, why, or how something connects, "
+    "even when it reuses real names or dates from the evidence in a new "
+    "or incorrect way. Some evidence is general background, not specific "
+    "to that item - if the content presents that general information as a "
+    "specific fact about the item itself, mark it unsupported too.\n\n"
+    "Judge each item only against its own evidence, never against another "
+    "item's evidence in this same list.\n\n"
+    "Respond using only the required JSON schema - no extra commentary."
+)
+
+GROUNDING_CHECK_SCHEMA = {
+    "name": "grounding_check_batch",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "item_id": {"type": "string"},
+                        "supported": {"type": "boolean"},
+                    },
+                    "required": ["item_id", "supported"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["items"],
+        "additionalProperties": False,
+    },
+}
+
+
+def _call_grounding_check_batch(items):
+    """One batched OpenAI call checking every (item_id, content,
+    source_texts) tuple in items, each against only its OWN source_texts -
+    the same per-item isolation discipline as content generation, for the
+    same reason (Codex review 2026-10-20: pooled evidence in one call must
+    never let one item's content get verified against a different item's
+    source material). Returns {item_id: bool}; an item_id missing from the
+    response is simply absent from the returned dict - callers decide what
+    that means (generate_stop_content() treats "no verdict" as
+    unsupported, matching its "never show unless genuinely confirmed"
+    policy).
+
+    Raises AiSelectionError/AiFatalError the same way _call_openai() and
+    _call_content_generation() do.
+    """
+    request_details = {
+        "items": [
+            {"item_id": item_id, "content": content, "evidence": source_texts}
+            for item_id, content, source_texts in items
+        ],
+    }
+    prompt = (
+        "Check each item's content against its own evidence only.\n\n"
+        + json.dumps(request_details, indent=2)
+    )
+
+    try:
+        response = requests.post(
+            CHAT_COMPLETIONS_URL,
+            headers={
+                "Authorization": f"Bearer {get_api_key()}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": get_model(),
+                "messages": [
+                    {"role": "system", "content": GROUNDING_CHECK_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": GROUNDING_CHECK_SCHEMA,
+                },
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        detail, error_type = _extract_error_detail(exc)
+        if _is_non_retryable(status_code, error_type):
+            raise AiFatalError(f"OpenAI request failed: {detail}") from exc
+        raise AiSelectionError(f"OpenAI request failed: {detail}") from exc
+    except requests.RequestException as exc:
+        raise AiSelectionError(f"OpenAI request failed: {exc}") from exc
+
+    try:
+        body = response.json()
+        raw_content = body["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        raise AiSelectionError(f"unexpected OpenAI response shape: {exc}") from exc
+
+    try:
+        parsed = json.loads(raw_content)
+        result_items = parsed["items"]
+        if not isinstance(result_items, list):
+            raise AiSelectionError(f"AI response 'items' was not a list: {result_items!r}")
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise AiSelectionError(f"AI response was not the expected JSON shape: {exc}") from exc
+
+    # Same discipline as _call_content_generation(): a malformed individual
+    # entry is skipped (missing from the returned dict), never a reason to
+    # crash the whole batch.
+    result = {}
+    for item in result_items:
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("item_id")
+        supported = item.get("supported")
+        if not isinstance(item_id, str) or not isinstance(supported, bool):
+            continue
+        result[item_id] = supported
+    return result
+
+
+def check_grounding_semantic(generated_text, source_texts):
+    """The real (LLM-based) grounding check, added after check_grounding()
+    (the rule-based check) was proven insufficient (Codex review
+    2026-10-20, confirmed with concrete counterexamples - see that
+    function's docstring). A single-item convenience wrapper around
+    _call_grounding_check_batch() - still exactly one API call - so this
+    stays the simple, generic (text in, source list in, bool out) function
+    Epic 3 can call unchanged for a single walk summary, while Story 1.3's
+    own route-level use calls the batch primitive directly for real
+    multi-stop efficiency (one call per route, not one per stop).
+
+    Raises AiSelectionError/AiFatalError on a call failure - callers
+    decide the fallback (generate_stop_content() falls back to the raw
+    source excerpt, never showing content that couldn't be verified).
+    """
+    results = _call_grounding_check_batch([("item", generated_text, source_texts)])
+    return results.get("item", False)
+
+
+OWN_EVIDENCE_ID = "own"
+
+
+def _own_source_fields(stop):
+    return {
+        "source_type": stop.get("source_type"),
+        "source_title": stop.get("source_title"),
+        "source_url": stop.get("source_url"),
+    }
+
+
+def _lookup_topics_for_stop(stop, topic):
+    """Which topic(s) to use for this stop's Contextual Source lookup. For
+    a named topic request, every stop in the route was selected for that
+    topic, so the single requested topic is correct. For a surprise_me
+    route, stops of any topic can appear and no seed entry is tagged
+    "surprise_me" itself (Codex review 2026-10-20) - a literal single-topic
+    lookup would silently return no context for every stop on that path.
+    Falls back to the stop's own topics instead."""
+    if topic == "surprise_me":
+        return stop.get("topics") or []
+    return [topic]
+
+
+def _build_stop_evidence(stop, topic):
+    """This stop's own evidence set - its own source fields plus whatever
+    Contextual Sources match this stop's applicable topic(s) - and never
+    another stop's, even in the same batched request. A heritage stop can
+    carry more than one topic (Story 1.2), so matches across all of this
+    stop's applicable topics are gathered and deduplicated by source id."""
+    own_source = dict(_own_source_fields(stop), id=OWN_EVIDENCE_ID, text=stop.get("source_excerpt") or "")
+    contextual = []
+    seen_ids = set()
+    for lookup_topic in _lookup_topics_for_stop(stop, topic):
+        for source in get_contextual_sources(stop, lookup_topic):
+            if source["id"] not in seen_ids:
+                seen_ids.add(source["id"])
+                contextual.append(source)
+    return [own_source] + contextual
+
+
+def _raw_fallback_content(stop):
+    return {
+        "id": stop["id"],
+        "content": stop.get("source_excerpt") or "",
+        "attribution": [_own_source_fields(stop)],
+    }
+
+
+def _call_content_generation(stops_with_evidence, topic):
+    """One batched OpenAI call covering every stop in stops_with_evidence.
+    Each stop is keyed by its own stop_id with its OWN evidence only -
+    never another stop's - both so the model itself has no pooled text to
+    blend across stops, and so the grounding check afterward has a clean
+    per-stop boundary to check against (Codex review 2026-10-20: a pooled
+    multi-stop batch could otherwise let one stop's content borrow a fact
+    that's only true of a different stop's source material).
+
+    Raises AiSelectionError/AiFatalError the same way _call_openai() does -
+    generate_stop_content() is the one that decides what a failure means
+    for content generation (always: fall back to raw excerpts), which is
+    deliberately different from how planner.py treats a fatal selection
+    error (there, no route exists at all without a successful selection;
+    here, the route is already complete without content generation
+    succeeding - AD-3's whole point is that a generation hiccup never
+    costs the user an otherwise-good route).
+    """
+    request_details = {
+        "topic": topic,
+        "stops": [
+            {"stop_id": stop["id"], "name": stop.get("name"), "evidence": evidence}
+            for stop, evidence in stops_with_evidence
+        ],
+    }
+    prompt = (
+        "Write content for each stop below, grounded only in its own evidence.\n\n"
+        + json.dumps(request_details, indent=2)
+    )
+
+    try:
+        response = requests.post(
+            CHAT_COMPLETIONS_URL,
+            headers={
+                "Authorization": f"Bearer {get_api_key()}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": get_model(),
+                "messages": [
+                    {"role": "system", "content": CONTENT_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": CONTENT_SCHEMA,
+                },
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        detail, error_type = _extract_error_detail(exc)
+        if _is_non_retryable(status_code, error_type):
+            raise AiFatalError(f"OpenAI request failed: {detail}") from exc
+        raise AiSelectionError(f"OpenAI request failed: {detail}") from exc
+    except requests.RequestException as exc:
+        raise AiSelectionError(f"OpenAI request failed: {exc}") from exc
+
+    try:
+        body = response.json()
+        raw_content = body["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        raise AiSelectionError(f"unexpected OpenAI response shape: {exc}") from exc
+
+    try:
+        parsed = json.loads(raw_content)
+        stops = parsed["stops"]
+        if not isinstance(stops, list):
+            raise AiSelectionError(f"AI response 'stops' was not a list: {stops!r}")
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise AiSelectionError(f"AI response was not the expected JSON shape: {exc}") from exc
+
+    # A malformed INDIVIDUAL entry (missing/non-string content, non-string
+    # stop_id, blank content) is skipped, not a reason to fail the whole
+    # batch (Codex review 2026-10-21: the former unguarded dict
+    # comprehension raised an uncaught TypeError/KeyError on exactly this).
+    # A skipped stop_id is simply absent below, which generate_stop_content()
+    # already treats as "missing from the response" and falls back for -
+    # no new fallback path needed, just not crashing on the way there.
+    result = {}
+    for s in stops:
+        if not isinstance(s, dict):
+            continue
+        stop_id = s.get("stop_id")
+        content = s.get("content")
+        if not isinstance(stop_id, str) or not isinstance(content, str) or not content.strip():
+            continue
+        used_evidence_ids = [e for e in s.get("used_evidence_ids", []) if isinstance(e, str)]
+        result[stop_id] = {"content": content, "used_evidence_ids": used_evidence_ids}
+    return result
+
+
+def generate_stop_content(stops, topic):
+    """The real entry point future stories call: generates grounded,
+    checked content for every stop in a route, one batched generation call
+    plus (for whatever survives the cheap pre-filter) one batched semantic
+    grounding call - never N per-stop calls of either kind. Never raises -
+    every failure mode falls that stop back to its own raw source_excerpt,
+    so a content-generation or grounding-check hiccup never fails an
+    otherwise-feasible route (architecture AD-3). Content is only ever
+    shown once check_grounding_semantic() has genuinely confirmed it - the
+    cheap rule-based check_grounding() is a pre-filter only (Codex review
+    2026-10-20: it cannot catch a fabricated claim/relationship that
+    introduces no new date or name - see its own docstring), never the
+    final word.
+
+    Each stop's result: {"id", "content", "attribution"}, where attribution
+    is a list of {"source_type", "source_title", "source_url"} covering
+    only the evidence the model actually declared using - a stop generated
+    purely from its own excerpt never gets credited with an unrelated
+    Contextual Source just because one happened to be available. The
+    stop's own source is always included unless the model explicitly used
+    nothing from it; a declared id never actually offered to that stop is
+    silently ignored, never trusted.
+    """
+    stops_with_evidence = [(stop, _build_stop_evidence(stop, topic)) for stop in stops]
+
+    try:
+        generated_by_id = _call_content_generation(stops_with_evidence, topic)
+    except AiSelectionError:
+        return [_raw_fallback_content(stop) for stop in stops]
+
+    # First pass: the cheap pre-filter only decides who's even worth the
+    # real check's cost - never who's safe to show.
+    candidates = []  # (stop, evidence, generated_content, evidence_texts)
+    fallback_stops = []
+    for stop, evidence in stops_with_evidence:
+        generated = generated_by_id.get(stop["id"])
+        # The stop's own real name is known, legitimate grounding material
+        # too - referring to a place by its actual name isn't a fabricated
+        # claim (prototype bug #2, see Design Notes).
+        evidence_texts = [e["text"] for e in evidence] + [stop.get("name") or ""]
+        if generated is None or not check_grounding(generated["content"], evidence_texts):
+            fallback_stops.append(stop)
+            continue
+        candidates.append((stop, evidence, generated, evidence_texts))
+
+    # Second pass: the real check, one batched call for everyone who
+    # passed the pre-filter. Any failure to get an authoritative
+    # "supported" verdict - a call failure, or an explicit "not
+    # supported" - falls back, never defaults to trusting the cheap
+    # filter alone.
+    semantic_verdicts = {}
+    if candidates:
+        try:
+            semantic_verdicts = _call_grounding_check_batch(
+                [(stop["id"], generated["content"], evidence_texts)
+                 for stop, _evidence, generated, evidence_texts in candidates]
+            )
+        except AiSelectionError:
+            semantic_verdicts = {}
+
+    results = []
+    for stop, evidence, generated, _evidence_texts in candidates:
+        if not semantic_verdicts.get(stop["id"], False):
+            results.append(_raw_fallback_content(stop))
+            continue
+        used_ids = set(generated["used_evidence_ids"]) | {OWN_EVIDENCE_ID}
+        attribution = [
+            {k: e[k] for k in ("source_type", "source_title", "source_url")}
+            for e in evidence
+            if e["id"] in used_ids
+        ]
+        results.append({"id": stop["id"], "content": generated["content"], "attribution": attribution})
+    results.extend(_raw_fallback_content(stop) for stop in fallback_stops)
+
+    # Restore original stop order - the two passes above processed
+    # candidates and fallbacks as separate groups.
+    order = {stop["id"]: i for i, stop in enumerate(stops)}
+    results.sort(key=lambda r: order[r["id"]])
+    return results

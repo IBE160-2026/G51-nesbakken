@@ -1,0 +1,21 @@
+{
+  "_instructions": "Human-curated general-background sources for AI content generation (Story 1.3, architecture AD-3). Unlike a catalogue place's own source_excerpt (specific to that one Stop), these are general background not tied to any single Stop - e.g. the suburb's own history, or a general architectural style several Stops happen to share. Each entry is real, verbatim text copied from its source_url, reviewed before being added here - never paraphrased, shortened, or AI-generated. 'topics' lists which requested Topic(s) this entry is relevant background for. Accessed via get_contextual_sources(stop, topic) in ai.py - callers never read this file directly, so this list can grow (or later be replaced by a real retrieval system) without touching anything downstream.",
+  "sources": [
+    {
+      "id": "newtown_general_history",
+      "topics": ["history"],
+      "source_type": "wikipedia",
+      "source_title": "Newtown, New South Wales",
+      "source_url": "https://en.wikipedia.org/wiki/Newtown,_New_South_Wales",
+      "text": "Newtown, a suburb of Sydney's inner west, is located approximately four kilometres south-west of the Sydney central business district, straddling the local government areas of the City of Sydney and Inner West Council in the state of New South Wales, Australia. King Street is the main street of Newtown and centre of commercial and entertainment activity. The street follows the spine of a long ridge that rises up near the University of Sydney and extends to the south, becoming the Princes Highway at its southern end. Enmore Road branches off King Street towards the suburb of Enmore at Newtown Bridge, where the road passes over the Main Suburban railway line at Newtown railway station. Enmore Road and King Street together comprise 9.1 kilometres of over 600 shopfronts. The main shopping strip of Newtown is the longest and most complete commercial precinct of the late Victorian and Federation period in Australia."
+    },
+    {
+      "id": "federation_architecture_style",
+      "topics": ["architecture"],
+      "source_type": "wikipedia",
+      "source_title": "Federation architecture",
+      "source_url": "https://en.wikipedia.org/wiki/Federation_architecture",
+      "text": "Federation architecture is the architectural style in Australia that was prevalent from around 1890 to 1915. The name refers to the Federation of Australia on 1 January 1901, when the British colonies of Australia collectively became the Commonwealth of Australia. The architectural style had antecedents in the Queen Anne style and Edwardian style of the United Kingdom, combined with various other influences like the Arts and Crafts style. Other styles also developed, like the Federation Warehouse style, which was heavily influenced by the Romanesque Revival style. In Australia, Federation architecture is generally associated with cottages in the Queen Anne style, but some consider that there were twelve main styles that characterised the Federation period."
+    }
+  ]
+}

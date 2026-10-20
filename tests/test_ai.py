@@ -1,10 +1,24 @@
 import json
+import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 import requests
 
-from ai import SYSTEM_PROMPT, AiFatalError, AiSelectionError, build_prompt, select_stops
+import ai
+from ai import (
+    SYSTEM_PROMPT,
+    AiFatalError,
+    AiSelectionError,
+    build_prompt,
+    check_grounding,
+    check_grounding_semantic,
+    generate_stop_content,
+    get_contextual_sources,
+    load_contextual_sources,
+    select_stops,
+)
 
 SAMPLE_OPTIONS = [
     {
@@ -254,6 +268,413 @@ class TestMissingConfig(unittest.TestCase):
         with patch("ai.load_env"), patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}, clear=True):
             with self.assertRaises(RuntimeError):
                 select_stops(SAMPLE_OPTIONS, "public_art", 60)
+
+
+# =========================================================================
+# STORY 1.3: content generation, grounding, Contextual Sources
+# =========================================================================
+
+SAMPLE_STOP_RICH = {
+    "id": "heritage/5012123",
+    "name": "Newtown Railway Station group",
+    "source_type": "nsw_state_heritage_inventory",
+    "source_title": "Newtown Railway Station group",
+    "source_url": "https://example.org/5012123",
+    "source_excerpt": "Newtown Railway Station is of state significance, representing three phases of NSW railway development, including the 1892 overhead booking office.",
+    "topics": ["history", "architecture"],
+}
+SAMPLE_STOP_THIN = {
+    "id": "node/5301587126",
+    "name": "The Trail",
+    "source_type": "osm_tags",
+    "source_title": None,
+    "source_url": "https://example.org/node/5301587126",
+    "source_excerpt": "By Michael Snape.",
+    "topics": ["public_art"],
+}
+
+
+class TestLoadAndGetContextualSources(unittest.TestCase):
+    def test_missing_file_returns_empty_list_not_an_error(self):
+        sources = load_contextual_sources(os.path.join(tempfile.gettempdir(), "does-not-exist.json"))
+        self.assertEqual(sources, [])
+
+    def test_reads_a_real_populated_file(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, "sources.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"sources": [{"id": "x", "topics": ["history"], "source_type": "wikipedia",
+                                         "source_title": "X", "source_url": "https://x", "text": "Some text."}]}, f)
+            sources = load_contextual_sources(path)
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["id"], "x")
+
+    def test_filters_by_requested_topic(self):
+        fake_sources = [
+            {"id": "a", "topics": ["history"], "source_type": "t", "source_title": "A", "source_url": "u", "text": "A text"},
+            {"id": "b", "topics": ["architecture"], "source_type": "t", "source_title": "B", "source_url": "u", "text": "B text"},
+        ]
+        with patch("ai.load_contextual_sources", return_value=fake_sources):
+            result = get_contextual_sources(SAMPLE_STOP_RICH, "history")
+        self.assertEqual([s["id"] for s in result], ["a"])
+
+    def test_no_match_returns_empty_list_not_an_error(self):
+        with patch("ai.load_contextual_sources", return_value=[]):
+            result = get_contextual_sources(SAMPLE_STOP_THIN, "public_art")
+        self.assertEqual(result, [])
+
+    def test_returned_entries_have_the_fixed_contract_fields(self):
+        fake_sources = [{"id": "a", "topics": ["history"], "source_type": "wikipedia",
+                          "source_title": "A", "source_url": "https://a", "text": "A text"}]
+        with patch("ai.load_contextual_sources", return_value=fake_sources):
+            result = get_contextual_sources(SAMPLE_STOP_RICH, "history")
+        entry = result[0]
+        for key in ("source_type", "source_title", "source_url", "text"):
+            self.assertIn(key, entry)
+
+
+class TestCheckGroundingRuleBased(unittest.TestCase):
+    """The cheap pre-filter - validated against real generated content
+    during this story's prototyping (see the implementation spec's Design
+    Notes), and pinned here as regression tests."""
+
+    def test_rich_grounded_content_passes(self):
+        content = ("Newtown Railway Station reflects three phases of NSW railway development, "
+                   "including the 1892 overhead booking office.")
+        self.assertTrue(check_grounding(content, [SAMPLE_STOP_RICH["source_excerpt"]]))
+
+    def test_thin_excerpt_unembellished_passes(self):
+        self.assertTrue(check_grounding("By Michael Snape.", ["By Michael Snape."]))
+
+    def test_fabricated_date_fails(self):
+        content = "Newtown Railway Station was designed in 1887 by architect Walter Liberty Vernon."
+        self.assertFalse(check_grounding(content, [SAMPLE_STOP_RICH["source_excerpt"]]))
+
+    def test_fabricated_multiword_name_fails(self):
+        content = "This piece was created by Jane Smith Thompson in her studio."
+        self.assertFalse(check_grounding(content, ["By Michael Snape."]))
+
+    def test_comma_in_source_does_not_cause_a_false_positive(self):
+        # Prototype bug #1 (fixed): a phrase spanning a comma in the source
+        # ("Newtown, New South Wales") must still match content that states
+        # it without the comma.
+        content = "This is a church in Newtown New South Wales."
+        self.assertTrue(check_grounding(content, ["church in Newtown, New South Wales"]))
+
+    def test_sentence_boundary_does_not_merge_into_a_false_phrase(self):
+        # Prototype bug #1 (fixed): a period must break a capitalized run,
+        # so a new sentence's opener never merges with the real phrase
+        # before it into something that fails to match.
+        content = "Newtown Baptist Church is a church in Newtown, New South Wales. Pause here a moment."
+        self.assertTrue(check_grounding(content, ["church in Newtown, New South Wales", "Newtown Baptist Church"]))
+
+    def test_documented_gap_fabricated_relationship_with_no_new_entity_passes(self):
+        # KNOWN LIMITATION (Codex review 2026-10-18→20, confirmed with real
+        # counterexamples): this cheap check cannot catch a fabricated
+        # claim/relationship that introduces no new number or multi-word
+        # name. Pinned here deliberately - this is exactly why it's only a
+        # pre-filter, never the final gate (see check_grounding_semantic).
+        content = "This sculpture commemorates workers killed in a factory fire."
+        self.assertTrue(check_grounding(content, ["By Michael Snape."]))
+
+    def test_documented_gap_fabricated_relationship_reusing_real_name_passes(self):
+        content = "Michael Snape designed this church."
+        self.assertTrue(check_grounding(content, ["By Michael Snape."]))
+
+
+class TestMalformedProviderResponses(unittest.TestCase):
+    """Codex review 2026-10-21: the response-parsing code previously read
+    the top-level shape inside its try/except guard, but iterated items and
+    accessed per-item fields OUTSIDE it - a malformed individual entry
+    (null list, missing key, wrong type) raised an uncaught TypeError/
+    KeyError instead of the advertised AiSelectionError/excerpt fallback.
+    Reproduced directly before fixing; pinned here as regression tests."""
+
+    def setUp(self):
+        for name, value in (("get_api_key", "test-key"), ("get_model", "test-model")):
+            patcher = patch(f"ai.{name}", return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_content_generation_null_stops_list_raises_ai_selection_error(self):
+        mock_response = make_mock_response(make_openai_response({"stops": None}))
+        with patch("ai.requests.post", return_value=mock_response):
+            with self.assertRaises(AiSelectionError):
+                ai._call_content_generation([], "history")
+
+    def test_content_generation_entry_missing_content_is_skipped_not_a_crash(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"stops": [{"stop_id": "x"}]}  # no "content" key at all
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_content_generation([], "history")
+        self.assertEqual(result, {})  # skipped, not raised - caller's "missing" fallback applies
+
+    def test_content_generation_numeric_content_is_skipped_not_a_crash(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"stops": [{"stop_id": "x", "content": 123, "used_evidence_ids": []}]}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_content_generation([], "history")
+        self.assertEqual(result, {})
+
+    def test_content_generation_blank_content_is_skipped_not_treated_as_grounded(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"stops": [{"stop_id": "x", "content": "   ", "used_evidence_ids": []}]}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_content_generation([], "history")
+        self.assertEqual(result, {})
+
+    def test_content_generation_one_bad_entry_does_not_lose_a_valid_sibling(self):
+        mock_response = make_mock_response(make_openai_response({"stops": [
+            {"stop_id": "bad"},
+            {"stop_id": "good", "content": "Real content.", "used_evidence_ids": []},
+        ]}))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_content_generation([], "history")
+        self.assertEqual(set(result.keys()), {"good"})
+
+    def test_grounding_batch_null_items_list_raises_ai_selection_error(self):
+        mock_response = make_mock_response(make_openai_response({"items": None}))
+        with patch("ai.requests.post", return_value=mock_response):
+            with self.assertRaises(AiSelectionError):
+                ai._call_grounding_check_batch([("a", "content", ["evidence"])])
+
+    def test_grounding_batch_entry_missing_supported_is_skipped_not_a_crash(self):
+        mock_response = make_mock_response(make_openai_response({"items": [{"item_id": "a"}]}))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_grounding_check_batch([("a", "content", ["evidence"])])
+        self.assertEqual(result, {})
+
+    def test_corrupted_contextual_sources_file_degrades_to_no_sources(self):
+        # Direct unit coverage of the actual fix: load_contextual_sources()
+        # must degrade to [] for a corrupted file the same way it already
+        # does for a missing one, never raise - this is the fix itself, and
+        # it's also what every caller (get_contextual_sources(),
+        # generate_stop_content()) relies on to stay crash-free, since none
+        # of them separately guard against this exception class.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, "bad.json")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("{not valid json")
+            result = load_contextual_sources(path)
+        self.assertEqual(result, [])
+
+
+class TestCallGroundingCheckBatch(unittest.TestCase):
+    def setUp(self):
+        for name, value in (("get_api_key", "test-key"), ("get_model", "test-model")):
+            patcher = patch(f"ai.{name}", return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_per_item_verdicts_returned(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"items": [{"item_id": "a", "supported": True}, {"item_id": "b", "supported": False}]}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_grounding_check_batch([("a", "content a", ["evidence a"]), ("b", "content b", ["evidence b"])])
+        self.assertEqual(result, {"a": True, "b": False})
+
+    def test_each_item_evidence_sent_separately_not_pooled(self):
+        mock_response = make_mock_response(make_openai_response({"items": []}))
+        with patch("ai.requests.post", return_value=mock_response) as mock_post:
+            ai._call_grounding_check_batch([("a", "content a", ["evidence a"]), ("b", "content b", ["evidence b"])])
+        _, kwargs = mock_post.call_args
+        user_message = kwargs["json"]["messages"][1]["content"]
+        self.assertIn("evidence a", user_message)
+        self.assertIn("evidence b", user_message)
+
+    def test_http_failure_raises_ai_selection_error(self):
+        with patch("ai.requests.post", side_effect=requests.exceptions.ConnectionError("boom")):
+            with self.assertRaises(AiSelectionError):
+                ai._call_grounding_check_batch([("a", "content", ["evidence"])])
+
+    def test_check_grounding_semantic_wraps_batch_with_one_item(self):
+        mock_response = make_mock_response(make_openai_response(
+            {"items": [{"item_id": "item", "supported": True}]}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = check_grounding_semantic("some content", ["some evidence"])
+        self.assertTrue(result)
+
+    def test_check_grounding_semantic_catches_the_rule_based_gap(self):
+        # The exact counterexamples the cheap check misses - this is the
+        # real gate that must catch them.
+        mock_response = make_mock_response(make_openai_response(
+            {"items": [{"item_id": "item", "supported": False}]}
+        ))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = check_grounding_semantic(
+                "This sculpture commemorates workers killed in a factory fire.", ["By Michael Snape."]
+            )
+        self.assertFalse(result)
+
+
+class TestGenerateStopContent(unittest.TestCase):
+    """Orchestration tests - patch the two batched-call primitives directly
+    rather than raw HTTP, since generate_stop_content()'s own job is the
+    two-tier flow (cheap pre-filter -> real semantic gate -> fallback), not
+    HTTP handling (already covered by the lower-level tests above)."""
+
+    def _generated(self, content_by_id, used_evidence_ids=None):
+        return {
+            stop_id: {"content": content, "used_evidence_ids": (used_evidence_ids or {}).get(stop_id, [])}
+            for stop_id, content in content_by_id.items()
+        }
+
+    def test_grounded_content_is_used_with_own_attribution(self):
+        generated = self._generated({SAMPLE_STOP_RICH["id"]: "Newtown Railway Station reflects three phases of NSW railway development."})
+        with patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch", return_value={SAMPLE_STOP_RICH["id"]: True}):
+            results = generate_stop_content([SAMPLE_STOP_RICH], "history")
+        self.assertEqual(len(results), 1)
+        self.assertNotEqual(results[0]["content"], SAMPLE_STOP_RICH["source_excerpt"])
+        self.assertEqual(results[0]["attribution"], [{
+            "source_type": SAMPLE_STOP_RICH["source_type"],
+            "source_title": SAMPLE_STOP_RICH["source_title"],
+            "source_url": SAMPLE_STOP_RICH["source_url"],
+        }])
+
+    def test_semantic_check_rejection_falls_back_to_raw_excerpt(self):
+        generated = self._generated({SAMPLE_STOP_THIN["id"]: "This sculpture commemorates workers killed in a factory fire."})
+        with patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch", return_value={SAMPLE_STOP_THIN["id"]: False}):
+            results = generate_stop_content([SAMPLE_STOP_THIN], "public_art")
+        self.assertEqual(results[0]["content"], SAMPLE_STOP_THIN["source_excerpt"])
+        self.assertEqual(len(results[0]["attribution"]), 1)
+
+    def test_rule_based_prefilter_skips_the_semantic_call_entirely(self):
+        # A fabricated date is caught by the cheap check already - no need
+        # to spend the semantic call on content already known to be bad.
+        generated = self._generated({SAMPLE_STOP_RICH["id"]: "Newtown Railway Station was designed in 1887 by Walter Liberty Vernon."})
+        with patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch") as mock_semantic:
+            results = generate_stop_content([SAMPLE_STOP_RICH], "history")
+        mock_semantic.assert_not_called()
+        self.assertEqual(results[0]["content"], SAMPLE_STOP_RICH["source_excerpt"])
+
+    def test_whole_generation_call_failure_falls_every_stop_back(self):
+        with patch("ai._call_content_generation", side_effect=AiSelectionError("boom")):
+            results = generate_stop_content([SAMPLE_STOP_RICH, SAMPLE_STOP_THIN], "history")
+        self.assertEqual(results[0]["content"], SAMPLE_STOP_RICH["source_excerpt"])
+        self.assertEqual(results[1]["content"], SAMPLE_STOP_THIN["source_excerpt"])
+
+    def test_semantic_call_failure_falls_candidates_back_not_trusting_the_prefilter(self):
+        generated = self._generated({SAMPLE_STOP_RICH["id"]: "Newtown Railway Station reflects three phases of NSW railway development."})
+        with patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch", side_effect=AiSelectionError("boom")):
+            results = generate_stop_content([SAMPLE_STOP_RICH], "history")
+        self.assertEqual(results[0]["content"], SAMPLE_STOP_RICH["source_excerpt"])
+
+    def test_stop_missing_from_generation_response_falls_back(self):
+        with patch("ai._call_content_generation", return_value={}), \
+             patch("ai._call_grounding_check_batch") as mock_semantic:
+            results = generate_stop_content([SAMPLE_STOP_RICH], "history")
+        mock_semantic.assert_not_called()
+        self.assertEqual(results[0]["content"], SAMPLE_STOP_RICH["source_excerpt"])
+
+    def test_one_missing_stop_does_not_affect_the_other(self):
+        generated = self._generated({SAMPLE_STOP_RICH["id"]: "Newtown Railway Station reflects three phases of NSW railway development."})
+        with patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch", return_value={SAMPLE_STOP_RICH["id"]: True}):
+            results = generate_stop_content([SAMPLE_STOP_RICH, SAMPLE_STOP_THIN], "history")
+        by_id = {r["id"]: r for r in results}
+        self.assertNotEqual(by_id[SAMPLE_STOP_RICH["id"]]["content"], SAMPLE_STOP_RICH["source_excerpt"])
+        self.assertEqual(by_id[SAMPLE_STOP_THIN["id"]]["content"], SAMPLE_STOP_THIN["source_excerpt"])
+
+    def test_cross_stop_leakage_stop_a_never_grounded_against_stop_b_evidence(self):
+        # Hand-constructed: Stop A's "generated" content borrows a fact only
+        # true of Stop B's evidence - deliberately with no number or
+        # multi-word proper noun, so it passes the cheap pre-filter and
+        # actually reaches the layer under test (the semantic call's
+        # per-item evidence scoping), rather than getting caught a layer
+        # earlier for an unrelated reason.
+        stop_a = dict(SAMPLE_STOP_THIN, id="a", source_excerpt="By Michael Snape.")
+        stop_b = dict(SAMPLE_STOP_RICH, id="b")
+        generated = self._generated({
+            "a": "This piece reflects major phases of railway development.",
+            "b": "Newtown Railway Station reflects three phases of NSW railway development.",
+        })
+        # Confirm the premise: the cheap filter alone would wrongly pass
+        # Stop A's borrowed claim (no checkable token), which is exactly
+        # why the semantic layer - and its evidence scoping - matters here.
+        self.assertTrue(check_grounding(generated["a"]["content"], [stop_a["source_excerpt"]]))
+
+        captured_items = {}
+
+        def fake_semantic_batch(items):
+            # Record exactly what evidence each item was checked against.
+            for item_id, _content, evidence_texts in items:
+                captured_items[item_id] = evidence_texts
+            return {"a": False, "b": True}
+
+        # No Contextual Sources here - isolates the thing under test (stop-
+        # to-stop leakage) from the separate, legitimate mechanism of a
+        # Contextual Source being offered on purpose.
+        with patch("ai.load_contextual_sources", return_value=[]), \
+             patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch", side_effect=fake_semantic_batch):
+            results = generate_stop_content([stop_a, stop_b], "history")
+
+        # Stop A's evidence never contains text unique to Stop B's own
+        # excerpt ("booking office" appears only in SAMPLE_STOP_RICH's
+        # source_excerpt, nowhere in Stop A's).
+        self.assertNotIn("booking office", " ".join(captured_items["a"]).lower())
+        by_id = {r["id"]: r for r in results}
+        self.assertEqual(by_id["a"]["content"], "By Michael Snape.")  # fell back
+
+    def test_surprise_me_uses_each_stops_own_topics_for_contextual_lookup(self):
+        fake_sources = [{"id": "hist", "topics": ["history"], "source_type": "wikipedia",
+                          "source_title": "H", "source_url": "https://h", "text": "History text"}]
+        generated = self._generated({SAMPLE_STOP_RICH["id"]: "content"})
+        with patch("ai.load_contextual_sources", return_value=fake_sources), \
+             patch("ai._call_content_generation", return_value=generated) as mock_gen, \
+             patch("ai._call_grounding_check_batch", return_value={SAMPLE_STOP_RICH["id"]: True}):
+            generate_stop_content([SAMPLE_STOP_RICH], "surprise_me")
+        # The stop's own "history" topic should have surfaced the seed
+        # entry even though the route-level topic was surprise_me.
+        (stops_with_evidence, _topic), _kwargs = mock_gen.call_args
+        evidence = stops_with_evidence[0][1]
+        self.assertTrue(any(e.get("id") == "hist" for e in evidence))
+
+    def test_unmatched_topic_gets_no_contextual_source_not_an_error(self):
+        generated = self._generated({SAMPLE_STOP_THIN["id"]: "By Michael Snape."})
+        with patch("ai.load_contextual_sources", return_value=[]), \
+             patch("ai._call_content_generation", return_value=generated) as mock_gen, \
+             patch("ai._call_grounding_check_batch", return_value={SAMPLE_STOP_THIN["id"]: True}):
+            generate_stop_content([SAMPLE_STOP_THIN], "public_art")
+        (stops_with_evidence, _topic), _kwargs = mock_gen.call_args
+        evidence = stops_with_evidence[0][1]
+        self.assertEqual(len(evidence), 1)  # own source only
+
+    def test_attribution_reflects_declared_used_sources_not_every_offered_one(self):
+        # Codex review 2026-10-20: a stop must not get credited with a
+        # Contextual Source it was merely offered but never declared using.
+        fake_sources = [{"id": "hist", "topics": ["history"], "source_type": "wikipedia",
+                          "source_title": "H", "source_url": "https://h", "text": "History text"}]
+        generated = self._generated(
+            {SAMPLE_STOP_RICH["id"]: "Newtown Railway Station reflects three phases of NSW railway development."},
+            used_evidence_ids={SAMPLE_STOP_RICH["id"]: ["own"]},  # explicitly did NOT use "hist"
+        )
+        with patch("ai.load_contextual_sources", return_value=fake_sources), \
+             patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch", return_value={SAMPLE_STOP_RICH["id"]: True}):
+            results = generate_stop_content([SAMPLE_STOP_RICH], "history")
+        self.assertEqual(len(results[0]["attribution"]), 1)
+        self.assertEqual(results[0]["attribution"][0]["source_url"], SAMPLE_STOP_RICH["source_url"])
+
+    def test_declared_source_id_never_offered_is_ignored(self):
+        generated = self._generated(
+            {SAMPLE_STOP_THIN["id"]: "By Michael Snape."},
+            used_evidence_ids={SAMPLE_STOP_THIN["id"]: ["own", "made_up_id_never_offered"]},
+        )
+        with patch("ai.load_contextual_sources", return_value=[]), \
+             patch("ai._call_content_generation", return_value=generated), \
+             patch("ai._call_grounding_check_batch", return_value={SAMPLE_STOP_THIN["id"]: True}):
+            results = generate_stop_content([SAMPLE_STOP_THIN], "public_art")
+        self.assertEqual(len(results[0]["attribution"]), 1)  # the bogus id never added a second entry
 
 
 if __name__ == "__main__":
