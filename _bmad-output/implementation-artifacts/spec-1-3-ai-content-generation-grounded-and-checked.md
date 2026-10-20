@@ -2,7 +2,7 @@
 title: 'AI content generation, grounded and checked'
 type: 'feature'
 created: '2026-10-20'
-status: 'review'
+status: 'done'
 route: 'dispatch'
 review_loop_iteration: 3
 context: []
