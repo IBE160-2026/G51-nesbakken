@@ -2,7 +2,7 @@
 title: 'Catalogue topic coverage for History and Architecture'
 type: 'feature'
 created: '2026-10-20'
-status: 'review'
+status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
 context: []
