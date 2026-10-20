@@ -297,8 +297,10 @@ class TestMainAbortsOnMissingApprovedIds(unittest.TestCase):
 
     def test_no_missing_ids_proceeds_to_save(self):
         fake_record = {"id": "heritage/1", "status": "ready", "rejection_reason": None}
+        all_ids = import_heritage.APPROVED_STATE_HOITEMIDS + import_heritage.APPROVED_LOCAL_HERITAGE_ITEM_IDS
+        full_overrides = {str(hid): {"topics": []} for hid in all_ids}
         with patch("import_heritage.load_seed", return_value={}), \
-             patch("import_heritage.load_topic_overrides", return_value={}), \
+             patch("import_heritage.load_topic_overrides", return_value=full_overrides), \
              patch("import_heritage.build_state_records", return_value=([fake_record], set())), \
              patch("import_heritage.build_local_records", return_value=([], set())), \
              patch("import_heritage.load_existing", return_value={}), \
@@ -307,6 +309,40 @@ class TestMainAbortsOnMissingApprovedIds(unittest.TestCase):
             import_heritage.main()
 
         mock_save.assert_called_once()
+
+    def test_missing_topic_override_aborts_without_saving(self):
+        """Story 1.2 hardening (Codex review 2026-10-20): a missing/incomplete
+        override file must never silently report a successful import while
+        erasing topic coverage back to empty - it must abort the same way a
+        missing ArcGIS id already does."""
+        with patch("import_heritage.load_seed", return_value={}), \
+             patch("import_heritage.load_topic_overrides", return_value={}), \
+             patch("import_heritage.build_state_records") as mock_state, \
+             patch("import_heritage.build_local_records") as mock_local, \
+             patch("import_heritage.save_records") as mock_save, \
+             patch("import_heritage.mark_duplicates") as mock_dedup:
+            with self.assertRaises(SystemExit):
+                import_heritage.main()
+
+        mock_save.assert_not_called()
+        mock_dedup.assert_not_called()
+        # Aborts before even querying ArcGIS - fail fast, don't waste a
+        # network round-trip on a request that can't be saved anyway.
+        mock_state.assert_not_called()
+        mock_local.assert_not_called()
+
+    def test_partial_topic_overrides_also_aborts(self):
+        all_ids = import_heritage.APPROVED_STATE_HOITEMIDS + import_heritage.APPROVED_LOCAL_HERITAGE_ITEM_IDS
+        partial_overrides = {str(hid): {"topics": []} for hid in all_ids[:-1]}  # missing the last one
+        with patch("import_heritage.load_seed", return_value={}), \
+             patch("import_heritage.load_topic_overrides", return_value=partial_overrides), \
+             patch("import_heritage.build_state_records") as mock_state, \
+             patch("import_heritage.save_records") as mock_save:
+            with self.assertRaises(SystemExit):
+                import_heritage.main()
+
+        mock_save.assert_not_called()
+        mock_state.assert_not_called()
 
 
 class TestLoadSeedAndEndToEnd(unittest.TestCase):

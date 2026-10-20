@@ -257,6 +257,20 @@ def main():
     topic_overrides = load_topic_overrides()
     print(f"Loaded {TOPIC_OVERRIDES_PATH}: {len(topic_overrides)} topic override entries.")
 
+    all_approved_ids = set(APPROVED_STATE_HOITEMIDS) | set(APPROVED_LOCAL_HERITAGE_ITEM_IDS)
+    missing_overrides = {hid for hid in all_approved_ids if str(hid) not in topic_overrides}
+    if missing_overrides:
+        print(
+            f"\nAborting: {TOPIC_OVERRIDES_PATH} is missing an entry for "
+            f"{len(missing_overrides)} approved heritage id(s). A rerun with the "
+            "override file absent or incomplete would otherwise silently report "
+            "a successful import while erasing History/Architecture coverage back "
+            "to empty topics (Story 1.2's own fix). Not saving data/sydney_places.json."
+        )
+        for hid in sorted(missing_overrides):
+            print(f"  missing topic override for heritage id {hid}")
+        raise SystemExit(1)
+
     print("Querying the State Heritage Register layer for the approved items...")
     state_records, missing_state = build_state_records(seed, topic_overrides)
 
