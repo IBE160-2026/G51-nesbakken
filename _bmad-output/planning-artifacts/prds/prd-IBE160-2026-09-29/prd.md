@@ -245,6 +245,7 @@ User's Visit History — tracking each Stop's Engagement State (Proposed / Opene
 - No account creation or login is required to use Favourites or Visit History.
 - The four Engagement States (Glossary) are stored distinctly, not collapsed into a single "seen" flag.
 - **Open:** retention/reset behaviour (does history ever expire, can a user clear it) is undecided — see Open Question 7.
+- **Added 2026-10-20 (user's explicit instruction):** a Stop can also be explicitly marked "not interested" by the user, independent of its Engagement State and Favourite status — a third independent signal alongside `state` and `favourited`, never merged into either. This is distinct from ordinary visiting: completing a Stop alone never sets it, only a deliberate user action does.
 
 #### FR-18: Repeat-use route variety
 Future Route generation varies Stop selection based on Engagement State, weighted by how strongly each state indicates the user already experienced the Stop, while still allowing Favourites to resurface. Realises UJ-1.
@@ -254,6 +255,7 @@ Future Route generation varies Stop selection based on Engagement State, weighte
 - A Favourite is not excluded by the deprioritization rule, regardless of its other Engagement State.
 - **Clarified 2026-10-18:** "not excluded" means eligible to resurface, not boosted above genuinely new options. A Stop with no prior engagement at all is still generally preferred over a resurfacing Favourite when both are real candidates for the same Route — Favourite status cancels the Visited/Opened deprioritization penalty, it does not add a preference of its own on top.
 - **Open:** the exact weighting between Engagement States is a tuning/design detail, not fixed by this PRD — see Open Question 9.
+- **Added 2026-10-20 (user's explicit instruction):** a Stop marked "not interested" (FR-17) is excluded entirely from all future Route generation, in any Topic, not merely deprioritized — the one *hard* exclusion this FR defines, distinct from every other signal above, which is soft. The exclusion does not expire and persists across Topics and trips. User's own words: "if a stop is genuinely not wanted as it is boring or whatever and they have visited it, we should have a way to reject it forever."
 
 ### 4.5 Trustworthy, Source-Grounded AI Content
 **Description:** Cross-cutting — applies to every Stop's content (FR-7, FR-12) and the walk summary (FR-16). This is the product's core differentiator and the most direct expression of the course's "must actually use AI" requirement, and it is already the operating principle behind the existing Planner/AI split (AI never does routing arithmetic; Python is the source of truth for feasibility).

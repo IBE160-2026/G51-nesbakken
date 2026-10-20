@@ -926,15 +926,19 @@ So that future Jaunts can recognize places I've already experienced.
 
 **Given** any of this activity, or a Favourite tap
 **When** it happens
-**Then** it is written to the separate `localStorage` key from the active trip (architecture AD-6) immediately, as the interaction happens - not batched or deferred to when the walk ends. Revised 2026-10-18: an earlier draft of this story said "when the walk ends," which contradicted the two ACs above (live updates) and would also lose history if the browser closed mid-walk. The schema is exactly `{id, state, favourited}`, the three ordinal Engagement States stored distinctly, never collapsed into one "seen" flag (FR-17)
+**Then** it is written to the separate `localStorage` key from the active trip (architecture AD-6) immediately, as the interaction happens - not batched or deferred to when the walk ends. Revised 2026-10-18: an earlier draft of this story said "when the walk ends," which contradicted the two ACs above (live updates) and would also lose history if the browser closed mid-walk. The schema is exactly `{id, state, favourited, rejected}` (added 2026-10-20: `rejected`, see below), the three ordinal Engagement States stored distinctly, never collapsed into one "seen" flag (FR-17)
 
 **Given** no account exists
 **When** any of this happens
 **Then** no login or account creation is ever required to use Favourites or Visit History (FR-17)
 
+**Given** a Stop the user genuinely isn't interested in - not merely one they've visited (added 2026-10-20, user's explicit instruction)
+**When** they take a dedicated "not interested" action on it (distinct from marking Visited or Favouriting - the exact control/placement is this story's own decision to make, not specified here)
+**Then** `rejected` is set `true` for that Stop's `id`, and from then on `planner.py` filters it out of the candidate shortlist entirely before `ai.py` ever sees it (architecture AD-6) - a hard exclusion in every future Route regardless of Topic, never a soft weighting like the other signals above, and never expiring
+
 **Given** this story is built
 **When** retention/reset behaviour is decided
-**Then** whether history ever expires and whether a user-facing clear control exists is explicitly decided and documented - PRD Open Question 7 is genuinely open, not assumed either way
+**Then** whether history ever expires and whether a user-facing clear control exists is explicitly decided and documented - PRD Open Question 7 is genuinely open, not assumed either way. If a clear/reset control is built, it should state plainly whether it also clears `rejected` Stops, since that reset is more consequential (bringing back something the user explicitly said they didn't want) than clearing ordinary visit history
 
 ### Story 3.4: Repeat-use route variety (Should)
 
