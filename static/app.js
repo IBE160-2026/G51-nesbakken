@@ -179,52 +179,72 @@ function emptyFeatureCollection() {
   return { type: "FeatureCollection", features: [] };
 }
 
-// User feedback 2026-10-21 (first pass: too abstract; second pass: "railway
-// should be train, church a church, house or bar a beer" - real, specific
-// place types, not just the 3 broad topics). Checked against the real
-// catalogue: "Church" (5+ stops), "Railway Station" (2), "Hotel" (6+ - in
-// Australia this almost always means a pub, matching the user's own "bar a
-// beer" example), "House"/"Villa" (several) - real, strong name signal to
-// key off, no backend change needed. Literal small silhouettes, reusing
-// the exact wall/roof colors already approved in the hillside scene
-// (splash/loading screens) rather than inventing new hues. Self-colored
-// (not parameterized) - the same markup works unchanged on the map and in
-// the stop list.
+// User feedback 2026-10-21 (three passes: too abstract -> "railway should
+// be train, church a church, house or bar a beer, post office an envelope"
+// (place type, explicitly NOT topic) -> "more colours than green on all the
+// icons". Checked against the real catalogue for both keyword coverage and
+// color: "Church" (5+ stops), "Railway Station" (2), "Hotel" (6+ - in
+// Australia this almost always means a pub), "Post Office"/"Town Hall" (2
+// each), "House"/"Villa" (several) - real, strong name signal to key off,
+// no backend change needed. Every icon now uses DESIGN.md's real non-green
+// tokens (building-light/-dark, road-main, water) as its dominant body
+// color, with forest green kept only as one accent among several - not
+// invented hues, the same approved palette the hillside scene already uses,
+// just the tones that scene never needed before now. Self-colored (not
+// parameterized) - the same markup works unchanged on the map and in the
+// stop list.
 const ICON_SVG = {
   house:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
-    '<rect x="5" y="12" width="14" height="10" fill="#DCE6D0"/>' +
+    '<rect x="5" y="12" width="14" height="10" fill="#C7C4B6"/>' +
     '<polygon points="12,3 3,12 21,12" fill="#1E4A3A"/>' +
-    '<rect x="10" y="15" width="4" height="7" fill="#5C7A52"/>' +
-    '<rect x="15" y="14" width="3" height="3" fill="#5C7A52"/>' +
+    '<rect x="10" y="15" width="4" height="7" fill="#E3DED0"/>' +
+    '<rect x="15" y="14" width="3" height="3" fill="#BDBAAC"/>' +
     "</svg>",
   church:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
-    '<rect x="6" y="13" width="12" height="9" fill="#DCE6D0"/>' +
-    '<polygon points="12,2 5,13 19,13" fill="#1E4A3A"/>' +
-    '<rect x="10.5" y="9" width="3" height="4" fill="#1E4A3A"/>' +
-    '<rect x="10" y="16" width="4" height="6" fill="#5C7A52"/>' +
+    '<rect x="11.3" y="1" width="1.4" height="6" fill="#1E4A3A"/>' +
+    '<rect x="9.3" y="3" width="5.4" height="1.4" fill="#1E4A3A"/>' +
+    '<polygon points="12,6 7,13 17,13" fill="#1E4A3A"/>' +
+    '<rect x="8" y="13" width="8" height="9" fill="#C7C4B6"/>' +
+    '<rect x="10.5" y="16" width="3" height="6" rx="1.5" fill="#BDBAAC"/>' +
     "</svg>",
   train:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
-    '<rect x="4" y="7" width="16" height="11" rx="2" fill="#DCE6D0"/>' +
+    '<rect x="4" y="7" width="16" height="11" rx="2" fill="#C7C4B6"/>' +
     '<rect x="4" y="7" width="16" height="4" fill="#1E4A3A"/>' +
-    '<rect x="7" y="12" width="4" height="4" fill="#1E4A3A"/>' +
-    '<rect x="13" y="12" width="4" height="4" fill="#1E4A3A"/>' +
-    '<circle cx="8" cy="19" r="1.6" fill="#1E4A3A"/>' +
-    '<circle cx="16" cy="19" r="1.6" fill="#1E4A3A"/>' +
+    '<rect x="7" y="12" width="4" height="4" fill="#A6C2C6"/>' +
+    '<rect x="13" y="12" width="4" height="4" fill="#A6C2C6"/>' +
+    '<circle cx="8" cy="19" r="1.6" fill="#BDBAAC"/>' +
+    '<circle cx="16" cy="19" r="1.6" fill="#BDBAAC"/>' +
     "</svg>",
   beer:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
-    '<rect x="5" y="7" width="11" height="14" rx="1.5" fill="#DCE6D0"/>' +
-    '<rect x="5" y="7" width="11" height="3.5" fill="#D9C9A3"/>' +
-    '<path d="M16,10 h2.5 a2.5,2.5 0 0 1 0,6 h-2.5 z" fill="#DCE6D0"/>' +
+    '<rect x="5" y="7" width="11" height="14" rx="1.5" fill="#A6C2C6"/>' +
+    '<rect x="5" y="7" width="11" height="3.5" fill="#E3DED0"/>' +
+    '<path d="M16,10 h2.5 a2.5,2.5 0 0 1 0,6 h-2.5 z" fill="#A6C2C6"/>' +
+    "</svg>",
+  post_office:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect x="4" y="7" width="16" height="12" rx="1" fill="#C7C4B6"/>' +
+    '<polygon points="4,7 12,14.5 20,7" fill="#1E4A3A"/>' +
+    '<rect x="15.5" y="9" width="3" height="3" fill="#E3DED0"/>' +
+    "</svg>",
+  town_hall:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<polygon points="12,4 3,11 21,11" fill="#1E4A3A"/>' +
+    '<rect x="4" y="11" width="16" height="2" fill="#BDBAAC"/>' +
+    '<rect x="5.5" y="13" width="2" height="7" fill="#C7C4B6"/>' +
+    '<rect x="10" y="13" width="2" height="7" fill="#C7C4B6"/>' +
+    '<rect x="14" y="13" width="2" height="7" fill="#C7C4B6"/>' +
+    '<rect x="18.5" y="13" width="2" height="7" fill="#C7C4B6"/>' +
+    '<rect x="3" y="20" width="18" height="2" fill="#E3DED0"/>' +
     "</svg>",
   public_art:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
     '<circle cx="8" cy="9" r="4" fill="#1E4A3A"/>' +
-    '<circle cx="16" cy="9" r="4" fill="#AFC29A"/>' +
-    '<circle cx="12" cy="16" r="4" fill="#93AE80"/>' +
+    '<circle cx="16" cy="9" r="4" fill="#A6C2C6"/>' +
+    '<circle cx="12" cy="16" r="4" fill="#E3DED0"/>' +
     "</svg>",
 };
 const DEFAULT_ICON = "church";
@@ -234,11 +254,16 @@ const DEFAULT_ICON = "church";
 const TOPIC_FALLBACK_ICON = { architecture: "house", history: "church", public_art: "public_art" };
 // Order matters: checked top to bottom, first match wins. Deliberately
 // narrow, real keywords from the actual catalogue - not a guess at every
-// possible OSM place type.
+// possible OSM place type. "Place type, not topic" (user's own words,
+// 2026-10-21) - this is why "Bank Hotel" matches hotel/beer before
+// reaching any generic fallback, and why post office/town hall get their
+// own real icons instead of folding into the architecture/house default.
 const NAME_ICON_PATTERNS = [
   [/church|chapel|cathedral/i, "church"],
   [/railway|station/i, "train"],
   [/hotel/i, "beer"],
+  [/post office/i, "post_office"],
+  [/town hall/i, "town_hall"],
   [/\bhouse\b|villa|manor/i, "house"],
 ];
 

@@ -317,22 +317,43 @@ input:focus-visible,
 /* head-only crop, 30px - the live-position marker during a walk (DESIGN.md,
    epics.md FR-14), also reused for the Trip Setup starting-point marker per
    the user's explicit choice (2026-10-21) - ported from mockups/flow-03-walk.html */
+/* User feedback 2026-10-21: the previous crop (ported from an old mockup)
+   looked "messed up" when circle-clipped. Re-derived from scratch this time
+   - read the real sprite sheet directly (1536x1024, confirmed via Pillow),
+   scanned its alpha channel for the actual head/body gap (row 149 in the
+   plain-walk pose) rather than reusing someone else's old numbers, and
+   visually verified the resulting crop (316,68)-(398,149) is a clean,
+   complete circle with zero neck/body bleed before computing these values. */
+/* User feedback 2026-10-21 (next round): still read as "a green blob" even
+   though the crop itself was already correct. Root cause found via the real
+   PNG's alpha channel: the file ("eyes-transparent") cuts Jarrod's eyes as
+   genuine alpha-zero holes, not painted white shapes - they were designed to
+   let a light page background show through. Filling .start-marker-ring with
+   solid forest green (the *previous* round's fix, below) means those holes
+   now reveal green instead, erasing the eyes. Giving the head's own circle a
+   cream backing restores the eyes regardless of the ring color behind it. */
 .jaunty-head-marker {
   width: 30px;
-  height: 26.09px;
-  background-size: 500.87px 333.91px;
-  background-position: -101.41px -21.52px;
+  height: 29.63px;
+  background-size: 561.95px 374.63px;
+  background-position: -115.61px -24.88px;
+  background-color: var(--cream);
+  border-radius: 50%;
 }
 /* User feedback 2026-10-21: round pin, not the head crop's own natural
    rectangle - a fixed-size circular "plate" behind/around the real,
    undistorted crop (centered via flex), not a stretch/distort of the art. */
+/* User feedback 2026-10-21 (next round): sizing this plate larger than the
+   head (34px vs 30px) left a visible ring-within-a-ring once the head got
+   its own cream backing - a cream sliver, then a green ring outside it. The
+   user wants one plain circle, not two concentric ones. Matching this
+   plate's size to the head crop exactly removes the gap, so only the head's
+   own circle (cream-backed, forest-green art, eyes visible) shows at all -
+   this element's own background/size become invisible, fully covered. */
 .start-marker-ring {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 29.63px;
   border-radius: 50%;
-  /* User feedback 2026-10-21: white looked like "a weird white border
-     around Jarrod's head" - forest green fills the transparent gap
-     between the head crop's real silhouette and its bounding box. */
   background: var(--forest);
   box-shadow: 0 2px 6px rgba(22, 48, 42, 0.3);
   display: flex;
