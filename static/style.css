@@ -34,10 +34,14 @@ html, body {
 }
 
 /* ===================== LAUNCH SPLASH =====================
-   Ported verbatim from mockups/flow-01-setup.html's Screen 1 - same CSS,
-   same timings (3.2s reveal, 4.8s idle loop), same crops. Highest z-index
-   in the app: covers the map stage and every setup screen until app.js
-   dismisses it (once per session, auto-advance or tap/key to skip). */
+   Originally ported verbatim from mockups/flow-01-setup.html's Screen 1,
+   including a separate full-logo-reveal phase and a 4.8s idle loop. User
+   feedback 2026-10-21 removed the reveal phase entirely (straight to the
+   scene+wordmark loop) and shortened auto-advance to 2.6s (app.js's
+   SPLASH_AUTO_ADVANCE_MS) - this comment now describes the current shape,
+   not the original mockup. Highest z-index in the app: covers the map
+   stage and every setup screen until app.js dismisses it (once per
+   session, auto-advance or tap/key to skip). */
 #screen-splash {
   position: fixed;
   inset: 0;
@@ -1178,9 +1182,12 @@ input:focus-visible,
   flex-direction: column;
   gap: 4px;
 }
+/* bmad-code-review 2026-10-21: --ink-faint on this white sheet measures
+   3.20:1 - the exact failure already found and fixed for .dismiss-link/
+   .text-link in this same diff, just missed on this sibling element. */
 .stop-attribution-list li {
   font-size: 11px;
-  color: var(--ink-faint);
+  color: var(--ink-soft);
   font-weight: 600;
 }
 .stop-attribution-list a {

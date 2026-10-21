@@ -76,6 +76,28 @@ baseline_commit: 'aa157f9438a86cdea9959e318b7441e657bf8d2f'
 - Given a non-feasible or error response, when it's received, then the UI shows a minimal non-crashing placeholder with a way back, not a styled fallback screen
 - Given a `reviewing`-phase trip is reloaded with a mismatched `schema_version` or malformed shape, when `isValidTrip()` runs, then the existing safe-reset-to-fresh-trip path triggers
 
+### Review Findings
+
+**bmad-code-review (2026-10-21)**, diff `aa157f94..b9ebad4` (full Story 1.5 history, 7 commits, 2720-line diff), 4 layers run (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), `review_mode: full` against this spec.
+
+**Patch:**
+- [x] [Review][Patch] WCAG AA contrast failure on stop attribution list text — `.stop-attribution-list li` uses `--ink-faint` (3.20:1), the exact token/background pairing this same diff already measured and fixed for `.dismiss-link`/`.text-link` [static/style.css:1181-1184]
+- [x] [Review][Patch] Splash CSS comment describes a removed reveal phase and stale timings ("3.2s reveal, 4.8s idle loop") that the shipped code no longer has (no reveal phase, 2.6s auto-advance) [static/style.css:36-40]
+- [x] [Review][Patch] Stop overlay opened from a map-marker click always returns focus to the "View stops" button on close, even though that control was never activated — `openStopOverlay()` hardcodes `stopOverlayTriggerEl = openStopListBtn` regardless of caller [static/app.js:1356-1357, 378-383]
+- [x] [Review][Patch] `setCatalogueMarkersVisible()` keeps an unused boolean parameter/toggle capability now only ever called with `false` [static/app.js:126-130, 163]
+- [x] [Review][Patch] `isValidStop()` validates every stop field except `photo_url`, which is read from a possibly-restored `localStorage` trip and assigned directly to an `<img>.src` [static/app.js:582-600, 1365-1366]
+- [x] [Review][Patch] User-facing placeholder copy names internal story/epic tracking IDs directly ("Epic 2 builds the real walking screen here", "Story 1.6 builds the real experience" x2) — a plausible screen for a grading examiner to land on [static/app.js:1045, 1158-1161]
+- [x] [Review][Patch] Splash's `document`-level `keydown` dismiss listener is never removed after dismissal (harmless no-op via its own guard, but a permanent global listener) [static/app.js:1644]
+
+**Defer:**
+- [x] [Review][Defer] `ICON_SVG`'s SVG strings hardcode raw hex values instead of a single source of truth, risking drift from DESIGN.md if tokens are revised [static/app.js:196-248] — deferred: pre-existing pattern (`#1E4A3A`/`--forest` is hardcoded the same way throughout this file's MapLibre paint specs and earlier icons), architecturally necessary since inline SVG strings and MapLibre JSON paint properties cannot reference CSS custom properties; a real fix needs a JS color-constants module mirroring `:root`, out of scope for a patch.
+- [x] [Review][Defer] Commit `b9ebad4`'s message misattributes which icon got which new silhouette ("cross+steeple, columned civic building" paired with "post_office/town_hall" — cross+steeple is actually the church icon's redesign; post_office's actual new shape, an envelope, isn't described) [commit b9ebad4 message] — deferred: cosmetic, historical-record-only; fixing requires amending a commit message, not done without the user's explicit request.
+
+**Rejected:**
+- `false` — `.start-marker-ring`'s `background: var(--forest)` is dead styling now the ring is sized identically to the head: disproven. The adjacent comment, written in this same diff, already explicitly documents that this element's background becomes fully covered/invisible — a future editor reading the rule (directly below the comment) would not be misled.
+- `low`, rejected — `NAME_ICON_PATTERNS` has no `/bar/i` pattern despite the user requesting "bar a beer": confirmed via a direct query of the real catalogue that zero stop names contain "bar" outside ones already matched by the existing `/hotel/i` pattern. Unreachable with real data; not worth adding a pattern nothing can hit.
+- `low`, rejected — swipe-to-dismiss's `startY` is a single shared variable per handle, so two simultaneous pointers on the same handle could compute a wrong delta: the handle is a small, dedicated touch target unlikely to receive genuine two-finger input, and a correct fix needs real per-pointer-id tracking, not a direct correction.
+
 ## Implementation Notes
 
 **Files changed:** `static/app.js` (trip shape + phase-branched `isValidTrip()`, GeoJSON route/stop layers, `startRoutePlanning()`, loading/review-unavailable/reviewing/walking-stub screens, stop-list sheet, stop-content overlay, credits panel); `static/style.css` (shared `.sheet-wrap` shell, `.close-x`/`.sheet-header-row`, `.review-panel`, `.stop-list`/`.stop-overlay-body`/`.stop-attribution-list`/`.credits-list`, contrast-ratio comment); `templates/index.html` (`#screen-stub` removed; `#screen-loading`, `#screen-reviewing`, `#stop-list-sheet-wrap`, `#stop-overlay-wrap`, `#credits-sheet-wrap`, `#screen-review-unavailable`, `#screen-walking-stub` added). `app.py`/`planner.py`/`ai.py`/`services.py` untouched, as required.

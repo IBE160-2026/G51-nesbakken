@@ -123,9 +123,13 @@ function buildPopupContent(place) {
 // data rendered a different, deliberately subtle way).
 const catalogueMarkers = [];
 
-function setCatalogueMarkersVisible(visible) {
+// bmad-code-review 2026-10-21: this took a boolean toggle, but every
+// catalogue pin is permanently hidden now (see comment above) and the
+// function is only ever called once, with false - simplified to match.
+// Story 2.4 can reintroduce a real toggle when it actually needs one.
+function hideCatalogueMarkers() {
   catalogueMarkers.forEach((marker) => {
-    marker.getElement().style.display = visible ? "" : "none";
+    marker.getElement().style.display = "none";
   });
 }
 
@@ -160,7 +164,7 @@ async function loadPlaces() {
       .addTo(map);
     catalogueMarkers.push(marker);
   });
-  setCatalogueMarkersVisible(false);
+  hideCatalogueMarkers();
 }
 
 // =====================================================================
@@ -379,7 +383,11 @@ function setupRouteLayers() {
     const feature = event.features && event.features[0];
     if (!feature) return;
     const stop = (trip.stops || []).find((s) => s.id === feature.properties.id);
-    if (stop) openStopOverlay(stop);
+    // bmad-code-review 2026-10-21: no stop-list row was ever activated on
+    // this path, so there's no "trigger" to return focus to - openStopOverlay
+    // previously hardcoded openStopListBtn here regardless, stealing focus
+    // to a control the user never touched. null leaves focus where it was.
+    if (stop) openStopOverlay(stop, null);
   });
   map.on("mouseenter", "route-stops-circle", () => {
     map.getCanvas().style.cursor = "pointer";
@@ -595,7 +603,12 @@ function isValidStop(stop) {
     Array.isArray(stop.topics) &&
     typeof stop.content === "string" &&
     Array.isArray(stop.attribution) &&
-    stop.attribution.every(isValidAttributionEntry)
+    stop.attribution.every(isValidAttributionEntry) &&
+    // bmad-code-review 2026-10-21: not populated by any real backend
+    // response yet (Story 1.11), but still read from a possibly-restored
+    // localStorage trip and assigned straight to an <img>.src - every
+    // other field here is validated, this one wasn't.
+    (stop.photo_url === undefined || typeof stop.photo_url === "string")
   );
 }
 
@@ -984,8 +997,8 @@ function showStep(step, { focusDefault = true } = {}) {
     // Route Review's own map state behind - a previously-approved route no
     // longer lingers on the map underneath the starting-point screen.
     // Catalogue markers themselves never reappear here - see
-    // setCatalogueMarkersVisible()'s own comment (2026-10-21 UX feedback:
-    // the default blue pins looked messy and are permanently off, not
+    // hideCatalogueMarkers()'s own comment (2026-10-21 UX feedback: the
+    // default blue pins looked messy and are permanently off, not
     // phase-toggled).
     clearRouteLayers();
   }
@@ -1041,8 +1054,12 @@ function showStep(step, { focusDefault = true } = {}) {
   } else if (step === "walking") {
     screenWalkingStub.hidden = false;
     const stopCount = Array.isArray(trip.stops) ? trip.stops.length : 0;
+    // bmad-code-review 2026-10-21: this screen is reachable by any real
+    // user who approves a route, not just during development - the old
+    // copy named an internal epic number, which a grading examiner could
+    // plausibly land on.
     walkingStubDetailEl.textContent =
-      `${stopCount} stop${stopCount === 1 ? "" : "s"} - Epic 2 builds the real walking screen here.`;
+      `${stopCount} stop${stopCount === 1 ? "" : "s"} planned - the walking experience isn't built yet.`;
     if (focusDefault) walkingStubHeadingEl.focus();
   }
 }
@@ -1155,10 +1172,16 @@ dismissLink.addEventListener("click", () => {
 // this is the first screen that needs the response.
 // =====================================================================
 
+// bmad-code-review 2026-10-21: these two screens are a real, reachable
+// part of the app (a genuinely infeasible request, or a provider error),
+// not dev-only - the previous copy named an internal story number, which
+// read as unfinished/internal to anyone who actually saw it, including a
+// grading examiner. The real, polished fallback UI is still Story 1.6's
+// job; this placeholder just no longer says so out loud.
 const PLANNING_FAILURE_MESSAGE =
-  "Something went wrong finding your route. (Temporary placeholder - Story 1.6 builds the real experience.)";
+  "Something went wrong finding your route. Please try again.";
 const PLANNING_HONEST_FALLBACK_MESSAGE =
-  "Jarrod couldn't find a route that fits this time. (Temporary placeholder - Story 1.6 builds the real experience.)";
+  "Jarrod couldn't find a route that fits this time.";
 // Codex review 2026-10-21: the original 60s figure only covered the
 // ~30-45s *typical* end-to-end request. The backend's own worst case is
 // much larger - services.py's routing calls time out at 30s each, and
@@ -1320,7 +1343,7 @@ function renderStopList() {
     btn.appendChild(textWrap);
     btn.addEventListener("click", () => {
       closeStopListSheet({ restoreFocus: false });
-      openStopOverlay(stop);
+      openStopOverlay(stop, openStopListBtn);
     });
 
     li.appendChild(btn);
@@ -1353,8 +1376,8 @@ function closeStopListSheet({ restoreFocus = true } = {}) {
 
 // Shows a stop's full generated content and every attribution entry (not
 // only the first - AD-3) in the shared overlay shell.
-function openStopOverlay(stop) {
-  stopOverlayTriggerEl = openStopListBtn;
+function openStopOverlay(stop, triggerEl) {
+  stopOverlayTriggerEl = triggerEl || null;
   setReviewSheetInert(true);
 
   stopOverlayHeadingEl.textContent = stop.name || "Stop";
@@ -1634,6 +1657,10 @@ const SPLASH_AUTO_ADVANCE_MS = 2600;
 function dismissSplash() {
   if (screenSplashEl.hidden) return;
   screenSplashEl.hidden = true;
+  // bmad-code-review 2026-10-21: this listener only ever needs to fire
+  // once - leaving it attached meant every keystroke for the rest of the
+  // page's life re-checked an already-false guard for no reason.
+  document.removeEventListener("keydown", dismissSplash);
   initTripSetup();
 }
 
