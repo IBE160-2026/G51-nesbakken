@@ -62,10 +62,18 @@ instructionsEl.textContent = "Tap the map to choose your starting point";
 // live-position marker during a walk), not a plain colored dot - and
 // definitely not red, which was never anyone's choice, just a Sprint-2
 // placeholder that stuck around.
+// User feedback 2026-10-21: the head crop's natural rectangle (30x26.09,
+// the real alpha-channel gap between head and torso - not re-derived) read
+// as "cut strangely" once it was no longer a round pin. Wrapping it in a
+// circular-clipped ring keeps the real, undistorted crop but gives it back
+// the round pin shape.
 function buildStartMarkerElement() {
-  const el = document.createElement("div");
-  el.className = "jaunty jaunty-head-marker";
-  return el;
+  const ring = document.createElement("div");
+  ring.className = "start-marker-ring";
+  const head = document.createElement("div");
+  head.className = "jaunty jaunty-head-marker";
+  ring.appendChild(head);
+  return ring;
 }
 
 let startMarker = null;
@@ -92,7 +100,7 @@ function buildPopupContent(place) {
   container.appendChild(name);
 
   const topics = document.createElement("div");
-  topics.textContent = (place.topics || []).join(", ");
+  topics.textContent = (place.topics || []).map(humanizeTopic).join(", ");
   container.appendChild(topics);
 
   const source = document.createElement("em");
@@ -171,37 +179,41 @@ function emptyFeatureCollection() {
   return { type: "FeatureCollection", features: [] };
 }
 
-// User feedback 2026-10-21: stop markers should be small icons showing what
-// kind of place it is, not "only the green dots" - and the stop list is
-// "a bit boring without any" too, so the same icon is reused there.
-// Deliberately plain geometric shapes (bars, a house, a dot cluster), not
-// an attempt at detailed/photographic icon art. Shape-only fragments, fill
-// color passed in separately so the map version (cream-on-forest) and the
-// list version (forest-on-muted) share one source of truth for the shape.
-const TOPIC_ICON_SHAPES = {
-  history:
-    '<rect x="4" y="5" width="16" height="2.4"/>' +
-    '<rect x="6" y="9" width="2.4" height="9"/>' +
-    '<rect x="11" y="9" width="2.4" height="9"/>' +
-    '<rect x="16" y="9" width="2.4" height="9"/>' +
-    '<rect x="3" y="18.5" width="18" height="2.2"/>',
+// User feedback 2026-10-21 (first pass: too abstract, needed "a house or a
+// church... in colours"): literal small-building silhouettes, reusing the
+// exact wall/roof colors already approved in the hillside scene (splash/
+// loading screens) rather than inventing new hues. architecture = a plain
+// house (lower roof); history = a church (taller, steeper roof + a small
+// steeple) - heritage stops are very often one of these two real shapes.
+// public_art stays a paint-dot cluster, now in three real palette colors
+// instead of one flat tone. Self-colored (not parameterized) - the same
+// markup now works unchanged on the map and in the stop list.
+const TOPIC_ICON_SVG = {
   architecture:
-    '<polygon points="12,3 4,10 20,10"/>' +
-    '<rect x="6.5" y="10" width="11" height="9.5"/>',
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect x="5" y="12" width="14" height="10" fill="#DCE6D0"/>' +
+    '<polygon points="12,3 3,12 21,12" fill="#1E4A3A"/>' +
+    '<rect x="10" y="15" width="4" height="7" fill="#5C7A52"/>' +
+    '<rect x="15" y="14" width="3" height="3" fill="#5C7A52"/>' +
+    "</svg>",
+  history:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect x="6" y="13" width="12" height="9" fill="#DCE6D0"/>' +
+    '<polygon points="12,2 5,13 19,13" fill="#1E4A3A"/>' +
+    '<rect x="10.5" y="9" width="3" height="4" fill="#1E4A3A"/>' +
+    '<rect x="10" y="16" width="4" height="6" fill="#5C7A52"/>' +
+    "</svg>",
   public_art:
-    '<circle cx="9" cy="9" r="4.5"/>' +
-    '<circle cx="16" cy="9" r="4.5"/>' +
-    '<circle cx="12.5" cy="16" r="4.5"/>',
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<circle cx="8" cy="9" r="4" fill="#1E4A3A"/>' +
+    '<circle cx="16" cy="9" r="4" fill="#AFC29A"/>' +
+    '<circle cx="12" cy="16" r="4" fill="#93AE80"/>' +
+    "</svg>",
 };
 const DEFAULT_TOPIC_ICON = "history";
 
-function topicIconSvg(topic, fillColor) {
-  const shapes = TOPIC_ICON_SHAPES[topic] || TOPIC_ICON_SHAPES[DEFAULT_TOPIC_ICON];
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${fillColor}">` +
-    shapes +
-    "</svg>"
-  );
+function topicIconSvg(topic) {
+  return TOPIC_ICON_SVG[topic] || TOPIC_ICON_SVG[DEFAULT_TOPIC_ICON];
 }
 
 // A stop can carry more than one real topic (e.g. a heritage building is
@@ -209,7 +221,7 @@ function topicIconSvg(topic, fillColor) {
 // topics array picks the icon, a simple, deterministic rule rather than a
 // new priority system.
 function pickTopic(topics) {
-  const topic = Array.isArray(topics) ? topics.find((t) => TOPIC_ICON_SHAPES[t]) : null;
+  const topic = Array.isArray(topics) ? topics.find((t) => TOPIC_ICON_SVG[t]) : null;
   return topic || DEFAULT_TOPIC_ICON;
 }
 
@@ -220,9 +232,9 @@ function pickTopicIconName(topics) {
 // MapLibre's addImage() needs a decoded raster image, not an SVG string
 // directly - converts each via an offscreen Image/canvas round-trip.
 function loadTopicIcons() {
-  const ICON_PX = 24;
+  const ICON_PX = 28;
   return Promise.all(
-    Object.keys(TOPIC_ICON_SHAPES).map((topic) => {
+    Object.keys(TOPIC_ICON_SVG).map((topic) => {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -244,8 +256,7 @@ function loadTopicIcons() {
           console.error(`Could not load topic icon for "${topic}"`);
           resolve();
         };
-        // Cream fill reads clearly against the forest-green circle below it.
-        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(topicIconSvg(topic, "#F6F4EC"));
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(topicIconSvg(topic));
       });
     })
   );
@@ -269,15 +280,20 @@ function setupRouteLayers() {
     },
   });
 
+  // User feedback 2026-10-21: the icons are now self-colored (a light wall/
+  // dark roof house or church, colored paint dots), not a cream silhouette
+  // needing a dark circle for contrast - a light plate reads better behind
+  // them, matching how they're already drawn against a cream background
+  // in the hillside scene.
   map.addLayer({
     id: "route-stops-circle",
     type: "circle",
     source: ROUTE_STOPS_SOURCE_ID,
     paint: {
-      "circle-radius": 12,
-      "circle-color": "#1E4A3A",
-      "circle-stroke-color": "#AFC29A",
-      "circle-stroke-width": 2.5,
+      "circle-radius": 14,
+      "circle-color": "#FFFFFF",
+      "circle-stroke-color": "#1E4A3A",
+      "circle-stroke-width": 2,
     },
   });
 
@@ -300,9 +316,12 @@ function setupRouteLayers() {
 
   // Topic icon on top of each circle, replacing the old plain order-number
   // label (user feedback 2026-10-21: markers should show what kind of place
-  // it is). Wrapped separately since a missing/unresolved icon image is a
-  // real possibility (loadTopicIcons() degrades per-icon, not fatally) and
-  // this layer must not block route rendering if that happens.
+  // it is) - plus a small order-number badge back in the corner (also user
+  // feedback: the numbers were genuinely useful, wanted alongside the
+  // icons rather than instead of them). Wrapped separately since a
+  // missing/unresolved icon image is a real possibility (loadTopicIcons()
+  // degrades per-icon, not fatally) and this layer must not block route
+  // rendering if that happens.
   try {
     map.addLayer({
       id: "route-stops-icon",
@@ -310,8 +329,18 @@ function setupRouteLayers() {
       source: ROUTE_STOPS_SOURCE_ID,
       layout: {
         "icon-image": ["get", "topic_icon"],
-        "icon-size": 0.58,
+        "icon-size": 0.68,
         "icon-allow-overlap": true,
+        "text-field": ["to-string", ["get", "order"]],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 10,
+        "text-offset": [0.85, 0.85],
+        "text-allow-overlap": true,
+      },
+      paint: {
+        "text-color": "#1E4A3A",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.5,
       },
     });
   } catch (err) {
@@ -691,6 +720,7 @@ const stopListEl = document.getElementById("stop-list");
 
 const stopOverlayWrapEl = document.getElementById("stop-overlay-wrap");
 const stopOverlaySheetEl = document.getElementById("stop-overlay-sheet");
+const stopOverlayBackBtn = document.getElementById("stop-overlay-back-btn");
 const stopOverlayCloseBtn = document.getElementById("stop-overlay-close-btn");
 const stopOverlayHeadingEl = document.getElementById("stop-overlay-heading");
 const stopOverlayPhotoEl = document.getElementById("stop-overlay-photo");
@@ -1156,6 +1186,14 @@ function humanizeSourceType(sourceType) {
     .join(" ");
 }
 
+// User feedback 2026-10-21: "public_art" should read as "public art", like
+// normal writing - just the underscore replaced, not title-cased (unlike
+// humanizeSourceType above, which is a different, already-approved style
+// for a different kind of label).
+function humanizeTopic(topic) {
+  return (topic || "").replace(/_/g, " ");
+}
+
 function renderStopList() {
   stopListEl.innerHTML = "";
   (trip.stops || []).forEach((stop) => {
@@ -1188,7 +1226,7 @@ function renderStopList() {
 
     const topicsEl = document.createElement("span");
     topicsEl.className = "stop-list-topics";
-    topicsEl.textContent = (stop.topics || []).join(", ");
+    topicsEl.textContent = (stop.topics || []).map(humanizeTopic).join(", ");
 
     textWrap.appendChild(nameEl);
     textWrap.appendChild(topicsEl);
@@ -1279,6 +1317,15 @@ function closeStopOverlay() {
   stopOverlayTriggerEl = null;
 }
 
+// User feedback 2026-10-21: the X alone closed straight past the list -
+// a real "back to list" affordance reopens it directly, rather than
+// requiring "close, then tap View stops again."
+function backToStopListFromOverlay() {
+  stopOverlayWrapEl.hidden = true;
+  stopOverlayTriggerEl = null;
+  openStopListSheet();
+}
+
 // The shared, app-wide credits element (FR-20) - names all five data
 // providers regardless of which stops are in this particular route, and
 // is reachable independently of any single stop's own citation.
@@ -1297,6 +1344,7 @@ function closeCreditsSheet() {
 openStopListBtn.addEventListener("click", openStopListSheet);
 stopListCloseBtn.addEventListener("click", () => closeStopListSheet());
 stopOverlayCloseBtn.addEventListener("click", closeStopOverlay);
+stopOverlayBackBtn.addEventListener("click", backToStopListFromOverlay);
 openCreditsBtn.addEventListener("click", openCreditsSheet);
 creditsCloseBtn.addEventListener("click", closeCreditsSheet);
 
@@ -1491,11 +1539,12 @@ function initTripSetup() {
 
 // Launch splash (EXPERIENCE.md): plays once per page load, then gets out of
 // the way - never shown again until a fresh load. Auto-advances after a
-// fixed duration (long enough to see the full reveal plus a little of the
-// idle loop), but any tap/click/keypress skips it immediately - a purely
-// decorative screen must never trap a keyboard/screen-reader user for a
-// fixed few seconds with no way out.
-const SPLASH_AUTO_ADVANCE_MS = 4800;
+// fixed duration (user feedback 2026-10-21: shortened now that the splash
+// is just the scene+wordmark loop, no separate full-logo-reveal phase -
+// enough time to register the brand without an artificial wait), but any
+// tap/click/keypress skips it immediately - a purely decorative screen
+// must never trap a keyboard/screen-reader user with no way out.
+const SPLASH_AUTO_ADVANCE_MS = 2600;
 
 function dismissSplash() {
   if (screenSplashEl.hidden) return;

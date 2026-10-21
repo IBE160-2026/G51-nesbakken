@@ -46,38 +46,10 @@ html, body {
 #screen-splash[hidden] {
   display: none;
 }
-#screen-splash .logo-layer {
-  position: absolute;
-  inset: 0;
-  background: #FDFEFA;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 26px;
-  animation: splashLogoReveal 3.2s ease-in-out forwards;
-}
-#screen-splash .logo-layer img {
-  width: 100%;
-  height: auto;
-  display: block;
-  max-width: 420px;
-}
-@keyframes splashLogoReveal {
-  0%   { opacity: 0; transform: scale(0.92); }
-  12%  { opacity: 1; transform: scale(1); }
-  68%  { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.06); }
-}
 #screen-splash .main-layer {
   position: absolute;
   inset: 0;
   background: var(--cream);
-  animation: splashMainReveal 3.2s ease-in-out forwards;
-}
-@keyframes splashMainReveal {
-  0%   { opacity: 0; }
-  62%  { opacity: 0; }
-  100% { opacity: 1; }
 }
 #screen-splash .scene {
   position: absolute;
@@ -119,7 +91,6 @@ html, body {
   border-radius: 50%;
   opacity: 0.26;
   animation: splashWordmarkShadowPulse 4.8s ease-in-out infinite;
-  animation-delay: 3.2s;
 }
 @keyframes splashWordmarkShadowPulse {
   0%   { transform: scaleX(1);    opacity: 0.26; }
@@ -137,7 +108,6 @@ html, body {
   margin-left: -115px;
   transform-origin: 50% 100%;
   animation: splashWordmarkIdle 4.8s ease-in-out infinite;
-  animation-delay: 3.2s;
 }
 @keyframes splashWordmarkIdle {
   0%   { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
@@ -160,16 +130,12 @@ html, body {
   display: block;
 }
 @media (prefers-reduced-motion: reduce) {
-  #screen-splash .logo-layer,
-  #screen-splash .main-layer,
   #screen-splash .parallax-back,
   #screen-splash .parallax-front,
   #screen-splash .wordmark-shadow,
   #screen-splash .wordmark-wrap {
     animation: none;
   }
-  #screen-splash .main-layer { opacity: 1; }
-  #screen-splash .logo-layer { opacity: 0; }
 }
 
 /* ===================== MAP STAGE (existing behavior, unchanged) ===================== */
@@ -356,6 +322,20 @@ input:focus-visible,
   height: 26.09px;
   background-size: 500.87px 333.91px;
   background-position: -101.41px -21.52px;
+}
+/* User feedback 2026-10-21: round pin, not the head crop's own natural
+   rectangle - a fixed-size circular "plate" behind/around the real,
+   undistorted crop (centered via flex), not a stretch/distort of the art. */
+.start-marker-ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 2px 6px rgba(22, 48, 42, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 /* ===================== STARTING-POINT SCREEN (overlay on the map) ===================== */

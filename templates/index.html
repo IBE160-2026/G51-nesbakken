@@ -9,14 +9,13 @@
 </head>
 <body>
 
-  <!-- ============== LAUNCH SPLASH (EXPERIENCE.md: full wordmark reveal ~3.2s,
-       crossfades into a looping hillside-scene idle animation; plays once per
-       session, tap/key to skip). Highest z-index - covers everything else
-       until app.js dismisses it. ============== -->
+  <!-- ============== LAUNCH SPLASH (EXPERIENCE.md: looping hillside-scene
+       idle animation with the JAUNT wordmark; plays once per session, tap/
+       key to skip). User feedback 2026-10-21: the original mockup's separate
+       full-logo-reveal phase (a square-ish photo popping up first) looked
+       odd in practice - go straight to the full-screen scene. Highest
+       z-index - covers everything else until app.js dismisses it. ============== -->
   <div id="screen-splash" role="presentation">
-    <div class="logo-layer">
-      <img src="{{ url_for('static', filename='jaunt-logo.png') }}" alt="">
-    </div>
     <div class="main-layer">
       <div class="scene">
         <div class="parallax-back">
@@ -272,7 +271,10 @@
     <div class="dim-overlay"></div>
     <div class="confirm-sheet sheet-scroll" id="stop-overlay-sheet" role="dialog" aria-modal="true" aria-labelledby="stop-overlay-heading" tabindex="-1">
       <div class="handle" aria-hidden="true"></div>
+      <!-- User feedback 2026-10-21: a way back to the stop list, not only
+           a full close - the X alone closed straight past the list. -->
       <div class="sheet-header-row">
+        <button type="button" class="back-btn" id="stop-overlay-back-btn" aria-label="Back to stop list">&#8249;</button>
         <h2 id="stop-overlay-heading"></h2>
         <button type="button" class="close-x" id="stop-overlay-close-btn" aria-label="Close stop details">&#10005;</button>
       </div>
