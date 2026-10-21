@@ -723,13 +723,29 @@ input:focus-visible,
   z-index: 41;
   gap: 10px;
 }
+/* Codex review 2026-10-21: the visible bar is only 36x4px, far smaller than
+   a real swipe-down-to-dismiss target - sized up via a flex box with the
+   bar itself drawn by ::after, so the touch target grows without the
+   painted handle growing with it. touch-action:none stops the browser's
+   own vertical-pan/scroll gesture from intercepting the drag before
+   pointerup fires. */
 .confirm-sheet .handle {
+  width: 64px;
+  height: 28px;
+  margin: 0 auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  cursor: grab;
+}
+.confirm-sheet .handle::after {
+  content: "";
   width: 36px;
   height: 4px;
   background: var(--sheet-handle);
   border-radius: 4px;
-  margin: 2px auto 0;
-  flex-shrink: 0;
 }
 .confirm-sheet .jaunty-happy {
   margin-top: 4px;

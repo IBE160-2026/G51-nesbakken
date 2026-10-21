@@ -102,6 +102,18 @@ function buildPopupContent(place) {
   return container;
 }
 
+// Codex review 2026-10-21 (commit d79975c): these markers were never kept
+// anywhere, so they could never be hidden again - Route Review ended up
+// showing every catalogue pin alongside its own numbered stop circles.
+// Kept here so setCatalogueMarkersVisible() below can toggle them.
+const catalogueMarkers = [];
+
+function setCatalogueMarkersVisible(visible) {
+  catalogueMarkers.forEach((marker) => {
+    marker.getElement().style.display = visible ? "" : "none";
+  });
+}
+
 async function loadPlaces() {
   statusEl.textContent = "Loading places…";
 
@@ -127,11 +139,16 @@ async function loadPlaces() {
     const popup = new maplibregl.Popup(POPUP_OPTIONS).setDOMContent(
       buildPopupContent(place)
     );
-    new maplibregl.Marker()
+    const marker = new maplibregl.Marker()
       .setLngLat([place.longitude, place.latitude])
       .setPopup(popup)
       .addTo(map);
+    catalogueMarkers.push(marker);
   });
+  // loadPlaces() resolves asynchronously, after showStep() may already have
+  // run once for the initial screen - apply the current phase's visibility
+  // immediately rather than waiting for the next navigation.
+  setCatalogueMarkersVisible(trip.phase === "setting_up");
 }
 
 // =====================================================================
@@ -180,6 +197,23 @@ function setupRouteLayers() {
     },
   });
 
+  // Codex review 2026-10-21: EXPERIENCE.md:137 promises a stop's content
+  // opens from "a stop row or marker" - only the row worked. openStopOverlay
+  // is defined later in this file, but by the time a real click fires this
+  // listener (an async browser event), the whole script has already run.
+  map.on("click", "route-stops-circle", (event) => {
+    const feature = event.features && event.features[0];
+    if (!feature) return;
+    const stop = (trip.stops || []).find((s) => s.id === feature.properties.id);
+    if (stop) openStopOverlay(stop);
+  });
+  map.on("mouseenter", "route-stops-circle", () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+  map.on("mouseleave", "route-stops-circle", () => {
+    map.getCanvas().style.cursor = "";
+  });
+
   // Best-effort number labels on top of each circle - wrapped separately
   // since this layer names a specific text-font the base style might not
   // ship. This only guards a synchronous addLayer() validation failure
@@ -223,7 +257,8 @@ function updateRouteLayers() {
     features: stopFeatures,
   });
 
-  if (Array.isArray(trip.geometry) && trip.geometry.length > 1) {
+  const hasGeometry = Array.isArray(trip.geometry) && trip.geometry.length > 1;
+  if (hasGeometry) {
     map.getSource(ROUTE_LINE_SOURCE_ID).setData({
       type: "Feature",
       properties: {},
@@ -233,16 +268,44 @@ function updateRouteLayers() {
     map.getSource(ROUTE_LINE_SOURCE_ID).setData(emptyFeatureCollection());
   }
 
-  if (stopFeatures.length > 0) {
-    const bounds = stopFeatures.reduce(
-      (b, feature) => b.extend(feature.geometry.coordinates),
-      new maplibregl.LngLatBounds(
-        stopFeatures[0].geometry.coordinates,
-        stopFeatures[0].geometry.coordinates
-      )
-    );
-    map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 0 });
+  // Codex review 2026-10-21: bounds must cover every point this screen
+  // actually shows - the start point and the full walked geometry, not
+  // only the stops - or an outlying one gets cropped out of the fitted
+  // view. placeStartMarker() happens separately (showStep()'s "reviewing"
+  // branch); this only needs the coordinate for bounds-fitting.
+  const boundsPoints = stopFeatures.map((f) => f.geometry.coordinates);
+  if (trip.starting_point) {
+    boundsPoints.push([trip.starting_point.lng, trip.starting_point.lat]);
   }
+  if (hasGeometry) {
+    boundsPoints.push(...trip.geometry);
+  }
+
+  if (boundsPoints.length > 0) {
+    const bounds = boundsPoints.reduce(
+      (b, point) => b.extend(point),
+      new maplibregl.LngLatBounds(boundsPoints[0], boundsPoints[0])
+    );
+    // Asymmetric padding: the fixed .review-panel sits over the bottom of
+    // the map (roughly 150-180px on a phone viewport) - a flat padding
+    // value would let fitBounds frame points that are then hidden behind
+    // it, which plain top/left/right padding alone doesn't account for.
+    map.fitBounds(bounds, {
+      padding: { top: 60, bottom: 180, left: 60, right: 60 },
+      maxZoom: 17,
+      duration: 0,
+    });
+  }
+}
+
+// Clears both route sources back to empty - called whenever the trip
+// returns to Trip Setup (Codex review 2026-10-21: nothing previously did
+// this, so a route approved then backed out of stayed rendered on the map
+// underneath the starting-point screen).
+function clearRouteLayers() {
+  if (!mapStyleLoaded) return;
+  map.getSource(ROUTE_STOPS_SOURCE_ID).setData(emptyFeatureCollection());
+  map.getSource(ROUTE_LINE_SOURCE_ID).setData(emptyFeatureCollection());
 }
 
 // The reviewing screen can be the very first thing shown (resuming a
@@ -536,6 +599,7 @@ const reviewSummaryEl = document.getElementById("review-summary");
 const openStopListBtn = document.getElementById("open-stop-list-btn");
 const openCreditsBtn = document.getElementById("open-credits-btn");
 const approveRouteBtn = document.getElementById("approve-route-btn");
+const changeJauntBtn = document.getElementById("change-jaunt-btn");
 
 const stopListSheetWrapEl = document.getElementById("stop-list-sheet-wrap");
 const stopListSheetEl = document.getElementById("stop-list-sheet");
@@ -725,6 +789,14 @@ function showStep(step, { focusDefault = true } = {}) {
   if (SETUP_STEPS.includes(step)) {
     trip.setup_step = step;
     saveActiveTrip(trip);
+    // Codex review 2026-10-21: returning to any setup step must leave
+    // Route Review's own map state behind - the catalogue's own pins
+    // reappear, and a previously-approved route no longer lingers on the
+    // map underneath the starting-point screen.
+    setCatalogueMarkersVisible(true);
+    clearRouteLayers();
+  } else {
+    setCatalogueMarkersVisible(false);
   }
 
   mapStageEl.hidden = step !== "starting_point" && step !== "reviewing";
@@ -759,6 +831,12 @@ function showStep(step, { focusDefault = true } = {}) {
   } else if (step === "reviewing") {
     screenReviewing.hidden = false;
     reviewSummaryEl.textContent = buildReviewSummary();
+    // Codex review 2026-10-21: resuming straight into "reviewing" (e.g. a
+    // reload) never ran the starting-point screen's own branch, so the
+    // start pin was never (re)created on this path.
+    if (trip.starting_point) {
+      placeStartMarker(trip.starting_point.lat, trip.starting_point.lng);
+    }
     refreshMapRouteLayers();
     if (focusDefault) reviewingTitleEl.focus();
   } else if (step === "walking") {
@@ -882,11 +960,18 @@ const PLANNING_FAILURE_MESSAGE =
   "Something went wrong finding your route. (Temporary placeholder - Story 1.6 builds the real experience.)";
 const PLANNING_HONEST_FALLBACK_MESSAGE =
   "Jarrod couldn't find a route that fits this time. (Temporary placeholder - Story 1.6 builds the real experience.)";
-// Comfortably above the ~30-45s end-to-end target the architecture spine
-// measured for a real request (AD-3) - long enough not to abort a normal
-// slow response, short enough that a hung request doesn't strand the user
-// on the loading screen indefinitely.
-const PLANNING_REQUEST_TIMEOUT_MS = 60000;
+// Codex review 2026-10-21: the original 60s figure only covered the
+// ~30-45s *typical* end-to-end request. The backend's own worst case is
+// much larger - services.py's routing calls time out at 30s each, and
+// ai.py's selection/content-generation/grounding calls each time out at
+// 60s, with up to 3 selection retries - a genuinely unlucky request can
+// legitimately take ~30 + 3*60 + 60 + 60 = 360s server-side. 180s is a
+// deliberate middle ground (the user's explicit choice): it comfortably
+// covers the realistic worst case without literally waiting out the full
+// 360s, and an abort here doesn't cancel the server-side work anyway (no
+// cooperative cancellation exists) - a real shared time budget threaded
+// through the retry loop is deferred, see deferred-work.md.
+const PLANNING_REQUEST_TIMEOUT_MS = 180000;
 
 function showLoadingScreen() {
   hideAllScreens();
@@ -1109,10 +1194,65 @@ stopOverlayCloseBtn.addEventListener("click", closeStopOverlay);
 openCreditsBtn.addEventListener("click", openCreditsSheet);
 creditsCloseBtn.addEventListener("click", closeCreditsSheet);
 
+// Codex review 2026-10-21: UX-DR11/the spec's own Boundaries text promise
+// swipe-down-to-dismiss alongside the close-x on every sheet - user's
+// explicit choice was to build the real gesture rather than drop the
+// requirement. Attached to each sheet's drag handle only (not the sheet
+// body), so it never competes with scrolling the stop list or a long stop
+// overlay body (both use .sheet-scroll).
+const SWIPE_DISMISS_THRESHOLD_PX = 50;
+
+function attachSwipeToDismiss(handleEl, onDismiss) {
+  let startY = null;
+
+  handleEl.addEventListener("pointerdown", (event) => {
+    startY = event.clientY;
+    // Caught, not just optionally-chained: the browser can refuse this
+    // (e.g. no pointer it considers "active" for this id) and throws
+    // synchronously rather than silently no-op-ing - verified directly,
+    // not assumed. Capture is a drag-tracking nicety (keeps the gesture
+    // live if the pointer strays off the handle); losing it only means
+    // straying off-handle mid-drag won't dismiss, not that the gesture
+    // breaks entirely.
+    try {
+      handleEl.setPointerCapture?.(event.pointerId);
+    } catch (err) {
+      /* no-op */
+    }
+  });
+  handleEl.addEventListener("pointerup", (event) => {
+    if (startY === null) return;
+    const deltaY = event.clientY - startY;
+    startY = null;
+    if (deltaY > SWIPE_DISMISS_THRESHOLD_PX) onDismiss();
+  });
+  handleEl.addEventListener("pointercancel", () => {
+    startY = null;
+  });
+}
+
+attachSwipeToDismiss(document.querySelector("#confirm-sheet .handle"), () => {
+  dismissLink.click();
+});
+attachSwipeToDismiss(document.querySelector("#stop-list-sheet .handle"), () => closeStopListSheet());
+attachSwipeToDismiss(document.querySelector("#stop-overlay-sheet .handle"), () => closeStopOverlay());
+attachSwipeToDismiss(document.querySelector("#credits-sheet .handle"), () => closeCreditsSheet());
+
 approveRouteBtn.addEventListener("click", () => {
   trip.phase = "walking";
   saveActiveTrip(trip);
   showStep("walking");
+});
+
+// Codex review 2026-10-21: a successful review previously had no decline/
+// change-inputs path at all - same phase-reset reasoning as
+// walkingStubBackBtn below (trip.phase must go back to "setting_up" before
+// showStep(originStep) persists a setup_step, or isValidTrip() would
+// reject the stored trip on the next reload).
+changeJauntBtn.addEventListener("click", () => {
+  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  trip.phase = "setting_up";
+  showStep(originStep);
 });
 
 reviewUnavailableBackBtn.addEventListener("click", () => {
