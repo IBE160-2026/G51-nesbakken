@@ -181,9 +181,11 @@ function setupRouteLayers() {
   });
 
   // Best-effort number labels on top of each circle - wrapped separately
-  // since it depends on the base style actually shipping usable glyphs; a
-  // missing font must degrade (no numbers on the circles) rather than
-  // crash route rendering entirely.
+  // since this layer names a specific text-font the base style might not
+  // ship. This only guards a synchronous addLayer() validation failure
+  // (e.g. a malformed layer spec); a missing/unresolved glyph is handled
+  // asynchronously by MapLibre at render time (no text drawn) and can't be
+  // caught here at all - this try/catch does not protect against that.
   try {
     map.addLayer({
       id: "route-stops-label",
@@ -333,7 +335,11 @@ function isValidStop(stop) {
     Number.isInteger(stop.order) &&
     typeof stop.name === "string" &&
     Number.isFinite(stop.latitude) &&
+    stop.latitude >= -90 &&
+    stop.latitude <= 90 &&
     Number.isFinite(stop.longitude) &&
+    stop.longitude >= -180 &&
+    stop.longitude <= 180 &&
     Array.isArray(stop.topics) &&
     typeof stop.content === "string" &&
     Array.isArray(stop.attribution) &&
@@ -341,6 +347,8 @@ function isValidStop(stop) {
   );
 }
 
+// Points are [lng, lat] (GeoJSON order, matching how they're built elsewhere
+// in this file - e.g. [stop.longitude, stop.latitude]).
 function isValidGeometry(geometry) {
   if (geometry === null) return true;
   return (
@@ -350,7 +358,11 @@ function isValidGeometry(geometry) {
         Array.isArray(point) &&
         point.length === 2 &&
         Number.isFinite(point[0]) &&
-        Number.isFinite(point[1])
+        point[0] >= -180 &&
+        point[0] <= 180 &&
+        Number.isFinite(point[1]) &&
+        point[1] >= -90 &&
+        point[1] <= 90
     )
   );
 }
@@ -547,6 +559,7 @@ const reviewUnavailableBackBtn = document.getElementById("review-unavailable-bac
 
 const walkingStubHeadingEl = document.getElementById("walking-stub-heading");
 const walkingStubDetailEl = document.getElementById("walking-stub-detail");
+const walkingStubBackBtn = document.getElementById("walking-stub-back-btn");
 
 let stopOverlayTriggerEl = null;
 
@@ -869,6 +882,11 @@ const PLANNING_FAILURE_MESSAGE =
   "Something went wrong finding your route. (Temporary placeholder - Story 1.6 builds the real experience.)";
 const PLANNING_HONEST_FALLBACK_MESSAGE =
   "Jarrod couldn't find a route that fits this time. (Temporary placeholder - Story 1.6 builds the real experience.)";
+// Comfortably above the ~30-45s end-to-end target the architecture spine
+// measured for a real request (AD-3) - long enough not to abort a normal
+// slow response, short enough that a hung request doesn't strand the user
+// on the loading screen indefinitely.
+const PLANNING_REQUEST_TIMEOUT_MS = 60000;
 
 function showLoadingScreen() {
   hideAllScreens();
@@ -905,6 +923,10 @@ async function startRoutePlanning() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      // Without this, a hung request leaves the user stuck on the loading
+      // screen indefinitely with no escape - an abort surfaces as a thrown
+      // AbortError, caught by the same catch as any other network failure.
+      signal: AbortSignal.timeout(PLANNING_REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
     console.error("Planning request failed to send:", err);
@@ -1005,8 +1027,18 @@ function renderStopList() {
   });
 }
 
+// A sheet open over the reviewing screen must also exclude the live map
+// underneath from the tab order - #map-stage is a DOM sibling of
+// #screen-reviewing, not a descendant, so toggling screenReviewing.inert
+// alone never reaches the map's own NavigationControl zoom buttons, which
+// would otherwise stay tabbable behind the dim overlay.
+function setReviewSheetInert(isInert) {
+  if ("inert" in screenReviewing) screenReviewing.inert = isInert;
+  if ("inert" in mapStageEl) mapStageEl.inert = isInert;
+}
+
 function openStopListSheet() {
-  if ("inert" in screenReviewing) screenReviewing.inert = true;
+  setReviewSheetInert(true);
   renderStopList();
   stopListSheetWrapEl.hidden = false;
   stopListSheetEl.focus();
@@ -1014,7 +1046,7 @@ function openStopListSheet() {
 
 function closeStopListSheet({ restoreFocus = true } = {}) {
   stopListSheetWrapEl.hidden = true;
-  if ("inert" in screenReviewing) screenReviewing.inert = false;
+  setReviewSheetInert(false);
   if (restoreFocus) openStopListBtn.focus();
 }
 
@@ -1022,7 +1054,7 @@ function closeStopListSheet({ restoreFocus = true } = {}) {
 // only the first - AD-3) in the shared overlay shell.
 function openStopOverlay(stop) {
   stopOverlayTriggerEl = openStopListBtn;
-  if ("inert" in screenReviewing) screenReviewing.inert = true;
+  setReviewSheetInert(true);
 
   stopOverlayHeadingEl.textContent = stop.name || "Stop";
   stopOverlayBodyEl.textContent = stop.content || "";
@@ -1051,7 +1083,7 @@ function openStopOverlay(stop) {
 
 function closeStopOverlay() {
   stopOverlayWrapEl.hidden = true;
-  if ("inert" in screenReviewing) screenReviewing.inert = false;
+  setReviewSheetInert(false);
   if (stopOverlayTriggerEl) stopOverlayTriggerEl.focus();
   stopOverlayTriggerEl = null;
 }
@@ -1060,14 +1092,14 @@ function closeStopOverlay() {
 // providers regardless of which stops are in this particular route, and
 // is reachable independently of any single stop's own citation.
 function openCreditsSheet() {
-  if ("inert" in screenReviewing) screenReviewing.inert = true;
+  setReviewSheetInert(true);
   creditsSheetWrapEl.hidden = false;
   creditsSheetEl.focus();
 }
 
 function closeCreditsSheet() {
   creditsSheetWrapEl.hidden = true;
-  if ("inert" in screenReviewing) screenReviewing.inert = false;
+  setReviewSheetInert(false);
   openCreditsBtn.focus();
 }
 
@@ -1085,6 +1117,17 @@ approveRouteBtn.addEventListener("click", () => {
 
 reviewUnavailableBackBtn.addEventListener("click", () => {
   const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  showStep(originStep);
+});
+
+// Unlike reviewUnavailableBackBtn above, trip.phase actually left
+// "setting_up" to get here (Approve set it to "walking") - it must be put
+// back before showStep(originStep) persists a setup_step, or the stored
+// trip would carry phase:"walking" with a non-null setup_step, which
+// isValidTrip() itself would reject on the next reload.
+walkingStubBackBtn.addEventListener("click", () => {
+  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  trip.phase = "setting_up";
   showStep(originStep);
 });
 

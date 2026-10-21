@@ -743,7 +743,12 @@ input:focus-visible,
 .confirm-btn {
   margin-top: 4px;
 }
-.dismiss-link {
+/* .dismiss-link (the confirm sheet's own "go back" action) and .text-link
+   (any other plain underlined text-button, e.g. opening the credits panel -
+   not a dismiss action, so it gets its own accurately-named class) share
+   the same look without either one's name misdescribing the other's job. */
+.dismiss-link,
+.text-link {
   background: none;
   border: none;
   font-size: 12px;
