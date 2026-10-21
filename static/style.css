@@ -330,7 +330,10 @@ input:focus-visible,
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--surface);
+  /* User feedback 2026-10-21: white looked like "a weird white border
+     around Jarrod's head" - forest green fills the transparent gap
+     between the head crop's real silhouette and its bounding box. */
+  background: var(--forest);
   box-shadow: 0 2px 6px rgba(22, 48, 42, 0.3);
   display: flex;
   align-items: center;
@@ -905,7 +908,12 @@ input:focus-visible,
   border: none;
   font-size: 12px;
   font-weight: 600;
-  color: var(--ink-faint);
+  /* Codex review 2026-10-21: --ink-faint on white measures 3.20:1 - verified
+     directly via the real relative-luminance formula, confirmed below AA's
+     4.5:1 floor for this normal-size text. --ink-soft measures 5.48:1,
+     comfortably clears AA (the existing ink-on-cream/surface checks never
+     covered this specific token/background pairing). */
+  color: var(--ink-soft);
   text-align: center;
   text-decoration: underline;
   text-underline-offset: 2px;

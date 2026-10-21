@@ -179,29 +179,46 @@ function emptyFeatureCollection() {
   return { type: "FeatureCollection", features: [] };
 }
 
-// User feedback 2026-10-21 (first pass: too abstract, needed "a house or a
-// church... in colours"): literal small-building silhouettes, reusing the
-// exact wall/roof colors already approved in the hillside scene (splash/
-// loading screens) rather than inventing new hues. architecture = a plain
-// house (lower roof); history = a church (taller, steeper roof + a small
-// steeple) - heritage stops are very often one of these two real shapes.
-// public_art stays a paint-dot cluster, now in three real palette colors
-// instead of one flat tone. Self-colored (not parameterized) - the same
-// markup now works unchanged on the map and in the stop list.
-const TOPIC_ICON_SVG = {
-  architecture:
+// User feedback 2026-10-21 (first pass: too abstract; second pass: "railway
+// should be train, church a church, house or bar a beer" - real, specific
+// place types, not just the 3 broad topics). Checked against the real
+// catalogue: "Church" (5+ stops), "Railway Station" (2), "Hotel" (6+ - in
+// Australia this almost always means a pub, matching the user's own "bar a
+// beer" example), "House"/"Villa" (several) - real, strong name signal to
+// key off, no backend change needed. Literal small silhouettes, reusing
+// the exact wall/roof colors already approved in the hillside scene
+// (splash/loading screens) rather than inventing new hues. Self-colored
+// (not parameterized) - the same markup works unchanged on the map and in
+// the stop list.
+const ICON_SVG = {
+  house:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
     '<rect x="5" y="12" width="14" height="10" fill="#DCE6D0"/>' +
     '<polygon points="12,3 3,12 21,12" fill="#1E4A3A"/>' +
     '<rect x="10" y="15" width="4" height="7" fill="#5C7A52"/>' +
     '<rect x="15" y="14" width="3" height="3" fill="#5C7A52"/>' +
     "</svg>",
-  history:
+  church:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
     '<rect x="6" y="13" width="12" height="9" fill="#DCE6D0"/>' +
     '<polygon points="12,2 5,13 19,13" fill="#1E4A3A"/>' +
     '<rect x="10.5" y="9" width="3" height="4" fill="#1E4A3A"/>' +
     '<rect x="10" y="16" width="4" height="6" fill="#5C7A52"/>' +
+    "</svg>",
+  train:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect x="4" y="7" width="16" height="11" rx="2" fill="#DCE6D0"/>' +
+    '<rect x="4" y="7" width="16" height="4" fill="#1E4A3A"/>' +
+    '<rect x="7" y="12" width="4" height="4" fill="#1E4A3A"/>' +
+    '<rect x="13" y="12" width="4" height="4" fill="#1E4A3A"/>' +
+    '<circle cx="8" cy="19" r="1.6" fill="#1E4A3A"/>' +
+    '<circle cx="16" cy="19" r="1.6" fill="#1E4A3A"/>' +
+    "</svg>",
+  beer:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect x="5" y="7" width="11" height="14" rx="1.5" fill="#DCE6D0"/>' +
+    '<rect x="5" y="7" width="11" height="3.5" fill="#D9C9A3"/>' +
+    '<path d="M16,10 h2.5 a2.5,2.5 0 0 1 0,6 h-2.5 z" fill="#DCE6D0"/>' +
     "</svg>",
   public_art:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
@@ -210,23 +227,55 @@ const TOPIC_ICON_SVG = {
     '<circle cx="12" cy="16" r="4" fill="#93AE80"/>' +
     "</svg>",
 };
-const DEFAULT_TOPIC_ICON = "history";
+const DEFAULT_ICON = "church";
+// Topic-level fallback when no name keyword matches (e.g. a heritage
+// listing with a generic name) - keeps every stop showing *something*
+// recognizable rather than only the keyword-matched ones having an icon.
+const TOPIC_FALLBACK_ICON = { architecture: "house", history: "church", public_art: "public_art" };
+// Order matters: checked top to bottom, first match wins. Deliberately
+// narrow, real keywords from the actual catalogue - not a guess at every
+// possible OSM place type.
+const NAME_ICON_PATTERNS = [
+  [/church|chapel|cathedral/i, "church"],
+  [/railway|station/i, "train"],
+  [/hotel/i, "beer"],
+  [/\bhouse\b|villa|manor/i, "house"],
+];
 
-function topicIconSvg(topic) {
-  return TOPIC_ICON_SVG[topic] || TOPIC_ICON_SVG[DEFAULT_TOPIC_ICON];
+function iconSvg(iconKey) {
+  return ICON_SVG[iconKey] || ICON_SVG[DEFAULT_ICON];
 }
 
 // A stop can carry more than one real topic (e.g. a heritage building is
-// often both history and architecture) - the first entry in its own
-// topics array picks the icon, a simple, deterministic rule rather than a
-// new priority system.
-function pickTopic(topics) {
-  const topic = Array.isArray(topics) ? topics.find((t) => TOPIC_ICON_SVG[t]) : null;
-  return topic || DEFAULT_TOPIC_ICON;
+// often both history and architecture). User feedback 2026-10-21: an
+// architecture-topic walk still showed mostly the history icon - reproduced
+// directly against the real catalogue, which lists "history" before
+// "architecture" 15-to-1 for stops carrying both, so "just pick the first
+// topic" silently ignored which topic the walk was actually about. The
+// requested topic now wins whenever the stop actually carries it;
+// surprise_me (no single requested topic to prefer) falls back to the
+// stop's own first listed topic, same as before.
+function pickTopicFallback(topics, requestedTopic) {
+  if (!Array.isArray(topics)) return DEFAULT_ICON;
+  if (requestedTopic && topics.includes(requestedTopic) && TOPIC_FALLBACK_ICON[requestedTopic]) {
+    return TOPIC_FALLBACK_ICON[requestedTopic];
+  }
+  const topic = topics.find((t) => TOPIC_FALLBACK_ICON[t]);
+  return topic ? TOPIC_FALLBACK_ICON[topic] : DEFAULT_ICON;
 }
 
-function pickTopicIconName(topics) {
-  return `topic-icon-${pickTopic(topics)}`;
+// The real place-type keyword in the stop's own name wins when there is
+// one; otherwise falls back to a topic-level icon so every stop still
+// shows something recognizable.
+function pickIconKey(stop, requestedTopic) {
+  const name = (stop && stop.name) || "";
+  const match = NAME_ICON_PATTERNS.find(([pattern]) => pattern.test(name));
+  if (match) return match[1];
+  return pickTopicFallback(stop && stop.topics, requestedTopic);
+}
+
+function pickStopIconName(stop, requestedTopic) {
+  return `topic-icon-${pickIconKey(stop, requestedTopic)}`;
 }
 
 // MapLibre's addImage() needs a decoded raster image, not an SVG string
@@ -234,7 +283,7 @@ function pickTopicIconName(topics) {
 function loadTopicIcons() {
   const ICON_PX = 28;
   return Promise.all(
-    Object.keys(TOPIC_ICON_SVG).map((topic) => {
+    Object.keys(ICON_SVG).map((iconKey) => {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -246,17 +295,17 @@ function loadTopicIcons() {
           // addImage() needs real decoded pixel data (ImageData), not the
           // canvas element itself - reproduced directly: passing the raw
           // canvas threw "mismatched image size. expected: 0 but got: ...".
-          map.addImage(`topic-icon-${topic}`, ctx.getImageData(0, 0, ICON_PX, ICON_PX));
+          map.addImage(`topic-icon-${iconKey}`, ctx.getImageData(0, 0, ICON_PX, ICON_PX));
           resolve();
         };
         img.onerror = () => {
           // A missing icon must degrade (the symbol layer just skips that
           // feature) rather than block route rendering entirely - same
           // "best-effort, never fatal" philosophy as the label layer below.
-          console.error(`Could not load topic icon for "${topic}"`);
+          console.error(`Could not load topic icon for "${iconKey}"`);
           resolve();
         };
-        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(topicIconSvg(topic));
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(iconSvg(iconKey));
       });
     })
   );
@@ -358,7 +407,7 @@ function updateRouteLayers() {
   const stopFeatures = stops.map((stop) => ({
     type: "Feature",
     geometry: { type: "Point", coordinates: [stop.longitude, stop.latitude] },
-    properties: { id: stop.id, order: stop.order, topic_icon: pickTopicIconName(stop.topics) },
+    properties: { id: stop.id, order: stop.order, topic_icon: pickStopIconName(stop, trip.topic) },
   }));
   map.getSource(ROUTE_STOPS_SOURCE_ID).setData({
     type: "FeatureCollection",
@@ -394,12 +443,15 @@ function updateRouteLayers() {
       (b, point) => b.extend(point),
       new maplibregl.LngLatBounds(boundsPoints[0], boundsPoints[0])
     );
-    // Asymmetric padding: the fixed .review-panel sits over the bottom of
-    // the map (roughly 150-180px on a phone viewport) - a flat padding
-    // value would let fitBounds frame points that are then hidden behind
-    // it, which plain top/left/right padding alone doesn't account for.
+    // Codex review 2026-10-21: a hardcoded 180 was already wrong (the real
+    // panel measured ~222px once "Change your Jaunt" was added) and would
+    // go wrong again the next time the panel's content changes - measuring
+    // the real rendered element is the only version of this that doesn't
+    // need re-guessing every time.
+    const reviewPanelEl = document.querySelector(".review-panel");
+    const bottomPadding = reviewPanelEl ? reviewPanelEl.getBoundingClientRect().height + 20 : 180;
     map.fitBounds(bounds, {
-      padding: { top: 60, bottom: 180, left: 60, right: 60 },
+      padding: { top: 60, bottom: bottomPadding, left: 60, right: 60 },
       maxZoom: 17,
       duration: 0,
     });
@@ -914,6 +966,14 @@ function showStep(step, { focusDefault = true } = {}) {
   }
 
   mapStageEl.hidden = step !== "starting_point" && step !== "reviewing";
+  // User feedback 2026-10-21 ("still does not automatically zoom in"):
+  // reproduced directly - MapLibre's canvas was stuck at its stale 800x600
+  // default instead of the real ~1200x639 container, because nothing
+  // resizes it after mapStageEl goes from hidden back to visible (CSS
+  // display:none while on available_time/topic/confirm, where the map
+  // isn't shown at all). fitBounds() was computing camera position
+  // against the wrong viewport the entire time it "didn't work."
+  if (!mapStageEl.hidden) map.resize();
 
   if (step === "starting_point") {
     screenStartingPoint.hidden = false;
@@ -1215,7 +1275,7 @@ function renderStopList() {
     const iconEl = document.createElement("span");
     iconEl.className = "stop-list-icon";
     iconEl.setAttribute("aria-hidden", "true");
-    iconEl.innerHTML = topicIconSvg(pickTopic(stop.topics), "#1E4A3A");
+    iconEl.innerHTML = iconSvg(pickIconKey(stop, trip.topic));
 
     const textWrap = document.createElement("span");
     textWrap.className = "stop-list-text";
