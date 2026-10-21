@@ -9,6 +9,44 @@
 </head>
 <body>
 
+  <!-- ============== LAUNCH SPLASH (EXPERIENCE.md: full wordmark reveal ~3.2s,
+       crossfades into a looping hillside-scene idle animation; plays once per
+       session, tap/key to skip). Highest z-index - covers everything else
+       until app.js dismisses it. ============== -->
+  <div id="screen-splash" role="presentation">
+    <div class="logo-layer">
+      <img src="{{ url_for('static', filename='jaunt-logo.png') }}" alt="">
+    </div>
+    <div class="main-layer">
+      <div class="scene">
+        <div class="parallax-back">
+          <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+            <path d="M0,130 C50,108 90,140 140,118 C190,96 230,130 300,112 L300,200 L0,200 Z" fill="#CBDAB9"/>
+          </svg>
+        </div>
+        <div class="parallax-front">
+          <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+            <path d="M0,150 C60,168 110,138 170,156 C220,170 260,146 300,158 L300,200 L0,200 Z" fill="#AFC29A"/>
+            <rect x="37" y="118" width="4" height="22" fill="#1E4A3A"/>
+            <circle cx="39" cy="110" r="15" fill="#5C7A52"/>
+            <circle cx="27" cy="122" r="9" fill="#93AE80"/>
+            <ellipse cx="95" cy="142" rx="14" ry="10" fill="#93AE80"/>
+            <ellipse cx="108" cy="146" rx="10" ry="8" fill="#5C7A52"/>
+            <rect x="228" y="118" width="34" height="26" fill="#DCE6D0"/>
+            <polygon points="245,98 216,118 274,118" fill="#1E4A3A"/>
+            <rect x="240" y="128" width="10" height="16" fill="#5C7A52"/>
+            <rect x="254" y="124" width="6" height="6" fill="#5C7A52"/>
+            <ellipse cx="282" cy="150" rx="11" ry="8" fill="#93AE80"/>
+          </svg>
+        </div>
+        <div class="wordmark-shadow"></div>
+        <div class="wordmark-wrap">
+          <div class="wordmark-crop"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Real interactive MapLibre map (AD-1) + its existing status/instructions
        strips. Only visible while the starting-point screen is active - every
        later Trip Setup screen covers it with an opaque full-screen panel. -->
@@ -164,9 +202,28 @@
 
   <!-- ============== LOADING: shown while POST /api/plan is in flight (Story 1.5) ============== -->
   <section id="screen-loading" class="setup-screen setup-screen--full" hidden>
-    <div class="content">
-      <h2 id="loading-heading" tabindex="-1">Finding your route&hellip;</h2>
-      <p>Jarrod's planning your walk - this takes a few seconds.</p>
+    <div class="loading-screen">
+      <div class="scenery-wrap">
+        <svg viewBox="0 0 300 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+          <path d="M0,130 C50,108 90,140 140,118 C190,96 230,130 300,112 L300,200 L0,200 Z" fill="#CBDAB9"/>
+          <path d="M0,150 C60,168 110,138 170,156 C220,170 260,146 300,158 L300,200 L0,200 Z" fill="#AFC29A"/>
+          <rect x="37" y="118" width="4" height="22" fill="#1E4A3A"/>
+          <circle cx="39" cy="110" r="15" fill="#5C7A52"/>
+          <circle cx="27" cy="122" r="9" fill="#93AE80"/>
+          <ellipse cx="95" cy="142" rx="14" ry="10" fill="#93AE80"/>
+          <ellipse cx="108" cy="146" rx="10" ry="8" fill="#5C7A52"/>
+          <rect x="228" y="118" width="34" height="26" fill="#DCE6D0"/>
+          <polygon points="245,98 216,118 274,118" fill="#1E4A3A"/>
+          <rect x="240" y="128" width="10" height="16" fill="#5C7A52"/>
+          <rect x="254" y="124" width="6" height="6" fill="#5C7A52"/>
+          <ellipse cx="282" cy="150" rx="11" ry="8" fill="#93AE80"/>
+        </svg>
+        <div class="walker jaunty jaunty-walk-loading" aria-hidden="true"></div>
+      </div>
+      <div class="loading-text">
+        <h2 id="loading-heading" class="headline" tabindex="-1">Concocting your jaunt&hellip;</h2>
+        <p>Jarrod's planning your walk - this takes a few seconds.</p>
+      </div>
     </div>
   </section>
 
@@ -219,6 +276,11 @@
         <h2 id="stop-overlay-heading"></h2>
         <button type="button" class="close-x" id="stop-overlay-close-btn" aria-label="Close stop details">&#10005;</button>
       </div>
+      <!-- User feedback 2026-10-21: a photo should appear over the text when
+           one exists, "so people know what they're looking for" - the real
+           rights-cleared photo data is Story 1.11's own job (backlog), so
+           this stays hidden until a stop actually carries one. -->
+      <img class="stop-overlay-photo" id="stop-overlay-photo" alt="" hidden>
       <p class="stop-overlay-body" id="stop-overlay-body"></p>
       <ul class="stop-attribution-list" id="stop-overlay-attribution"></ul>
     </div>

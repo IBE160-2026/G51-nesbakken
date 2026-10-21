@@ -33,6 +33,145 @@ html, body {
   color: var(--ink);
 }
 
+/* ===================== LAUNCH SPLASH =====================
+   Ported verbatim from mockups/flow-01-setup.html's Screen 1 - same CSS,
+   same timings (3.2s reveal, 4.8s idle loop), same crops. Highest z-index
+   in the app: covers the map stage and every setup screen until app.js
+   dismisses it (once per session, auto-advance or tap/key to skip). */
+#screen-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+#screen-splash[hidden] {
+  display: none;
+}
+#screen-splash .logo-layer {
+  position: absolute;
+  inset: 0;
+  background: #FDFEFA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 26px;
+  animation: splashLogoReveal 3.2s ease-in-out forwards;
+}
+#screen-splash .logo-layer img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-width: 420px;
+}
+@keyframes splashLogoReveal {
+  0%   { opacity: 0; transform: scale(0.92); }
+  12%  { opacity: 1; transform: scale(1); }
+  68%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+#screen-splash .main-layer {
+  position: absolute;
+  inset: 0;
+  background: var(--cream);
+  animation: splashMainReveal 3.2s ease-in-out forwards;
+}
+@keyframes splashMainReveal {
+  0%   { opacity: 0; }
+  62%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+#screen-splash .scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+#screen-splash .parallax-back,
+#screen-splash .parallax-front {
+  position: absolute;
+  left: -15%;
+  bottom: 0;
+  width: 130%;
+  height: 46%;
+}
+#screen-splash .parallax-back svg,
+#screen-splash .parallax-front svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+#screen-splash .parallax-back { animation: splashDriftBack 16s ease-in-out infinite alternate; }
+#screen-splash .parallax-front { animation: splashDriftFront 11s ease-in-out infinite alternate; }
+@keyframes splashDriftBack {
+  0%   { transform: translateX(-10px); }
+  100% { transform: translateX(10px); }
+}
+@keyframes splashDriftFront {
+  0%   { transform: translateX(14px); }
+  100% { transform: translateX(-14px); }
+}
+#screen-splash .wordmark-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  width: 92px;
+  height: 13px;
+  margin-left: -46px;
+  background: var(--ink);
+  border-radius: 50%;
+  opacity: 0.26;
+  animation: splashWordmarkShadowPulse 4.8s ease-in-out infinite;
+  animation-delay: 3.2s;
+}
+@keyframes splashWordmarkShadowPulse {
+  0%   { transform: scaleX(1);    opacity: 0.26; }
+  33%  { transform: scaleX(1);    opacity: 0.26; }
+  44%  { transform: scaleX(1.08); opacity: 0.30; }
+  54%  { transform: scaleX(0.6);  opacity: 0.13; }
+  64%  { transform: scaleX(1.15); opacity: 0.32; }
+  72%  { transform: scaleX(1);    opacity: 0.26; }
+  100% { transform: scaleX(1);    opacity: 0.26; }
+}
+#screen-splash .wordmark-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  margin-left: -115px;
+  transform-origin: 50% 100%;
+  animation: splashWordmarkIdle 4.8s ease-in-out infinite;
+  animation-delay: 3.2s;
+}
+@keyframes splashWordmarkIdle {
+  0%   { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  8%   { transform: translateY(0)    rotate(-6deg) scaleY(1);    }
+  16%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  24%  { transform: translateY(0)    rotate(6deg)  scaleY(1);    }
+  33%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  44%  { transform: translateY(4px)  rotate(0deg)  scaleY(0.90); }
+  54%  { transform: translateY(-26px) rotate(0deg) scaleY(1.08); }
+  64%  { transform: translateY(0)    rotate(0deg)  scaleY(0.90); }
+  72%  { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+  100% { transform: translateY(0)    rotate(0deg)  scaleY(1);    }
+}
+#screen-splash .wordmark-crop {
+  width: 230px;
+  height: 106px;
+  background-image: url('jaunt-wordmark-transparent.png');
+  background-repeat: no-repeat;
+  background-size: 230px 106px;
+  display: block;
+}
+@media (prefers-reduced-motion: reduce) {
+  #screen-splash .logo-layer,
+  #screen-splash .main-layer,
+  #screen-splash .parallax-back,
+  #screen-splash .parallax-front,
+  #screen-splash .wordmark-shadow,
+  #screen-splash .wordmark-wrap {
+    animation: none;
+  }
+  #screen-splash .main-layer { opacity: 1; }
+  #screen-splash .logo-layer { opacity: 0; }
+}
+
 /* ===================== MAP STAGE (existing behavior, unchanged) ===================== */
 #map-stage {
   position: fixed;
@@ -200,6 +339,23 @@ input:focus-visible,
   height: 123.13px;
   background-size: 502.75px 335.17px;
   background-position: -52.45px -104.05px;
+}
+/* plain-walk pose, 120px - loading screen's animated walker (ported from
+   mockups/flow-02-generate.html, not re-derived) */
+.jaunty-walk-loading {
+  width: 120px;
+  height: 112.94px;
+  background-size: 602.35px 401.57px;
+  background-position: -73.33px -20.78px;
+}
+/* head-only crop, 30px - the live-position marker during a walk (DESIGN.md,
+   epics.md FR-14), also reused for the Trip Setup starting-point marker per
+   the user's explicit choice (2026-10-21) - ported from mockups/flow-03-walk.html */
+.jaunty-head-marker {
+  width: 30px;
+  height: 26.09px;
+  background-size: 500.87px 333.91px;
+  background-position: -101.41px -21.52px;
 }
 
 /* ===================== STARTING-POINT SCREEN (overlay on the map) ===================== */
@@ -779,28 +935,79 @@ input:focus-visible,
 }
 
 /* ===================== MINIMAL / THROWAWAY SCREENS =====================
-   Loading, the non-feasible placeholder, and the post-Approve walking stub
-   (Story 1.5) are all intentionally plain - same shared .content layout,
-   no bespoke chrome. */
-#screen-loading .content,
+   The non-feasible placeholder and the post-Approve walking stub (Story
+   1.5) are intentionally plain - same shared .content layout, no bespoke
+   chrome. The loading screen got its own real illustrated design below
+   instead (ported from mockups/flow-02-generate.html, 2026-10-21). */
 #screen-review-unavailable .content,
 #screen-walking-stub .content {
   text-align: center;
   gap: 10px;
 }
-#screen-loading h2,
 #screen-review-unavailable h2,
 #screen-walking-stub h2 {
   font-size: 18px;
   font-weight: 700;
   margin: 0;
 }
-#screen-loading p,
 #screen-review-unavailable p,
 #screen-walking-stub p {
   font-size: 14px;
   color: var(--ink-soft);
   margin: 0;
+}
+
+/* ===================== LOADING SCREEN =====================
+   Ported from mockups/flow-02-generate.html - Jarrod (walk-pose crop)
+   animates across the same hillside/tree/house scene the splash screen
+   uses, above the "Concocting your jaunt..." headline. */
+.loading-screen {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+}
+.scenery-wrap {
+  width: 100%;
+  height: 200px;
+  position: relative;
+  overflow: hidden;
+}
+.scenery-wrap svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.walker {
+  position: absolute;
+  left: 50%;
+  bottom: 50px;
+  margin-left: -60px;
+  animation: loadingWalkAcross 4.6s ease-in-out infinite alternate;
+}
+@keyframes loadingWalkAcross {
+  0%   { transform: translateX(-35px); }
+  100% { transform: translateX(35px); }
+}
+.loading-text {
+  text-align: center;
+}
+.loading-text .headline {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.loading-text p {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .walker { animation: none; }
 }
 
 /* ===================== ROUTE REVIEW PANEL (Story 1.5) =====================
@@ -903,6 +1110,20 @@ input:focus-visible,
   align-items: center;
   justify-content: center;
 }
+.stop-list-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stop-list-icon svg {
+  width: 16px;
+  height: 16px;
+}
 .stop-list-text {
   display: flex;
   flex-direction: column;
@@ -920,6 +1141,16 @@ input:focus-visible,
 }
 
 /* ===================== STOP CONTENT OVERLAY (Story 1.5, AD-3) ===================== */
+.stop-overlay-photo {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 14px;
+  display: block;
+}
+.stop-overlay-photo[hidden] {
+  display: none;
+}
 .stop-overlay-body {
   width: 100%;
   font-size: 13px;

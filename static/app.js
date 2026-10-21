@@ -11,13 +11,19 @@
 // backend yet (no planning endpoint exists until Story 1.4).
 
 const NEWTOWN_CENTER = [151.1793, -33.8977]; // MapLibre uses [lng, lat]
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+// User feedback 2026-10-21: "positron" explicitly strips POI labels (no
+// restaurants/shops shown at any zoom) - switched to "liberty", OpenFreeMap's
+// actively-maintained default (the other OpenMapTiles-derived styles,
+// including positron, are abandoned upstream), which keeps POIs and colored
+// land-use/park areas. Verified live: no change needed to the existing
+// pitch:0/dragRotate:false lock already in place below - the map stays flat.
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const POPUP_OPTIONS = { maxWidth: "260px" };
-const START_MARKER_COLOR = "#e63946";
 
 const statusEl = document.getElementById("status");
 const instructionsEl = document.getElementById("instructions");
 const mapStageEl = document.getElementById("map-stage");
+const screenSplashEl = document.getElementById("screen-splash");
 
 const map = new maplibregl.Map({
   container: "map",
@@ -51,18 +57,14 @@ map.on("error", (event) => {
 
 instructionsEl.textContent = "Tap the map to choose your starting point";
 
-// A small round div (not MapLibre's default pin) to match the original
-// circle-marker look, and so it's visually distinct in both shape and
-// colour from the default pin markers used for catalogue stops below.
+// User's explicit choice (2026-10-21): the starting-point marker is
+// Jarrod's own head (the same crop DESIGN.md/FR-14 already define for the
+// live-position marker during a walk), not a plain colored dot - and
+// definitely not red, which was never anyone's choice, just a Sprint-2
+// placeholder that stuck around.
 function buildStartMarkerElement() {
   const el = document.createElement("div");
-  el.style.width = "20px";
-  el.style.height = "20px";
-  el.style.borderRadius = "50%";
-  el.style.background = START_MARKER_COLOR;
-  el.style.opacity = "0.9";
-  el.style.border = `2px solid ${START_MARKER_COLOR}`;
-  el.style.boxSizing = "border-box";
+  el.className = "jaunty jaunty-head-marker";
   return el;
 }
 
@@ -105,7 +107,12 @@ function buildPopupContent(place) {
 // Codex review 2026-10-21 (commit d79975c): these markers were never kept
 // anywhere, so they could never be hidden again - Route Review ended up
 // showing every catalogue pin alongside its own numbered stop circles.
-// Kept here so setCatalogueMarkersVisible() below can toggle them.
+// User feedback the same day went further: the plain default-pin "blue
+// dots" look messy on the starting-point screen too, now that the base
+// style itself shows real POIs when zoomed in - so these are never shown
+// at all any more (kept, not deleted, for Story 2.4's muted
+// background-amenities layer, FR-23, which will want this same fetched
+// data rendered a different, deliberately subtle way).
 const catalogueMarkers = [];
 
 function setCatalogueMarkersVisible(visible) {
@@ -145,10 +152,7 @@ async function loadPlaces() {
       .addTo(map);
     catalogueMarkers.push(marker);
   });
-  // loadPlaces() resolves asynchronously, after showStep() may already have
-  // run once for the initial screen - apply the current phase's visibility
-  // immediately rather than waiting for the next navigation.
-  setCatalogueMarkersVisible(trip.phase === "setting_up");
+  setCatalogueMarkersVisible(false);
 }
 
 // =====================================================================
@@ -165,6 +169,86 @@ let mapStyleLoaded = false;
 
 function emptyFeatureCollection() {
   return { type: "FeatureCollection", features: [] };
+}
+
+// User feedback 2026-10-21: stop markers should be small icons showing what
+// kind of place it is, not "only the green dots" - and the stop list is
+// "a bit boring without any" too, so the same icon is reused there.
+// Deliberately plain geometric shapes (bars, a house, a dot cluster), not
+// an attempt at detailed/photographic icon art. Shape-only fragments, fill
+// color passed in separately so the map version (cream-on-forest) and the
+// list version (forest-on-muted) share one source of truth for the shape.
+const TOPIC_ICON_SHAPES = {
+  history:
+    '<rect x="4" y="5" width="16" height="2.4"/>' +
+    '<rect x="6" y="9" width="2.4" height="9"/>' +
+    '<rect x="11" y="9" width="2.4" height="9"/>' +
+    '<rect x="16" y="9" width="2.4" height="9"/>' +
+    '<rect x="3" y="18.5" width="18" height="2.2"/>',
+  architecture:
+    '<polygon points="12,3 4,10 20,10"/>' +
+    '<rect x="6.5" y="10" width="11" height="9.5"/>',
+  public_art:
+    '<circle cx="9" cy="9" r="4.5"/>' +
+    '<circle cx="16" cy="9" r="4.5"/>' +
+    '<circle cx="12.5" cy="16" r="4.5"/>',
+};
+const DEFAULT_TOPIC_ICON = "history";
+
+function topicIconSvg(topic, fillColor) {
+  const shapes = TOPIC_ICON_SHAPES[topic] || TOPIC_ICON_SHAPES[DEFAULT_TOPIC_ICON];
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${fillColor}">` +
+    shapes +
+    "</svg>"
+  );
+}
+
+// A stop can carry more than one real topic (e.g. a heritage building is
+// often both history and architecture) - the first entry in its own
+// topics array picks the icon, a simple, deterministic rule rather than a
+// new priority system.
+function pickTopic(topics) {
+  const topic = Array.isArray(topics) ? topics.find((t) => TOPIC_ICON_SHAPES[t]) : null;
+  return topic || DEFAULT_TOPIC_ICON;
+}
+
+function pickTopicIconName(topics) {
+  return `topic-icon-${pickTopic(topics)}`;
+}
+
+// MapLibre's addImage() needs a decoded raster image, not an SVG string
+// directly - converts each via an offscreen Image/canvas round-trip.
+function loadTopicIcons() {
+  const ICON_PX = 24;
+  return Promise.all(
+    Object.keys(TOPIC_ICON_SHAPES).map((topic) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = ICON_PX;
+          canvas.height = ICON_PX;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, ICON_PX, ICON_PX);
+          // addImage() needs real decoded pixel data (ImageData), not the
+          // canvas element itself - reproduced directly: passing the raw
+          // canvas threw "mismatched image size. expected: 0 but got: ...".
+          map.addImage(`topic-icon-${topic}`, ctx.getImageData(0, 0, ICON_PX, ICON_PX));
+          resolve();
+        };
+        img.onerror = () => {
+          // A missing icon must degrade (the symbol layer just skips that
+          // feature) rather than block route rendering entirely - same
+          // "best-effort, never fatal" philosophy as the label layer below.
+          console.error(`Could not load topic icon for "${topic}"`);
+          resolve();
+        };
+        // Cream fill reads clearly against the forest-green circle below it.
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(topicIconSvg(topic, "#F6F4EC"));
+      });
+    })
+  );
 }
 
 function setupRouteLayers() {
@@ -214,29 +298,24 @@ function setupRouteLayers() {
     map.getCanvas().style.cursor = "";
   });
 
-  // Best-effort number labels on top of each circle - wrapped separately
-  // since this layer names a specific text-font the base style might not
-  // ship. This only guards a synchronous addLayer() validation failure
-  // (e.g. a malformed layer spec); a missing/unresolved glyph is handled
-  // asynchronously by MapLibre at render time (no text drawn) and can't be
-  // caught here at all - this try/catch does not protect against that.
+  // Topic icon on top of each circle, replacing the old plain order-number
+  // label (user feedback 2026-10-21: markers should show what kind of place
+  // it is). Wrapped separately since a missing/unresolved icon image is a
+  // real possibility (loadTopicIcons() degrades per-icon, not fatally) and
+  // this layer must not block route rendering if that happens.
   try {
     map.addLayer({
-      id: "route-stops-label",
+      id: "route-stops-icon",
       type: "symbol",
       source: ROUTE_STOPS_SOURCE_ID,
       layout: {
-        "text-field": ["to-string", ["get", "order"]],
-        "text-font": ["Noto Sans Bold"],
-        "text-size": 11,
-        "text-allow-overlap": true,
-      },
-      paint: {
-        "text-color": "#FFFFFF",
+        "icon-image": ["get", "topic_icon"],
+        "icon-size": 0.58,
+        "icon-allow-overlap": true,
       },
     });
   } catch (err) {
-    console.error("Could not add stop-number label layer:", err);
+    console.error("Could not add stop-topic-icon layer:", err);
   }
 }
 
@@ -250,7 +329,7 @@ function updateRouteLayers() {
   const stopFeatures = stops.map((stop) => ({
     type: "Feature",
     geometry: { type: "Point", coordinates: [stop.longitude, stop.latitude] },
-    properties: { id: stop.id, order: stop.order },
+    properties: { id: stop.id, order: stop.order, topic_icon: pickTopicIconName(stop.topics) },
   }));
   map.getSource(ROUTE_STOPS_SOURCE_ID).setData({
     type: "FeatureCollection",
@@ -318,9 +397,13 @@ function refreshMapRouteLayers() {
 
 map.on("load", () => {
   loadPlaces();
-  setupRouteLayers();
-  mapStyleLoaded = true;
-  if (trip.phase === "reviewing") updateRouteLayers();
+  // Icons must exist before setupRouteLayers() adds the symbol layer that
+  // references them by name - awaited, not fire-and-forget.
+  loadTopicIcons().then(() => {
+    setupRouteLayers();
+    mapStyleLoaded = true;
+    if (trip.phase === "reviewing") updateRouteLayers();
+  });
 });
 
 // =====================================================================
@@ -610,6 +693,7 @@ const stopOverlayWrapEl = document.getElementById("stop-overlay-wrap");
 const stopOverlaySheetEl = document.getElementById("stop-overlay-sheet");
 const stopOverlayCloseBtn = document.getElementById("stop-overlay-close-btn");
 const stopOverlayHeadingEl = document.getElementById("stop-overlay-heading");
+const stopOverlayPhotoEl = document.getElementById("stop-overlay-photo");
 const stopOverlayBodyEl = document.getElementById("stop-overlay-body");
 const stopOverlayAttributionEl = document.getElementById("stop-overlay-attribution");
 
@@ -790,13 +874,13 @@ function showStep(step, { focusDefault = true } = {}) {
     trip.setup_step = step;
     saveActiveTrip(trip);
     // Codex review 2026-10-21: returning to any setup step must leave
-    // Route Review's own map state behind - the catalogue's own pins
-    // reappear, and a previously-approved route no longer lingers on the
-    // map underneath the starting-point screen.
-    setCatalogueMarkersVisible(true);
+    // Route Review's own map state behind - a previously-approved route no
+    // longer lingers on the map underneath the starting-point screen.
+    // Catalogue markers themselves never reappear here - see
+    // setCatalogueMarkersVisible()'s own comment (2026-10-21 UX feedback:
+    // the default blue pins looked messy and are permanently off, not
+    // phase-toggled).
     clearRouteLayers();
-  } else {
-    setCatalogueMarkersVisible(false);
   }
 
   mapStageEl.hidden = step !== "starting_point" && step !== "reviewing";
@@ -1087,6 +1171,14 @@ function renderStopList() {
     orderEl.textContent = String(stop.order);
     orderEl.setAttribute("aria-hidden", "true");
 
+    // User feedback 2026-10-21: the list is "a bit boring without any
+    // [icon]" - same topic icon as the map marker, forest-colored against
+    // the row's own muted badge background rather than cream-on-forest.
+    const iconEl = document.createElement("span");
+    iconEl.className = "stop-list-icon";
+    iconEl.setAttribute("aria-hidden", "true");
+    iconEl.innerHTML = topicIconSvg(pickTopic(stop.topics), "#1E4A3A");
+
     const textWrap = document.createElement("span");
     textWrap.className = "stop-list-text";
 
@@ -1101,6 +1193,7 @@ function renderStopList() {
     textWrap.appendChild(nameEl);
     textWrap.appendChild(topicsEl);
     btn.appendChild(orderEl);
+    btn.appendChild(iconEl);
     btn.appendChild(textWrap);
     btn.addEventListener("click", () => {
       closeStopListSheet({ restoreFocus: false });
@@ -1142,6 +1235,19 @@ function openStopOverlay(stop) {
   setReviewSheetInert(true);
 
   stopOverlayHeadingEl.textContent = stop.name || "Stop";
+
+  // Optional, not yet populated by any real backend response (Story 1.11's
+  // own job) - degrades to hidden exactly like a missing attribution
+  // entry would, never a broken image.
+  if (stop.photo_url) {
+    stopOverlayPhotoEl.src = stop.photo_url;
+    stopOverlayPhotoEl.alt = stop.name ? `Photo of ${stop.name}` : "";
+    stopOverlayPhotoEl.hidden = false;
+  } else {
+    stopOverlayPhotoEl.hidden = true;
+    stopOverlayPhotoEl.removeAttribute("src");
+  }
+
   stopOverlayBodyEl.textContent = stop.content || "";
 
   stopOverlayAttributionEl.innerHTML = "";
@@ -1383,4 +1489,23 @@ function initTripSetup() {
   showStep(trip.setup_step, { focusDefault: false });
 }
 
-initTripSetup();
+// Launch splash (EXPERIENCE.md): plays once per page load, then gets out of
+// the way - never shown again until a fresh load. Auto-advances after a
+// fixed duration (long enough to see the full reveal plus a little of the
+// idle loop), but any tap/click/keypress skips it immediately - a purely
+// decorative screen must never trap a keyboard/screen-reader user for a
+// fixed few seconds with no way out.
+const SPLASH_AUTO_ADVANCE_MS = 4800;
+
+function dismissSplash() {
+  if (screenSplashEl.hidden) return;
+  screenSplashEl.hidden = true;
+  initTripSetup();
+}
+
+// screenSplashEl itself (role="presentation", no tabindex) can never be the
+// keydown target - listening on document is what actually makes "any key
+// skips it" true, not just "any click inside this specific div."
+screenSplashEl.addEventListener("click", dismissSplash);
+document.addEventListener("keydown", dismissSplash);
+setTimeout(dismissSplash, SPLASH_AUTO_ADVANCE_MS);
