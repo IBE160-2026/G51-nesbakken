@@ -1231,6 +1231,36 @@ const TIME_CHIP_INCREMENT = 15;
 // through the retry loop is deferred, see deferred-work.md.
 const PLANNING_REQUEST_TIMEOUT_MS = 180000;
 
+// Display-only snapshot: storage still resumes setup, never a rejected route.
+let replacementPreviewStops = null;
+let replacementBusy = false;
+
+function showReplacementLoading() {
+  replacementBusy = true;
+  approveRouteBtn.disabled = true;
+  reJauntBtn.disabled = true;
+  changeJauntBtn.disabled = true;
+  hideAllScreens();
+  mapStageEl.hidden = false;
+  screenReviewing.hidden = false;
+  map.resize();
+  openStopListSheet();
+}
+
+function finishReplacementLoading() {
+  if (!replacementBusy) return;
+  replacementBusy = false;
+  approveRouteBtn.disabled = false;
+  reJauntBtn.disabled = false;
+  changeJauntBtn.disabled = false;
+  // The user may have closed progress and opened credits while waiting.
+  // Dismiss review overlays before showing the result or a failure screen.
+  creditsSheetWrapEl.hidden = true;
+  stopOverlayWrapEl.hidden = true;
+  stopOverlayTriggerEl = null;
+  closeStopListSheet({ restoreFocus: false });
+}
+
 function showLoadingScreen() {
   hideAllScreens();
   mapStageEl.hidden = true;
@@ -1244,6 +1274,7 @@ function showLoadingScreen() {
 // Design Notes); the backend's raw `reason` string is never shown, only
 // logged by the caller.
 function showHonestFallback() {
+  finishReplacementLoading();
   hideAllScreens();
   mapStageEl.hidden = true;
   if (trip.available_minutes >= TIME_MAX) {
@@ -1263,6 +1294,7 @@ function showHonestFallback() {
 // change can fix a genuine service error. Offers a same-request retry
 // instead (wired below).
 function showTechnicalFailure() {
+  finishReplacementLoading();
   hideAllScreens();
   mapStageEl.hidden = true;
   screenTechnicalFailure.hidden = false;
@@ -1270,7 +1302,8 @@ function showTechnicalFailure() {
 }
 
 async function startRoutePlanning() {
-  showLoadingScreen();
+  if (trip.replacement && replacementPreviewStops) showReplacementLoading();
+  else showLoadingScreen();
 
   const payload = {
     start_lat: trip.starting_point.lat,
@@ -1358,6 +1391,7 @@ async function startRoutePlanning() {
     showTechnicalFailure();
     return;
   }
+  finishReplacementLoading();
   trip.phase = "reviewing";
   trip.setup_step = null;
   trip.stops = data.stops.map(stop => {
@@ -1371,7 +1405,8 @@ async function startRoutePlanning() {
   trip.unused_minutes = data.unused_minutes;
   saveActiveTrip(trip);
   showStep("reviewing");
-  if (trip.replacement_notice !== null) openStopListSheet();
+  replacementPreviewStops = null;
+  if (edit) openStopListSheet();
 }
 
 // =====================================================================
@@ -1399,20 +1434,22 @@ function humanizeTopic(topic) {
 }
 
 function replaceStop(id) {
-  if (trip.phase !== "reviewing") return;
+  if (replacementBusy || trip.phase !== "reviewing") return;
   const index = trip.stops.findIndex(stop => stop.id === id);
   if (index < 0) return;
   const retained = trip.stops.filter(stop => stop.id !== id);
+  const preview = trip.stops;
   trip.excluded_ids = [...new Set([...trip.excluded_ids, id])];
-  closeStopListSheet({ restoreFocus: false });
   prepareSetupState();
   trip.replacement = { retained_stops: retained, index };
+  replacementPreviewStops = preview;
   saveActiveTrip(trip);
   startRoutePlanning();
 }
 
 function renderStopList() {
   stopListEl.innerHTML = "";
+  const visibleStops = replacementBusy ? replacementPreviewStops : (trip.stops || []);
   const appendNotice = index => {
     if (trip.replacement_notice !== index) return;
     const notice = document.createElement("li");
@@ -1421,13 +1458,24 @@ function renderStopList() {
     notice.textContent = "No suitable replacement could be found with these settings.";
     stopListEl.appendChild(notice);
   };
-  (trip.stops || []).forEach((stop, index) => {
+  visibleStops.forEach((stop, index) => {
     appendNotice(index);
     const li = document.createElement("li");
+
+    if (replacementBusy && index === trip.replacement.index) {
+      li.className = "stop-list-row replacement-loading";
+      const status = document.createElement("span");
+      status.setAttribute("role", "status");
+      status.textContent = "Finding a replacement…";
+      li.appendChild(status);
+      stopListEl.appendChild(li);
+      return;
+    }
 
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "stop-list-btn";
+    btn.disabled = replacementBusy;
     btn.setAttribute("aria-label", `View details for stop ${stop.order}, ${stop.name}`);
 
     const orderEl = document.createElement("span");
@@ -1465,19 +1513,20 @@ function renderStopList() {
     });
 
     li.appendChild(btn);
-    if (trip.phase === "reviewing") {
+    if (trip.phase === "reviewing" || replacementBusy) {
       li.className = "stop-list-row";
       const replace = document.createElement("button");
       replace.type = "button";
       replace.className = "stop-replace-btn";
       replace.textContent = "Replace";
+      replace.disabled = replacementBusy;
       replace.setAttribute("aria-label", `Replace ${stop.name}`);
       replace.addEventListener("click", () => replaceStop(stop.id));
       li.appendChild(replace);
     }
     stopListEl.appendChild(li);
   });
-  appendNotice((trip.stops || []).length);
+  appendNotice(visibleStops.length);
 }
 
 // A sheet open over the reviewing screen must also exclude the live map
@@ -1640,6 +1689,7 @@ approveRouteBtn.addEventListener("click", () => {
 // inputs and exclusions, but return storage to the existing setup shape.
 // This only prepares state: callers either show setup or start planning.
 function prepareSetupState() {
+  replacementPreviewStops = null;
   trip.replacement = null;
   trip.replacement_notice = null;
   const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
@@ -1658,6 +1708,7 @@ function prepareSetupState() {
 // re-runs with the same start/time/topic. Mirrors fallbackTimeChipBtn's
 // shape above: update trip, persist, retry.
 reJauntBtn.addEventListener("click", () => {
+  if (replacementBusy) return;
   const rejectedIds = (trip.stops || []).map((stop) => stop.id);
   trip.excluded_ids = trip.excluded_ids.concat(rejectedIds);
   prepareSetupState();
@@ -1671,6 +1722,7 @@ reJauntBtn.addEventListener("click", () => {
 // showStep(originStep) persists a setup_step, or isValidTrip() would
 // reject the stored trip on the next reload).
 changeJauntBtn.addEventListener("click", () => {
+  if (replacementBusy) return;
   prepareSetupState();
   const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
   trip.phase = "setting_up";
@@ -1716,6 +1768,7 @@ fallbackTimeChipBtn.addEventListener("click", () => {
 // "Try again" on the technical-failure screen - resends the exact same
 // request (trip's values are untouched), no parameter changed.
 technicalFailureRetryBtn.addEventListener("click", () => {
+  if (replacementBusy) return;
   startRoutePlanning();
 });
 

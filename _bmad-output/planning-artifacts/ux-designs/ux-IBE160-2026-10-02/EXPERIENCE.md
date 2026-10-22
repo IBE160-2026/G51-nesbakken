@@ -194,3 +194,5 @@ Character use scales down accordingly: in the Must-tier skeleton, Jarrod still a
 9. **Climax:** he lands on "Jaunt complete" — a short, deliberately calm, deliberately complete-looking screen with no AI text, no photos, nothing pretending to be more than it is. He taps "Back to start" and closes the tab. No account was ever created; nothing persisted that he didn't want to keep.
 
 *Edge case, per PRD UJ-2: had nothing suitable fit his 90-minute window, step 5 would instead be the honest fallback rather than a stretched, lower-quality route — Jaunt would rather say so than manufacture something weak.*
+
+**Stop replacement loading revision, user-approved 2026-10-22:** Keep the map and review stop sheet visible, with “Finding a replacement…” only inside the selected card and other stop names unchanged. Disable Start and further edits until completion. Initial generation and whole-route Re-Jaunt keep their full Concocting screen. Success updates the card/list and route; shorter-route inline notice, final-stop sad fallback and technical recovery follow the existing approved decisions.

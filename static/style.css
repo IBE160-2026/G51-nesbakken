@@ -1356,3 +1356,12 @@ input:focus-visible,
   cursor: pointer;
 }
 .replacement-notice { padding: 16px; line-height: 1.5; }
+.replacement-loading {
+  min-height: 44px;
+  padding: 8px 14px;
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 700;
+}
+.stop-list-row button:disabled { cursor: default; }
+.review-panel button:disabled { opacity: 0.5; cursor: default; }

@@ -86,6 +86,12 @@ function browser(storedTrip) {
     networkError() { responses.push(() => { throw new Error('Network failed'); }); },
     parseError() { responses.push(() => ({ ok: true, json: async () => { throw new Error('Invalid JSON'); } })); },
     pending() { responses.push(() => new Promise(() => {})); },
+    deferred() {
+      let finish;
+      const promise = new Promise(resolve => { finish = resolve; });
+      responses.push(() => promise);
+      return (data, ok = true) => finish({ ok, status: ok ? 200 : 503, json: async () => data });
+    },
     settle: () => new Promise(resolve => setImmediate(resolve)),
   };
 }
@@ -387,3 +393,100 @@ test('last-row removal places one notice after remaining stops across rerenders'
     app.evaluate('renderStopList()');
   }
 });
+
+test('replacement loads only the chosen card, preserves neighbours, and blocks overlapping edits', async () => {
+  const app = browser(route(['a', 'b', 'c']));
+  app.click('open-stop-list-btn');
+  const finish = app.deferred();
+  app.evaluate("replaceStop('b')");
+  const list = app.elements.get('stop-list');
+  assert.equal(list.children.length, 3);
+  assert.equal(list.children[1].className, 'stop-list-row replacement-loading');
+  assert.equal(list.children[1].children[0].textContent, 'Finding a replacement…');
+  for (const [i, name] of [[0, 'Stop a'], [2, 'Stop c']]) {
+    assert.equal(list.children[i].children[0].children[2].children[0].textContent, name);
+    assert.equal(list.children[i].children[1].disabled, true);
+  }
+  assert.equal(app.elements.get('screen-loading').hidden, true);
+  assert.equal(app.elements.get('map-stage').hidden, false);
+  assert.equal(app.elements.get('screen-reviewing').hidden, false);
+  assert.equal(app.elements.get('stop-list-sheet-wrap').hidden, false);
+  for (const id of ['approve-route-btn', 're-jaunt-btn', 'change-jaunt-btn']) assert.equal(app.elements.get(id).disabled, true);
+  app.evaluate("replaceStop('a')");
+  for (const id of ['approve-route-btn', 're-jaunt-btn', 'change-jaunt-btn']) app.click(id);
+  assert.equal(app.requests.length, 1);
+  assert.equal(app.saved().phase, 'setting_up');
+  assert(app.valid());
+  assert.equal(browser(app.saved()).requests.length, 0);
+  app.click('stop-list-close-btn'); app.click('open-stop-list-btn');
+  assert.equal(list.children[1].children[0].textContent, 'Finding a replacement…');
+  finish({ ...replacementSuccess(['a', 'c', 'd']), replacement_outcome: 'replacement_found' });
+  await app.settle();
+  assert.equal(app.saved().phase, 'reviewing');
+  assert.equal(app.elements.get('stop-list-sheet-wrap').hidden, false);
+  assert(list.children.every(row => row.className !== 'stop-list-row replacement-loading'));
+  for (const id of ['approve-route-btn', 're-jaunt-btn', 'change-jaunt-btn']) assert.equal(app.elements.get(id).disabled, false);
+});
+
+test('technical failure releases local busy state and retry returns to card-local loading', async () => {
+  const app = browser(route(['a', 'b', 'c']));
+  app.networkError(); app.evaluate("replaceStop('b')"); await app.settle();
+  assert.equal(app.elements.get('screen-technical-failure').hidden, false);
+  assert.equal(app.elements.get('stop-list-sheet-wrap').hidden, true);
+  assert.equal(app.elements.get('map-stage').inert, false);
+  assert.equal(app.elements.get('approve-route-btn').disabled, false);
+  const finish = app.deferred();
+  app.click('technical-failure-retry-btn');
+  assert.equal(app.elements.get('screen-loading').hidden, true);
+  assert.equal(app.elements.get('screen-reviewing').hidden, false);
+  assert.equal(app.elements.get('stop-list-sheet-wrap').hidden, false);
+  assert.equal(app.elements.get('stop-list').children[1].children[0].textContent, 'Finding a replacement…');
+  assert.deepEqual(app.requests[1], app.requests[0]);
+  finish({ ...replacementSuccess(['a', 'c']), replacement_outcome: 'retained_only' }); await app.settle();
+  assert.equal(app.saved().replacement_notice, 1);
+  assert.equal(app.elements.get('approve-route-btn').disabled, false);
+  assert.equal(app.elements.get('stop-list').children[1].className, 'replacement-notice');
+});
+
+test('final-stop failure cleans up the local sheet before sad-Jarrod fallback', async () => {
+  const app = browser(route(['a'])); const finish = app.deferred();
+  app.evaluate("replaceStop('a')");
+  assert.equal(app.elements.get('stop-list').children[0].className, 'stop-list-row replacement-loading');
+  finish({ feasible: false }); await app.settle();
+  assert.equal(app.elements.get('screen-honest-fallback').hidden, false);
+  assert.equal(app.elements.get('stop-list-sheet-wrap').hidden, true);
+  assert.equal(app.elements.get('map-stage').inert, false);
+  assert.equal(app.elements.get('approve-route-btn').disabled, false);
+});
+
+test('initial generation and whole-route Re-Jaunt still use the full loading screen', () => {
+  const app = browser();
+  app.seed({ ...route(), phase: 'setting_up', setup_step: 'confirm_sheet' });
+  app.pending(); app.evaluate('startRoutePlanning()');
+  assert.equal(app.elements.get('screen-loading').hidden, false);
+  assert.equal(app.elements.get('map-stage').hidden, true);
+  const rejaunt = browser(route());
+  rejaunt.pending(); rejaunt.click('re-jaunt-btn');
+  assert.equal(rejaunt.elements.get('screen-loading').hidden, false);
+  assert.equal(rejaunt.elements.get('map-stage').hidden, true);
+});
+
+for (const outcome of ['replacement_found', 'retained_only', 'technical', 'final']) {
+  test(`replacement completion cleans up an intervening credits sheet: ${outcome}`, async () => {
+    const app = browser(route(outcome === 'final' ? ['a'] : ['a', 'b', 'c']));
+    const finish = app.deferred();
+    app.evaluate(outcome === 'final' ? "replaceStop('a')" : "replaceStop('b')");
+    app.click('stop-list-close-btn'); app.click('open-credits-btn');
+    assert.equal(app.elements.get('credits-sheet-wrap').hidden, false);
+    if (outcome === 'technical') finish({ error: 'Unavailable' }, false);
+    else if (outcome === 'final') finish({ feasible: false });
+    else finish({ ...replacementSuccess(outcome === 'retained_only' ? ['a', 'c'] : ['a', 'c', 'd']), replacement_outcome: outcome });
+    await app.settle();
+    assert.equal(app.elements.get('credits-sheet-wrap').hidden, true);
+    const successful = ['replacement_found', 'retained_only'].includes(outcome);
+    assert.equal(app.elements.get('stop-list-sheet-wrap').hidden, !successful);
+    assert.equal(app.elements.get('map-stage').inert, successful);
+    assert.equal(app.elements.get('screen-reviewing').inert, successful);
+    assert.equal(app.elements.get('approve-route-btn').disabled, false);
+  });
+}
