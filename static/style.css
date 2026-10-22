@@ -1343,19 +1343,36 @@ input:focus-visible,
 }
 .stop-list-row .stop-list-name { overflow-wrap: anywhere; }
 .stop-replace-btn {
+  position: relative;
   flex-shrink: 0;
   min-width: 44px;
   min-height: 44px;
-  padding: 8px;
+  padding: 0 6px;
   background: transparent;
   color: var(--forest);
-  border: 1px solid var(--forest);
-  border-radius: 14px;
-  font-size: 13px;
-  font-weight: 700;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
-.replacement-notice { padding: 16px; line-height: 1.5; }
+/* Slim visual pill within the full-height phone/keyboard target. */
+.stop-replace-btn::before {
+  content: "";
+  position: absolute;
+  inset: 8px 0;
+  border: 1px solid var(--forest);
+  border-radius: 14px;
+  pointer-events: none;
+}
+.replacement-notice {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--surface-muted);
+  border-radius: 14px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .replacement-loading {
   min-height: 44px;
   padding: 8px 14px;
