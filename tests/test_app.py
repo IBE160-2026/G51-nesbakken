@@ -289,6 +289,31 @@ class TestApiPlanValidation(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             mock_plan.assert_called_once()
 
+    def test_excluded_ids_omitted_defaults_to_empty_list(self):
+        # Story 1.7: absent entirely (every request before the first
+        # Re-Jaunt) must behave exactly as it does today, not require the
+        # field.
+        with patch("app.planner.plan_route", return_value=INFEASIBLE_RESULT) as mock_plan:
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_plan.call_args.kwargs.get("excluded_ids"), [])
+
+    def test_valid_excluded_ids_list_accepted_and_threaded_through(self):
+        body = dict(VALID_PLAN_BODY, excluded_ids=["node/1", "node/2"])
+        with patch("app.planner.plan_route", return_value=INFEASIBLE_RESULT) as mock_plan:
+            response = self.client.post("/api/plan", json=body)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_plan.call_args.kwargs.get("excluded_ids"), ["node/1", "node/2"])
+
+    def test_malformed_excluded_ids_rejected(self):
+        # Same pattern as every other malformed field: a real 400 before
+        # any routing/AI call, not a crash or a silent pass-through.
+        for excluded_ids in ("abc", [1, 2], {"a": 1}, [None]):
+            body = dict(VALID_PLAN_BODY, excluded_ids=excluded_ids)
+            response, mock_plan = self._post(body)
+            self.assertEqual(response.status_code, 400)
+            mock_plan.assert_not_called()
+
 
 class TestApiPlanOutcomes(unittest.TestCase):
     def setUp(self):

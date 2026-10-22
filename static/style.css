@@ -1115,6 +1115,50 @@ input:focus-visible,
   gap: 10px;
 }
 
+/* Story 1.7: Re-Jaunt / "Start my jaunt" equal-weight button pair
+   (UX-DR6) - ported from the real mock
+   (key-generate-review-fallback.html's .sheet-actions/.btn/.btn-primary/
+   .btn-outline). Two flex:1 buttons in one row, genuinely equal width -
+   never one visually dominant over the other, unlike .btn-full's single
+   full-width action. */
+.sheet-actions {
+  display: flex;
+  gap: 10px;
+}
+.sheet-actions .btn {
+  flex: 1;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 13px 8px;
+  border-radius: 18px;
+  /* Both buttons get the same 2px border width (one transparent) -
+     verified live (2026-10-22): giving .btn-primary border:none while
+     .btn-outline keeps its real 2px border measured 219px vs 215px
+     under equal flex:1, regardless of flex-basis tweaks (0% vs 0) or
+     min-width:0 - this browser computes each flex item's share from its
+     content box, then adds that item's own border on top, so only the
+     bordered button grew. Matching border-width on both (one real, one
+     transparent) means that addition happens identically on both sides
+     instead of only one - confirmed live afterward: both measure the
+     same width. */
+  border: 2px solid transparent;
+  text-align: center;
+  cursor: pointer;
+}
+.sheet-actions .btn-primary {
+  background: var(--forest);
+  color: var(--cream);
+}
+.sheet-actions .btn-outline {
+  background: transparent;
+  color: var(--forest);
+  /* Same 2px border-width as .btn-primary's transparent one above (just
+     a real color here) - same padding too, now that neither needs to
+     compensate for a border-width difference the other doesn't have. */
+  border-color: var(--forest);
+}
+
 /* ===================== SHEET HEADER ROW + CLOSE-X (Story 1.5, UX-DR25) =====================
    Shape/colors ported from the one real close-x in the mockups
    (mockups/key-must-tier-skeleton.html's .stop-overlay .close-x), swapped

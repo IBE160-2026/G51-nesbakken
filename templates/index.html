@@ -242,7 +242,13 @@
         <button type="button" class="btn-pill" id="open-stop-list-btn" aria-label="View all stops">View stops</button>
         <button type="button" class="text-link" id="open-credits-btn" aria-label="View data source credits">Data sources</button>
       </div>
-      <button type="button" class="btn-full" id="approve-route-btn" aria-label="Approve this route and start walking">Approve &amp; start walking</button>
+      <!-- Story 1.7: Re-Jaunt and "Start my jaunt" render as a real
+           equal-weight pair (UX-DR6) - replaces the single full-width
+           approve button. -->
+      <div class="sheet-actions">
+        <button type="button" class="btn btn-outline" id="re-jaunt-btn" aria-label="Reject this route and plan a different one">Re-Jaunt</button>
+        <button type="button" class="btn btn-primary" id="approve-route-btn" aria-label="Start my jaunt - approve this route and start walking">Start my jaunt</button>
+      </div>
       <!-- Codex review 2026-10-21: before this, the only way back from a
            successful review required approving first, then using the
            temporary walking stub's own back button - a real dead end for

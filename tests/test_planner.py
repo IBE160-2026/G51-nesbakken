@@ -77,6 +77,23 @@ class TestShortlisting(unittest.TestCase):
         kept_ids = {p["id"] for p in result}
         self.assertNotIn(f"p{SHORTLIST_CAP + 4}", kept_ids)
 
+    def test_excluded_ids_filtered_out(self):
+        # Story 1.7 (AD-5): excluded_ids is a hard filter applied here,
+        # before topic/distance narrowing ever runs - a Re-Jaunted stop
+        # must never reappear in a later shortlist.
+        a = make_place("a", -33.901, 151.181, ["history"])
+        b = make_place("b", -33.901, 151.181, ["history"])
+        result = shortlist_candidates(
+            START_LAT, START_LON, "history", places=[a, b], excluded_ids=["a"]
+        )
+        self.assertEqual([p["id"] for p in result], ["b"])
+
+    def test_excluded_ids_defaults_to_no_exclusion(self):
+        # None (the default) behaves exactly like today - nothing excluded.
+        a = make_place("a", -33.901, 151.181, ["history"])
+        result = shortlist_candidates(START_LAT, START_LON, "history", places=[a])
+        self.assertEqual([p["id"] for p in result], ["a"])
+
 
 class TestBestOrder(unittest.TestCase):
     def test_finds_shortest_of_two_distinct_routes(self):
@@ -481,6 +498,56 @@ class TestPlanRoute(unittest.TestCase):
         self.assertIn("at least", result["reason"])
         self.assertEqual(result["attempts"], 0)
         self.assertEqual(result["attempts_log"], [])
+
+    def test_excluded_ids_passed_through_to_shortlisting(self):
+        # Story 1.7: plan_route() is purely a pass-through to
+        # shortlist_candidates() for excluded_ids - the actual hard-filter
+        # enforcement lives in shortlist_candidates() itself (see
+        # TestShortlisting.test_excluded_ids_filtered_out).
+        with patch("ai.select_stops", return_value=_selection("option_1")):
+            plan_route(START_LAT, START_LON, "public_art", 60, excluded_ids=["x", "y"])
+        self.assertEqual(
+            self.mock_shortlist.call_args.kwargs.get("excluded_ids"), ["x", "y"]
+        )
+
+    def test_excluded_ids_none_normalizes_to_empty_list(self):
+        # Callers/tests may omit excluded_ids entirely (the default,
+        # None) - must behave exactly like passing [], never crash on a
+        # `in excluded_ids` check downstream.
+        with patch("ai.select_stops", return_value=_selection("option_1")):
+            plan_route(START_LAT, START_LON, "public_art", 60)
+        self.assertEqual(self.mock_shortlist.call_args.kwargs.get("excluded_ids"), [])
+
+
+class TestPlanRouteExcludedIdsEndToEnd(unittest.TestCase):
+    """Story 1.7: with real (unmocked) shortlisting, excluding the stops
+    of the only feasible combination genuinely removes it - plan_route()
+    returns a different/no route, not the same one it would without
+    exclusion."""
+
+    def setUp(self):
+        places_patcher = patch("planner.load_ready_places", return_value=FAKE_SHORTLIST)
+        matrix_patcher = patch("planner.fetch_duration_matrix", return_value=ONLY_ONE_FEASIBLE_MATRIX)
+        places_patcher.start()
+        matrix_patcher.start()
+        self.addCleanup(places_patcher.stop)
+        self.addCleanup(matrix_patcher.stop)
+
+    def test_no_exclusion_finds_the_only_feasible_combination(self):
+        with patch("ai.select_stops", return_value=_selection("option_1")):
+            result = plan_route(START_LAT, START_LON, "public_art", 60)
+        self.assertTrue(result["feasible"])
+        self.assertEqual(set(result["selected_ids"]), {"a", "b"})
+
+    def test_excluding_the_feasible_combinations_stops_leaves_no_route(self):
+        # "a" and "b" are the only feasible combination's stops (AD-5:
+        # Re-Jaunt excludes every stop of the whole rejected route) -
+        # excluding both leaves only "c", which alone can't form a
+        # 2-stop walk at all.
+        with patch("ai.select_stops") as mock_select:
+            result = plan_route(START_LAT, START_LON, "public_art", 60, excluded_ids=["a", "b"])
+        mock_select.assert_not_called()
+        self.assertFalse(result["feasible"])
 
 
 class TestPlanRouteAttemptsLog(unittest.TestCase):

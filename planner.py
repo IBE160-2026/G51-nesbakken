@@ -70,20 +70,30 @@ def load_ready_places(data_path=DATA_PATH):
     return [r for r in records if r.get("status") == "ready"]
 
 
-def shortlist_candidates(start_lat, start_lon, topic, places=None):
+def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=None):
     """topic: one of the catalogue's topic strings, or "surprise_me" to skip
     topic filtering entirely - candidates across all topics are kept so
     Sprint 4's AI can make the final cross-topic selection itself, rather
     than this step silently narrowing it to a single "most common" topic.
+
+    excluded_ids (Story 1.7, AD-5): a hard filter, applied here before any
+    routing/AI call ever sees the candidates - a Re-Jaunted stop must never
+    reappear, not merely be discouraged by an AI prompt hint.
     """
     if places is None:
         places = load_ready_places()
+    # bmad-code-review 2026-10-22: was a list, making this an O(n*m) scan
+    # over the whole catalogue for every excluded id - a set makes each
+    # check O(1), same result either way.
+    excluded_ids = set(excluded_ids) if excluded_ids else set()
 
     nearby = []
     for place in places:
         if place.get("status") != "ready":
             continue
         if place.get("latitude") is None or place.get("longitude") is None:
+            continue
+        if place.get("id") in excluded_ids:
             continue
         distance = haversine_meters(
             start_lat, start_lon, place["latitude"], place["longitude"]
@@ -332,6 +342,7 @@ def plan_route(
     topic,
     requested_minutes,
     dwell_minutes_per_stop=DWELL_MINUTES_PER_STOP,
+    excluded_ids=None,
 ):
     """Sprint 4: shortlist real candidates, fetch a real duration matrix,
     deterministically enumerate every feasible stop combination (2 up to
@@ -354,8 +365,14 @@ def plan_route(
     before, a way to coach AI toward a mathematically valid answer, since
     every offered option is already guaranteed valid. "attempts_log"
     records every attempt's outcome, for diagnosing a failed request.
+
+    excluded_ids (Story 1.7): passed straight through to
+    shortlist_candidates() as the hard Re-Jaunt filter (AD-5). Normalized
+    to [] here so callers/tests may pass either None or a list.
     """
-    shortlist = shortlist_candidates(start_lat, start_lon, topic)
+    if excluded_ids is None:
+        excluded_ids = []
+    shortlist = shortlist_candidates(start_lat, start_lon, topic, excluded_ids=excluded_ids)
     if len(shortlist) < MIN_STOPS:
         return _plan_failure(
             f"only {len(shortlist)} candidate place(s) found near this start "

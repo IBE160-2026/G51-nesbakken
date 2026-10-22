@@ -564,6 +564,10 @@ function defaultTrip() {
     geometry: null,
     total_minutes: null,
     unused_minutes: null,
+    // Story 1.7: every stop id rejected by a Re-Jaunt tap, accumulated
+    // across attempts (AD-5) - a hard filter the backend applies before
+    // shortlisting, never cleared except by a fresh trip object.
+    excluded_ids: [],
   };
 }
 
@@ -658,6 +662,16 @@ function hasValidCommonFields(candidate) {
     return false;
   }
   if (candidate.starting_point !== null && !isValidStartingPoint(candidate.starting_point)) {
+    return false;
+  }
+  // Story 1.7: now a required common field - an old stored trip from
+  // before this story predates it, and must hit the existing
+  // safe-reset-to-fresh-trip path rather than resuming with no exclusion
+  // list at all.
+  if (
+    !Array.isArray(candidate.excluded_ids) ||
+    !candidate.excluded_ids.every((id) => typeof id === "string")
+  ) {
     return false;
   }
   return true;
@@ -806,6 +820,7 @@ const reviewSummaryEl = document.getElementById("review-summary");
 const openStopListBtn = document.getElementById("open-stop-list-btn");
 const openCreditsBtn = document.getElementById("open-credits-btn");
 const approveRouteBtn = document.getElementById("approve-route-btn");
+const reJauntBtn = document.getElementById("re-jaunt-btn");
 const changeJauntBtn = document.getElementById("change-jaunt-btn");
 
 const stopListSheetWrapEl = document.getElementById("stop-list-sheet-wrap");
@@ -1247,6 +1262,9 @@ async function startRoutePlanning() {
     start_lon: trip.starting_point.lng,
     topic: trip.topic,
     requested_minutes: trip.available_minutes,
+    // Story 1.7: the full accumulated exclusion list, resent every time -
+    // the backend is stateless (AD-2/AD-5), never a delta.
+    excluded_ids: trip.excluded_ids,
   };
 
   let response;
@@ -1529,6 +1547,18 @@ approveRouteBtn.addEventListener("click", () => {
   trip.phase = "walking";
   saveActiveTrip(trip);
   showStep("walking");
+});
+
+// Re-Jaunt (Story 1.7): rejects the whole currently-displayed route, not
+// just this specific combination (AD-5's deliberate "clean break") - every
+// stop id on it joins the accumulating excluded_ids list, and planning
+// re-runs with the same start/time/topic. Mirrors fallbackTimeChipBtn's
+// shape above: update trip, persist, retry.
+reJauntBtn.addEventListener("click", () => {
+  const rejectedIds = (trip.stops || []).map((stop) => stop.id);
+  trip.excluded_ids = trip.excluded_ids.concat(rejectedIds);
+  saveActiveTrip(trip);
+  startRoutePlanning();
 });
 
 // Codex review 2026-10-21: a successful review previously had no decline/

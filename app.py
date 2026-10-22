@@ -97,11 +97,12 @@ class PlanRequestError(Exception):
 
 
 def _validate_plan_request(data):
-    """Returns (start_lat, start_lon, topic, requested_minutes) if data is
-    a well-formed plan request, else raises PlanRequestError with a
-    human-readable reason. isinstance(x, bool) is excluded everywhere a
-    number is expected - bool is a subclass of int in Python, so JSON
-    `true`/`false` would otherwise silently pass as 1/0."""
+    """Returns (start_lat, start_lon, topic, requested_minutes,
+    excluded_ids) if data is a well-formed plan request, else raises
+    PlanRequestError with a human-readable reason. isinstance(x, bool) is
+    excluded everywhere a number is expected - bool is a subclass of int
+    in Python, so JSON `true`/`false` would otherwise silently pass as
+    1/0."""
     if not isinstance(data, dict):
         raise PlanRequestError("request body must be a JSON object")
 
@@ -144,7 +145,23 @@ def _validate_plan_request(data):
             f"in 5-minute increments"
         )
 
-    return start_lat, start_lon, topic, requested_minutes
+    # Story 1.7: optional Re-Jaunt exclusion list (AD-5) - absent on
+    # every request before the first Re-Jaunt, so it defaults to "exclude
+    # nothing" rather than being required. Bounded the same defense-in-
+    # depth way every other field here is (bmad-code-review 2026-10-22) -
+    # the real catalogue has 226 places, so a legitimate client can never
+    # need more than that many real, short ids.
+    excluded_ids = data.get("excluded_ids", [])
+    if (
+        not isinstance(excluded_ids, list)
+        or len(excluded_ids) > 500
+        or not all(
+            isinstance(item, str) and len(item) <= 200 for item in excluded_ids
+        )
+    ):
+        raise PlanRequestError("excluded_ids must be a list of at most 500 strings, each at most 200 characters")
+
+    return start_lat, start_lon, topic, requested_minutes, excluded_ids
 
 
 @app.route("/api/plan", methods=["POST"])
@@ -163,14 +180,16 @@ def api_plan():
       failure: a real non-2xx, never the {"feasible": false} shape.
     """
     try:
-        start_lat, start_lon, topic, requested_minutes = _validate_plan_request(
+        start_lat, start_lon, topic, requested_minutes, excluded_ids = _validate_plan_request(
             request.get_json(silent=True)
         )
     except PlanRequestError as exc:
         return jsonify({"error": str(exc)}), 400
 
     try:
-        result = planner.plan_route(start_lat, start_lon, topic, requested_minutes)
+        result = planner.plan_route(
+            start_lat, start_lon, topic, requested_minutes, excluded_ids=excluded_ids
+        )
     except ai.AiFatalError as exc:
         return jsonify({"error": str(exc)}), 503
     except ai.AiExhaustedError as exc:
