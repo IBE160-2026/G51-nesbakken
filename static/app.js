@@ -383,11 +383,15 @@ function setupRouteLayers() {
     const feature = event.features && event.features[0];
     if (!feature) return;
     const stop = (trip.stops || []).find((s) => s.id === feature.properties.id);
-    // bmad-code-review 2026-10-21: no stop-list row was ever activated on
-    // this path, so there's no "trigger" to return focus to - openStopOverlay
-    // previously hardcoded openStopListBtn here regardless, stealing focus
-    // to a control the user never touched. null leaves focus where it was.
-    if (stop) openStopOverlay(stop, null);
+    // Codex review 2026-10-22: the previous null here was still wrong -
+    // openStopOverlay() always calls stopOverlaySheetEl.focus() on open
+    // regardless of trigger, so by the time the overlay closes, focus has
+    // already left the map marker that was clicked; "null leaves focus
+    // where it was" was therefore inaccurate (focus had already moved).
+    // The map canvas (tabindex=0, confirmed live) is the real return
+    // target for a marker-origin overlay - visible, focusable, and where
+    // the user's attention actually was.
+    if (stop) openStopOverlay(stop, map.getCanvas());
   });
   map.on("mouseenter", "route-stops-circle", () => {
     map.getCanvas().style.cursor = "pointer";
@@ -759,7 +763,8 @@ const screenTopicAtRest = document.getElementById("screen-topic-at-rest");
 const screenChooseTopic = document.getElementById("screen-choose-topic");
 const screenLoading = document.getElementById("screen-loading");
 const screenReviewing = document.getElementById("screen-reviewing");
-const screenReviewUnavailable = document.getElementById("screen-review-unavailable");
+const screenHonestFallback = document.getElementById("screen-honest-fallback");
+const screenTechnicalFailure = document.getElementById("screen-technical-failure");
 const screenWalkingStub = document.getElementById("screen-walking-stub");
 
 const startingPointTitleEl = document.getElementById("starting-point-title");
@@ -821,9 +826,14 @@ const creditsSheetWrapEl = document.getElementById("credits-sheet-wrap");
 const creditsSheetEl = document.getElementById("credits-sheet");
 const creditsCloseBtn = document.getElementById("credits-close-btn");
 
-const reviewUnavailableHeadingEl = document.getElementById("review-unavailable-heading");
-const reviewUnavailableDetailEl = document.getElementById("review-unavailable-detail");
-const reviewUnavailableBackBtn = document.getElementById("review-unavailable-back-btn");
+const honestFallbackHeadingEl = document.getElementById("honest-fallback-heading");
+const fallbackTimeChipBtn = document.getElementById("fallback-time-chip");
+const fallbackTopicChipBtn = document.getElementById("fallback-topic-chip");
+const honestFallbackBackBtn = document.getElementById("honest-fallback-back-btn");
+
+const technicalFailureHeadingEl = document.getElementById("technical-failure-heading");
+const technicalFailureRetryBtn = document.getElementById("technical-failure-retry-btn");
+const technicalFailureBackBtn = document.getElementById("technical-failure-back-btn");
 
 const walkingStubHeadingEl = document.getElementById("walking-stub-heading");
 const walkingStubDetailEl = document.getElementById("walking-stub-detail");
@@ -974,7 +984,8 @@ function hideAllScreens() {
   screenChooseTopic.hidden = true;
   screenLoading.hidden = true;
   screenReviewing.hidden = true;
-  screenReviewUnavailable.hidden = true;
+  screenHonestFallback.hidden = true;
+  screenTechnicalFailure.hidden = true;
   screenWalkingStub.hidden = true;
 }
 
@@ -1172,16 +1183,11 @@ dismissLink.addEventListener("click", () => {
 // this is the first screen that needs the response.
 // =====================================================================
 
-// bmad-code-review 2026-10-21: these two screens are a real, reachable
-// part of the app (a genuinely infeasible request, or a provider error),
-// not dev-only - the previous copy named an internal story number, which
-// read as unfinished/internal to anyone who actually saw it, including a
-// grading examiner. The real, polished fallback UI is still Story 1.6's
-// job; this placeholder just no longer says so out loud.
-const PLANNING_FAILURE_MESSAGE =
-  "Something went wrong finding your route. Please try again.";
-const PLANNING_HONEST_FALLBACK_MESSAGE =
-  "Jarrod couldn't find a route that fits this time.";
+// How much larger a tapped time chip makes the request - "Try N minutes"
+// always proposes a larger value than the current request, capped at
+// TIME_MAX (FR-9) - never a dead/no-op suggestion.
+const TIME_CHIP_INCREMENT = 15;
+
 // Codex review 2026-10-21: the original 60s figure only covered the
 // ~30-45s *typical* end-to-end request. The backend's own worst case is
 // much larger - services.py's routing calls time out at 30s each, and
@@ -1202,16 +1208,35 @@ function showLoadingScreen() {
   loadingHeadingEl.focus();
 }
 
-// Both non-feasible response shapes (honest fallback and a real technical
-// failure) land here - this story's only job for either is a minimal,
-// clearly-temporary placeholder with a way back; Story 1.6 owns the real
-// fallback copy/visuals.
-function showReviewUnavailable(message) {
+// The honest "no suitable walk" outcome (Story 1.6) - both feasible:false
+// sub-cases (zero-feasible combinations and the AI's none_suitable
+// judgment) land here and get the exact same screen/copy (see spec's
+// Design Notes); the backend's raw `reason` string is never shown, only
+// logged by the caller.
+function showHonestFallback() {
   hideAllScreens();
   mapStageEl.hidden = true;
-  reviewUnavailableDetailEl.textContent = message;
-  screenReviewUnavailable.hidden = false;
-  reviewUnavailableHeadingEl.focus();
+  if (trip.available_minutes >= TIME_MAX) {
+    fallbackTimeChipBtn.hidden = true;
+  } else {
+    const nextMinutes = Math.min(trip.available_minutes + TIME_CHIP_INCREMENT, TIME_MAX);
+    fallbackTimeChipBtn.hidden = false;
+    fallbackTimeChipBtn.textContent = `Try ${nextMinutes} minutes`;
+  }
+  screenHonestFallback.hidden = false;
+  honestFallbackHeadingEl.focus();
+}
+
+// A real technical failure (non-2xx, or a network/parse failure) - Story
+// 1.6's distinct, simpler screen: same sad-pose shell as the honest
+// fallback above, but no parameter-adjusting chips, since no time/topic
+// change can fix a genuine service error. Offers a same-request retry
+// instead (wired below).
+function showTechnicalFailure() {
+  hideAllScreens();
+  mapStageEl.hidden = true;
+  screenTechnicalFailure.hidden = false;
+  technicalFailureHeadingEl.focus();
 }
 
 async function startRoutePlanning() {
@@ -1237,7 +1262,7 @@ async function startRoutePlanning() {
     });
   } catch (err) {
     console.error("Planning request failed to send:", err);
-    showReviewUnavailable(PLANNING_FAILURE_MESSAGE);
+    showTechnicalFailure();
     return;
   }
 
@@ -1246,7 +1271,7 @@ async function startRoutePlanning() {
     data = await response.json();
   } catch (err) {
     console.error("Planning response was not valid JSON:", err);
-    showReviewUnavailable(PLANNING_FAILURE_MESSAGE);
+    showTechnicalFailure();
     return;
   }
 
@@ -1255,16 +1280,16 @@ async function startRoutePlanning() {
   // user (I/O matrix).
   if (!response.ok) {
     console.error(`Planning request failed with status ${response.status}:`, data);
-    showReviewUnavailable(PLANNING_FAILURE_MESSAGE);
+    showTechnicalFailure();
     return;
   }
 
   // A 200 with feasible:false is the honest "no suitable walk" outcome,
-  // distinct from a technical failure - same minimal placeholder here,
-  // but logged with its own real reason.
+  // distinct from a technical failure - its own real screen, logged with
+  // its own real reason (never shown raw to the user).
   if (!data.feasible) {
     console.error("No feasible route:", data.reason);
-    showReviewUnavailable(PLANNING_HONEST_FALLBACK_MESSAGE);
+    showHonestFallback();
     return;
   }
 
@@ -1517,16 +1542,54 @@ changeJauntBtn.addEventListener("click", () => {
   showStep(originStep);
 });
 
-reviewUnavailableBackBtn.addEventListener("click", () => {
+honestFallbackBackBtn.addEventListener("click", () => {
   const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
   showStep(originStep);
 });
 
-// Unlike reviewUnavailableBackBtn above, trip.phase actually left
-// "setting_up" to get here (Approve set it to "walking") - it must be put
-// back before showStep(originStep) persists a setup_step, or the stored
-// trip would carry phase:"walking" with a non-null setup_step, which
-// isValidTrip() itself would reject on the next reload.
+technicalFailureBackBtn.addEventListener("click", () => {
+  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  showStep(originStep);
+});
+
+// "Try a different topic" - navigates to Choose Topic (or Topic-at-rest
+// for surprise_me), and actually clears the failed topic first (Codex
+// review 2026-10-22: reusing the back-handler's navigation alone left
+// trip.topic unchanged, so refreshTopicPills() kept the failed topic's
+// pill selected and Start enabled - silently pre-deciding exactly what
+// the AC says this chip must not do). topic_at_rest itself never reads
+// trip.topic (it's two equal CTA buttons, not a pill), so clearing is
+// only observable - and only needed - on the choose_topic path, but it's
+// harmless to always do it.
+fallbackTopicChipBtn.addEventListener("click", () => {
+  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  // bmad-code-review 2026-10-22: showStep() below already persists
+  // trip whenever the target is a real setup step (both of these are) -
+  // the explicit saveActiveTrip() here was a redundant second write.
+  trip.topic = null;
+  showStep(originStep);
+});
+
+// "Try N minutes" - commits the larger value shown on the chip (computed
+// in showHonestFallback()), persists it, and immediately starts a new
+// planning request with it.
+fallbackTimeChipBtn.addEventListener("click", () => {
+  trip.available_minutes = Math.min(trip.available_minutes + TIME_CHIP_INCREMENT, TIME_MAX);
+  saveActiveTrip(trip);
+  startRoutePlanning();
+});
+
+// "Try again" on the technical-failure screen - resends the exact same
+// request (trip's values are untouched), no parameter changed.
+technicalFailureRetryBtn.addEventListener("click", () => {
+  startRoutePlanning();
+});
+
+// Unlike honestFallbackBackBtn/technicalFailureBackBtn above, trip.phase
+// actually left "setting_up" to get here (Approve set it to "walking") -
+// it must be put back before showStep(originStep) persists a setup_step,
+// or the stored trip would carry phase:"walking" with a non-null
+// setup_step, which isValidTrip() itself would reject on the next reload.
 walkingStubBackBtn.addEventListener("click", () => {
   const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
   trip.phase = "setting_up";

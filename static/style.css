@@ -18,7 +18,13 @@
    ink (#16302A) on surface (#FFFFFF) -> 14.09:1
    ink (#16302A) on surface-muted (#EDEAE2) -> 11.72:1
    All three clear WCAG AA (4.5:1) and AAA (7:1) for normal text by a wide
-   margin - no token change needed. */
+   margin - no token change needed.
+   ink-soft (#5C6D64) on cream (#F6F4EC) -> 4.98:1 (Story 1.6's
+   .text-link back-buttons on the new fallback screens, computed
+   2026-10-22 per Codex review: this exact pairing was never checked
+   before). Clears AA (4.5:1) but with a real margin, not a razor's
+   edge - no change needed, just recorded, same discipline as the
+   ink-soft-on-white case already recorded next to .text-link itself. */
 
 * {
   box-sizing: border-box;
@@ -947,27 +953,92 @@ input:focus-visible,
   padding: 6px 10px;
 }
 
-/* ===================== MINIMAL / THROWAWAY SCREENS =====================
-   The non-feasible placeholder and the post-Approve walking stub (Story
-   1.5) are intentionally plain - same shared .content layout, no bespoke
-   chrome. The loading screen got its own real illustrated design below
-   instead (ported from mockups/flow-02-generate.html, 2026-10-21). */
-#screen-review-unavailable .content,
+/* ===================== MINIMAL / THROWAWAY SCREEN =====================
+   The post-Approve walking stub (Story 1.5) stays intentionally plain -
+   shared .content layout, no bespoke chrome - it's replaced wholesale by
+   Epic 2's real walking UI. The loading screen got its own real
+   illustrated design below instead (ported from mockups/flow-02-generate.html,
+   2026-10-21). The non-feasible screens got their own real design in
+   Story 1.6 (below) - no longer sharing this minimal treatment. */
 #screen-walking-stub .content {
   text-align: center;
   gap: 10px;
 }
-#screen-review-unavailable h2,
 #screen-walking-stub h2 {
   font-size: 18px;
   font-weight: 700;
   margin: 0;
 }
-#screen-review-unavailable p,
 #screen-walking-stub p {
   font-size: 14px;
   color: var(--ink-soft);
   margin: 0;
+}
+
+/* ===================== HONEST FALLBACK / TECHNICAL FAILURE (Story 1.6) =====================
+   Shared sad-pose shell - ported shape/layout only (not final copy) from
+   the honest-fallback mock (key-generate-review-fallback.html's
+   .fallback-content/.fallback-copy/.fallback-sub/.alt-row/.alt-chip) -
+   same existing tokens, no new colors, no red/alert treatment (UX-DR24).
+   #screen-technical-failure reuses this exact shell per the 2026-10-21
+   human-approved decision: no second character treatment for a screen
+   EXPERIENCE.md itself flags as undesigned. */
+.content.fallback-content {
+  justify-content: flex-start;
+  gap: 22px;
+  padding: 36px 24px 30px;
+  /* bmad-code-review 2026-10-22: the base .content rule centers children
+     as flex items, but doesn't center wrapped text within them - the mock
+     this was ported from sets text-align: center explicitly, which this
+     rule had dropped, leaving multi-line .fallback-copy text left-ragged. */
+  text-align: center;
+}
+/* Jarrod's real dedicated sad pose (jaunty-sad-transparent.png) - a
+   standalone, already-transparent image, not a sprite-sheet cell, so it
+   overrides .jaunty's background-image/size/position directly rather than
+   using the shared sheet + crop-position math every other pose uses (same
+   approach the mock's own .jaunty-notice used). Display size (152 x
+   176.67) matches the mock's 152x177 exactly, scaled from the real
+   610x709 asset at the same aspect ratio - no cropping, never re-derived. */
+.jaunty-sad {
+  width: 152px;
+  height: 176.67px;
+  background-image: url('jaunty-sad-transparent.png');
+  background-size: 152px 176.67px;
+  background-position: 0 0;
+  align-self: center;
+}
+.fallback-copy {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  max-width: 260px;
+  margin: 0;
+}
+.fallback-sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+}
+.alt-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.alt-chip {
+  flex: 1;
+  min-height: 44px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 12px 8px;
+  border-radius: 16px;
+  background: var(--surface-muted);
+  color: var(--ink);
+  border: none;
+  cursor: pointer;
+}
+.alt-chip[hidden] {
+  display: none;
 }
 
 /* ===================== LOADING SCREEN =====================

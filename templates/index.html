@@ -309,14 +309,42 @@
     </div>
   </div>
 
-  <!-- ============== NON-FEASIBLE PLACEHOLDER (Story 1.5): a minimal, clearly
-       temporary screen for both the honest-fallback shape and a technical
-       failure - Story 1.6 builds the real copy/visuals for the former. ============== -->
-  <section id="screen-review-unavailable" class="setup-screen setup-screen--full" hidden>
-    <div class="content">
-      <h2 id="review-unavailable-heading" tabindex="-1">Couldn't plan this Jaunt</h2>
-      <p id="review-unavailable-detail"></p>
-      <button type="button" class="btn-full" id="review-unavailable-back-btn" aria-label="Go back and change your Jaunt">Back</button>
+  <!-- ============== HONEST FALLBACK (Story 1.6): shown for both
+       feasible:false sub-cases (zero-feasible combinations and the AI's
+       none_suitable judgment) - indistinguishable at the wire level and
+       given the exact same screen/copy by design (see spec's Design
+       Notes), never the backend's raw `reason` string (console.error-only,
+       same as the technical-failure screen below already treats it).
+       Shares the sad-pose shell with #screen-technical-failure; FR-9
+       requires the two never share copy. ============== -->
+  <section id="screen-honest-fallback" class="setup-screen setup-screen--full" hidden>
+    <div class="content fallback-content">
+      <div class="jaunty jaunty-sad" aria-hidden="true"></div>
+      <div>
+        <h2 id="honest-fallback-heading" class="fallback-copy" tabindex="-1">Jarrod came up empty-handed this time - couldn't find a walk that felt right.</h2>
+        <p class="fallback-sub">Here's what might work instead:</p>
+      </div>
+      <div class="alt-row">
+        <!-- Label set by app.js (min(available_minutes + 15, 120)); hidden
+             entirely once available_minutes is already at the 120 max. -->
+        <button type="button" class="alt-chip" id="fallback-time-chip"></button>
+        <button type="button" class="alt-chip" id="fallback-topic-chip">Try a different topic</button>
+      </div>
+      <button type="button" class="text-link" id="honest-fallback-back-btn" aria-label="Go back and change your Jaunt">Back to Trip Setup</button>
+    </div>
+  </section>
+
+  <!-- ============== TECHNICAL FAILURE (Story 1.6): a real non-2xx/
+       network/parse failure - same sad-pose shell as the honest-fallback
+       screen above, distinct copy, a same-request retry instead of
+       parameter-adjusting chips (no parameter change can fix a genuine
+       service error; see spec Intent/Boundaries). ============== -->
+  <section id="screen-technical-failure" class="setup-screen setup-screen--full" hidden>
+    <div class="content fallback-content">
+      <div class="jaunty jaunty-sad" aria-hidden="true"></div>
+      <h2 id="technical-failure-heading" class="fallback-copy" tabindex="-1">Jarrod's map got the hiccups just now - not your fault. Mind trying again?</h2>
+      <button type="button" class="btn-full" id="technical-failure-retry-btn">Try again</button>
+      <button type="button" class="text-link" id="technical-failure-back-btn" aria-label="Go back and change your Jaunt">Back to Trip Setup</button>
     </div>
   </section>
 
