@@ -299,14 +299,15 @@ test('pending replacement reload recovers setup without requesting and setup exi
   assert.deepEqual(reloaded.saved().excluded_ids, ['a']);
 });
 
-test('stop row exposes sibling details, Replace, and disabled last-stop Remove', () => {
+test('stop card exposes only sibling details and enabled final-stop Replace', () => {
   const app = browser(route(['a']));
   app.evaluate('renderStopList()');
   const row = app.elements.get('stop-list').children[0];
-  assert.equal(row.children.length, 3);
+  assert.equal(row.children.length, 2);
+  assert.equal(row.children[0].className, 'stop-list-btn');
   assert.equal(row.children[1].textContent, 'Replace');
-  assert.equal(row.children[2].textContent, 'Remove');
-  assert.equal(row.children[2].disabled, true);
+  assert.notEqual(row.children[1].disabled, true);
+  assert(row.children.every(control => control.textContent !== 'Remove'));
   app.pending();
   row.children[1].click();
   assert.equal(app.requests[0].replacement_mode, true);

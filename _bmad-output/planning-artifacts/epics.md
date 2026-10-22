@@ -498,7 +498,7 @@ So that I can see another option before giving up.
 
 ### Story 1.8: Manually remove or replace a stop (Should)
 
-**Amendment, user-approved 2026-10-22:** Constrained AI selection keeps every other stop plus one replacement. If none is suitable, stay in review with the remaining stops, updated route/time and an inline explanation; allow the shorter walk, including one stop. At one remaining stop, Remove is disabled but Replace remains available. Replace rejects that stop: no suitable final replacement shows sad Jarrod, never an empty walk. These controls are pre-walk only. This resolves the replacement-strategy/no-completion questions below; see the Story 1.8 spec for the implemented contract.
+**Amendment, user-approved 2026-10-22:** Constrained AI selection keeps every other stop plus one replacement. If none is suitable, stay in review with the remaining stops, updated route/time and an inline explanation; allow the shorter walk, including one stop. UI revision approved later on 2026-10-22: no separate Remove control is shown; a Replace button sits inside each full-width beige stop card and remains available at one stop. The older X/remove-affordance wording below is superseded by this Replace-only control. Replace rejects that stop: no suitable final replacement shows sad Jarrod, never an empty walk. These controls are pre-walk only. This resolves the replacement-strategy/no-completion questions below; see the Story 1.8 spec for the implemented contract.
 
 Depends on Story 1.5 (review screen). PRD Open Question 2 (replacement strategy) is genuinely open - this story must make and document a concrete choice, not leave it ambiguous in code.
 

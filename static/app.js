@@ -1474,16 +1474,6 @@ function renderStopList() {
       replace.setAttribute("aria-label", `Replace ${stop.name}`);
       replace.addEventListener("click", () => replaceStop(stop.id));
       li.appendChild(replace);
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "stop-replace-btn";
-      remove.textContent = "Remove";
-      remove.disabled = trip.stops.length === 1;
-      remove.setAttribute("aria-label", `Remove ${stop.name} and look for a replacement`);
-      remove.addEventListener("click", () => {
-        if (trip.stops.length > 1) replaceStop(stop.id);
-      });
-      li.appendChild(remove);
     }
     stopListEl.appendChild(li);
   });
