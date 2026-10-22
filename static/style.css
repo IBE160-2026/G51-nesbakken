@@ -1323,3 +1323,11 @@ input:focus-visible,
   color: var(--ink);
   text-align: left;
 }
+
+/* Separate, keyboard reachable editing controls in the review stop sheet. */
+.stop-list-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.stop-list-row .stop-list-btn { flex: 1 1 170px; min-width: 0; }
+.stop-replace-btn { min-height: 44px; padding: 8px; background: transparent;
+  color: inherit; border: 1px solid currentColor; border-radius: 8px; font: inherit; }
+.stop-replace-btn:disabled { opacity: .45; }
+.replacement-notice { padding: 16px; line-height: 1.5; }

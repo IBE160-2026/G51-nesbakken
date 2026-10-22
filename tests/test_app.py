@@ -442,5 +442,56 @@ class TestRequestBodySizeLimit(unittest.TestCase):
         self.assertIn("error", response.get_json())
 
 
+
+class TestReplacementValidation(unittest.TestCase):
+    def setUp(self):
+        self.client = app_module.app.test_client()
+        self.base = dict(start_lat=-33.9, start_lon=151.18, topic='history', requested_minutes=60, replacement_mode=True)
+
+    def test_malformed_retention_rejected_before_planning(self):
+        cases = [dict(retained_ids=None), dict(retained_ids=['node/1', 'node/1']),
+                 dict(retained_ids=['unknown']), dict(retained_ids=['node/3']),
+                 dict(retained_ids=['node/1'], excluded_ids=['node/1']),
+                 dict(retained_ids=['node/1'], replacement_mode=False),
+                 dict(retained_ids=[], replacement_mode='yes'), dict(retained_ids=[{}])]
+        with patch('app.load_ready_places', return_value=FIXTURE_RECORDS[:2]), patch('planner.plan_route') as plan:
+            for changes in cases:
+                with self.subTest(changes=changes):
+                    self.assertEqual(self.client.post('/api/plan', json={**self.base, **changes}).status_code, 400)
+            plan.assert_not_called()
+
+    def test_empty_retention_explicitly_threads_final_stop_mode(self):
+        with patch('planner.plan_route', return_value={'feasible': False, 'reason': 'none'}) as plan:
+            response = self.client.post('/api/plan', json={**self.base, 'retained_ids': [], 'excluded_ids': ['old']})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(plan.call_args.kwargs, dict(excluded_ids=['old'], retained_ids=[], replacement_mode=True))
+
+    def test_retained_only_response_is_explicit_with_canonical_geometry(self):
+        result = dict(feasible=True, shortlist=[FIXTURE_RECORDS[0]], order=[1], total_minutes=7, unused_minutes=53, replacement_outcome='retained_only')
+        geometry = [[151.18, -33.9], [151.19, -33.91], [151.18, -33.9]]
+        with patch('app.load_ready_places', return_value=FIXTURE_RECORDS[:2]), patch('planner.plan_route', return_value=result), patch('services.fetch_route_geometry', return_value=geometry), patch('ai.generate_stop_content', return_value=[dict(id='node/1', content='Grounded', attribution=[])]):
+            response = self.client.post('/api/plan', json={**self.base, 'retained_ids': ['node/1']})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json['replacement_outcome'], 'retained_only')
+            self.assertEqual(response.json['geometry'], geometry)
+            self.assertEqual(response.json['total_minutes'], 7)
+            self.assertEqual(len(response.json['stops']), 1)
+
+class TestReplacementGeometry(unittest.TestCase):
+    def test_bad_geometry_is_technical_failure_before_content_generation(self):
+        result = dict(FEASIBLE_RESULT, replacement_outcome='replacement_found')
+        cases = [None, [], [[151, -33]], [[181, -33], [151, -33]],
+                 [[151, -91], [151, -33]], [[True, -33], [151, -33]],
+                 [[float('nan'), -33], [151, -33]], [[151, 'bad'], [151, -33]],
+                 requests.ConnectionError('network'), KeyError('features'), IndexError('coordinates'), TypeError('malformed')]
+        for geometry in cases:
+            options = {'side_effect': geometry} if isinstance(geometry, Exception) else {'return_value': geometry}
+            with self.subTest(geometry=geometry), patch('planner.plan_route', return_value=result), patch('services.fetch_route_geometry', **options), patch('ai.generate_stop_content') as content:
+                response = app_module.app.test_client().post('/api/plan', json={**VALID_PLAN_BODY, 'replacement_mode': True, 'retained_ids': []})
+                self.assertEqual(response.status_code, 503)
+                self.assertIn('error', response.json)
+                content.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

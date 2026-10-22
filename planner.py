@@ -14,6 +14,8 @@ import itertools
 import json
 import os
 
+import requests
+
 import ai
 from import_places import haversine_meters
 from services import fetch_duration_matrix
@@ -70,7 +72,7 @@ def load_ready_places(data_path=DATA_PATH):
     return [r for r in records if r.get("status") == "ready"]
 
 
-def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=None):
+def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=None, retained_ids=None):
     """topic: one of the catalogue's topic strings, or "surprise_me" to skip
     topic filtering entirely - candidates across all topics are kept so
     Sprint 4's AI can make the final cross-topic selection itself, rather
@@ -87,6 +89,11 @@ def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=
     # check O(1), same result either way.
     excluded_ids = set(excluded_ids) if excluded_ids else set()
 
+    retained_ids = retained_ids or []
+    retained = {p["id"]: p for p in places
+                if p.get("status") == "ready" and p.get("id") in retained_ids
+                and p.get("latitude") is not None and p.get("longitude") is not None
+                and p.get("id") not in excluded_ids}
     nearby = []
     for place in places:
         if place.get("status") != "ready":
@@ -105,7 +112,9 @@ def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=
         nearby = [(d, p) for d, p in nearby if topic in p.get("topics", [])]
 
     nearby.sort(key=lambda pair: pair[0])  # closest first
-    return [place for _, place in nearby[:SHORTLIST_CAP]]
+    reserved = [retained[id_] for id_ in retained_ids if id_ in retained]
+    alternatives = [p for _, p in nearby if p["id"] not in retained]
+    return reserved + alternatives[:SHORTLIST_CAP - len(reserved)]
 
 
 def _round_trip_seconds(start_index, order, duration_matrix):
@@ -160,6 +169,7 @@ def check_feasibility(
     duration_matrix,
     requested_minutes,
     dwell_minutes_per_stop=DWELL_MINUTES_PER_STOP,
+    allow_single=False,
 ):
     """Checks whether a selection of stops can form a walk that fits within
     requested_minutes, using the fastest possible ordering. Total time is
@@ -187,7 +197,8 @@ def check_feasibility(
     if len(set(stop_indices)) != len(stop_indices):
         return _infeasible("duplicate stop selected")
 
-    if not (MIN_STOPS <= len(stop_indices) <= ABSOLUTE_MAX_STOPS):
+    minimum = 1 if allow_single else MIN_STOPS
+    if not (minimum <= len(stop_indices) <= ABSOLUTE_MAX_STOPS):
         return _infeasible(
             f"stop count must be between {MIN_STOPS} and {ABSOLUTE_MAX_STOPS}"
         )
@@ -240,7 +251,8 @@ def _plan_failure(reason, attempts, attempts_log=None):
 
 
 def _enumerate_feasible_combinations(
-    shortlist, matrix, requested_minutes, dwell_minutes_per_stop
+    shortlist, matrix, requested_minutes, dwell_minutes_per_stop,
+    retained_ids=None, replacement_mode=False,
 ):
     """Every feasible stop combination from the shortlist (2 up to
     max_stops_for_request()'s per-request bound), each already checked (via
@@ -256,10 +268,18 @@ def _enumerate_feasible_combinations(
     """
     feasible = []
     max_size = max_stops_for_request(requested_minutes, dwell_minutes_per_stop)
-    for size in range(MIN_STOPS, max_size + 1):
+    retained_indices = {i for i, p in enumerate(shortlist, 1)
+                        if p["id"] in (retained_ids or [])}
+    sizes = [len(retained_ids or []) + 1] if replacement_mode else range(MIN_STOPS, max_size + 1)
+    for size in sizes:
+        if size > max_size:
+            continue
         for combo in itertools.combinations(range(1, len(shortlist) + 1), size):
+            if replacement_mode and not retained_indices.issubset(combo):
+                continue
             result = check_feasibility(
-                0, list(combo), matrix, requested_minutes, dwell_minutes_per_stop
+                0, list(combo), matrix, requested_minutes, dwell_minutes_per_stop,
+                allow_single=replacement_mode,
             )
             if result["feasible"]:
                 feasible.append(result)
@@ -343,6 +363,8 @@ def plan_route(
     requested_minutes,
     dwell_minutes_per_stop=DWELL_MINUTES_PER_STOP,
     excluded_ids=None,
+    retained_ids=None,
+    replacement_mode=False,
 ):
     """Sprint 4: shortlist real candidates, fetch a real duration matrix,
     deterministically enumerate every feasible stop combination (2 up to
@@ -372,8 +394,14 @@ def plan_route(
     """
     if excluded_ids is None:
         excluded_ids = []
-    shortlist = shortlist_candidates(start_lat, start_lon, topic, excluded_ids=excluded_ids)
-    if len(shortlist) < MIN_STOPS:
+    retained_ids = retained_ids or []
+    shortlist_args = {"excluded_ids": excluded_ids}
+    if replacement_mode:
+        shortlist_args["retained_ids"] = retained_ids
+    shortlist = shortlist_candidates(start_lat, start_lon, topic, **shortlist_args)
+    if replacement_mode and not set(retained_ids).issubset({p["id"] for p in shortlist}):
+        raise requests.RequestException("retained catalogue places are no longer available for routing")
+    if not replacement_mode and len(shortlist) < MIN_STOPS:
         return _plan_failure(
             f"only {len(shortlist)} candidate place(s) found near this start "
             f"point - at least {MIN_STOPS} are needed",
@@ -383,14 +411,34 @@ def plan_route(
     points = [(start_lat, start_lon)] + [
         (p["latitude"], p["longitude"]) for p in shortlist
     ]
+    if not shortlist:
+        return _plan_failure("no suitable replacement found", attempts=0)
     matrix = fetch_duration_matrix(points)
 
+    def no_replacement(reason, attempts=0, attempts_log=None):
+        if not replacement_mode or not retained_ids:
+            return _plan_failure(reason, attempts, attempts_log)
+        indices_by_id = {p["id"]: i for i, p in enumerate(shortlist, 1)}
+        order = [indices_by_id[id_] for id_ in retained_ids]
+        walking = _round_trip_seconds(0, order, matrix)
+        total = None if walking is None else walking / 60 + len(order) * dwell_minutes_per_stop
+        if total is None or total > requested_minutes:
+            # This is an unverified retained draft, not permission to discard
+            # accepted places or offer a route with unsupported totals.
+            raise requests.RequestException("retained route could not be verified within the requested time")
+        return {"feasible": True, "reason": None, "order": order,
+                "total_minutes": total, "unused_minutes": requested_minutes - total,
+                "budget_usage_ratio": total / requested_minutes, "shortlist": shortlist,
+                "selected_ids": retained_ids, "attempts": attempts,
+                "attempts_log": attempts_log or [], "replacement_outcome": "retained_only"}
+
     feasible_combos = _enumerate_feasible_combinations(
-        shortlist, matrix, requested_minutes, dwell_minutes_per_stop
+        shortlist, matrix, requested_minutes, dwell_minutes_per_stop,
+        retained_ids=retained_ids, replacement_mode=replacement_mode,
     )
     if not feasible_combos:
         max_size = max_stops_for_request(requested_minutes, dwell_minutes_per_stop)
-        return _plan_failure(
+        return no_replacement(
             f"no combination of {MIN_STOPS}-{max_size} stops from the "
             f"shortlist fits within {requested_minutes} min",
             attempts=0,
@@ -441,7 +489,7 @@ def plan_route(
                 "attempt": attempts_used, "selected_option": selected_option,
                 "outcome": "none_suitable", "reason": selection["none_suitable_reason"],
             })
-            return _plan_failure(
+            return no_replacement(
                 selection["none_suitable_reason"] or "no offered option was genuinely suitable",
                 attempts=attempts_used, attempts_log=attempts_log,
             )
@@ -466,6 +514,7 @@ def plan_route(
         result = combos_by_key[selected_option]
         return {
             **result,
+            **({"replacement_outcome": "replacement_found"} if replacement_mode else {}),
             "shortlist": shortlist,
             "selected_ids": [shortlist[i - 1]["id"] for i in result["order"]],
             "attempts": attempts_used,

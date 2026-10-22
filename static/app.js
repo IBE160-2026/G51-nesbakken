@@ -568,6 +568,8 @@ function defaultTrip() {
     // across attempts (AD-5) - a hard filter the backend applies before
     // shortlisting, never cleared except by a fresh trip object.
     excluded_ids: [],
+    replacement: null,
+    replacement_notice: null,
   };
 }
 
@@ -674,6 +676,17 @@ function hasValidCommonFields(candidate) {
   ) {
     return false;
   }
+  if (candidate.replacement != null) {
+    const edit = candidate.replacement;
+    if (!edit || !Array.isArray(edit.retained_stops) || edit.retained_stops.length > 6 ||
+        !edit.retained_stops.every(isValidStop) ||
+        new Set(edit.retained_stops.map(stop => stop.id)).size !== edit.retained_stops.length ||
+        edit.retained_stops.some(stop => candidate.excluded_ids.includes(stop.id)) ||
+        !Number.isInteger(edit.index) || edit.index < 0 || edit.index > edit.retained_stops.length) return false;
+  }
+  if (candidate.replacement_notice != null &&
+      (!Number.isInteger(candidate.replacement_notice) || candidate.replacement_notice < 0 ||
+       candidate.replacement_notice > (candidate.stops || []).length)) return false;
   return true;
 }
 
@@ -940,6 +953,7 @@ function syncTimePickerClasses(index) {
 function selectTimeIndex(index, { smooth = false } = {}) {
   const clamped = Math.max(0, Math.min(TIME_VALUES.length - 1, index));
   const minutes = TIME_VALUES[clamped];
+  trip.replacement = null;
   trip.available_minutes = minutes;
   saveActiveTrip(trip);
   syncTimePickerClasses(clamped);
@@ -1147,6 +1161,7 @@ function confirmSheetJauntPhrase() {
 }
 
 function openConfirmSheet(topicValue, triggerEl, hostScreenEl) {
+  trip.replacement = null;
   trip.topic = topicValue;
   trip.setup_step = "confirm_sheet";
   saveActiveTrip(trip);
@@ -1265,6 +1280,7 @@ async function startRoutePlanning() {
     // Story 1.7: the full accumulated exclusion list, resent every time -
     // the backend is stateless (AD-2/AD-5), never a delta.
     excluded_ids: trip.excluded_ids,
+    ...(trip.replacement ? { replacement_mode: true, retained_ids: trip.replacement.retained_stops.map(stop => stop.id) } : {}),
   };
 
   let response;
@@ -1302,23 +1318,60 @@ async function startRoutePlanning() {
     return;
   }
 
+  if (!data || typeof data !== "object" || typeof data.feasible !== "boolean") {
+    showTechnicalFailure();
+    return;
+  }
+
   // A 200 with feasible:false is the honest "no suitable walk" outcome,
   // distinct from a technical failure - its own real screen, logged with
   // its own real reason (never shown raw to the user).
   if (!data.feasible) {
+    if (trip.replacement?.retained_stops.length) {
+      showTechnicalFailure();
+      return;
+    }
     console.error("No feasible route:", data.reason);
     showHonestFallback();
     return;
   }
 
+  const edit = trip.replacement;
+  const resultShape = { ...trip, phase: "reviewing", setup_step: null,
+    stops: data.stops, geometry: data.geometry ?? null,
+    total_minutes: data.total_minutes, unused_minutes: data.unused_minutes };
+  const retainedIds = edit ? edit.retained_stops.map(stop => stop.id) : [];
+  if (!Array.isArray(data.stops) || !data.stops.every(isValidStop)) {
+    showTechnicalFailure();
+    return;
+  }
+  const resultIds = data.stops.map(stop => stop.id);
+  const validEdit = !edit || (
+    ["replacement_found", "retained_only"].includes(data.replacement_outcome) &&
+    retainedIds.every(id => resultIds.includes(id)) &&
+    resultIds.length === retainedIds.length + (data.replacement_outcome === "replacement_found" ? 1 : 0) &&
+    (data.replacement_outcome !== "retained_only" || resultIds.every((id, i) => id === retainedIds[i])) &&
+    Array.isArray(data.geometry) && data.geometry.length >= 2);
+  if (!isValidReviewingShape(resultShape) || !validEdit ||
+      new Set(resultIds).size !== resultIds.length || resultIds.some(id => trip.excluded_ids.includes(id)) ||
+      data.total_minutes < 0 || data.total_minutes > trip.available_minutes) {
+    showTechnicalFailure();
+    return;
+  }
   trip.phase = "reviewing";
   trip.setup_step = null;
-  trip.stops = data.stops;
+  trip.stops = data.stops.map(stop => {
+    const retained = edit?.retained_stops.find(old => old.id === stop.id);
+    return retained ? { ...stop, content: retained.content, attribution: retained.attribution } : stop;
+  });
+  trip.replacement_notice = edit && data.replacement_outcome === "retained_only" ? edit.index : null;
+  trip.replacement = null;
   trip.geometry = data.geometry ?? null;
   trip.total_minutes = data.total_minutes;
   trip.unused_minutes = data.unused_minutes;
   saveActiveTrip(trip);
   showStep("reviewing");
+  if (trip.replacement_notice !== null) openStopListSheet();
 }
 
 // =====================================================================
@@ -1345,9 +1398,31 @@ function humanizeTopic(topic) {
   return (topic || "").replace(/_/g, " ");
 }
 
+function replaceStop(id) {
+  if (trip.phase !== "reviewing") return;
+  const index = trip.stops.findIndex(stop => stop.id === id);
+  if (index < 0) return;
+  const retained = trip.stops.filter(stop => stop.id !== id);
+  trip.excluded_ids = [...new Set([...trip.excluded_ids, id])];
+  closeStopListSheet({ restoreFocus: false });
+  prepareSetupState();
+  trip.replacement = { retained_stops: retained, index };
+  saveActiveTrip(trip);
+  startRoutePlanning();
+}
+
 function renderStopList() {
   stopListEl.innerHTML = "";
-  (trip.stops || []).forEach((stop) => {
+  const appendNotice = index => {
+    if (trip.replacement_notice !== index) return;
+    const notice = document.createElement("li");
+    notice.className = "replacement-notice";
+    notice.setAttribute("role", "status");
+    notice.textContent = "No suitable replacement could be found with these settings.";
+    stopListEl.appendChild(notice);
+  };
+  (trip.stops || []).forEach((stop, index) => {
+    appendNotice(index);
     const li = document.createElement("li");
 
     const btn = document.createElement("button");
@@ -1390,8 +1465,29 @@ function renderStopList() {
     });
 
     li.appendChild(btn);
+    if (trip.phase === "reviewing") {
+      li.className = "stop-list-row";
+      const replace = document.createElement("button");
+      replace.type = "button";
+      replace.className = "stop-replace-btn";
+      replace.textContent = "Replace";
+      replace.setAttribute("aria-label", `Replace ${stop.name}`);
+      replace.addEventListener("click", () => replaceStop(stop.id));
+      li.appendChild(replace);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "stop-replace-btn";
+      remove.textContent = "Remove";
+      remove.disabled = trip.stops.length === 1;
+      remove.setAttribute("aria-label", `Remove ${stop.name} and look for a replacement`);
+      remove.addEventListener("click", () => {
+        if (trip.stops.length > 1) replaceStop(stop.id);
+      });
+      li.appendChild(remove);
+    }
     stopListEl.appendChild(li);
   });
+  appendNotice((trip.stops || []).length);
 }
 
 // A sheet open over the reviewing screen must also exclude the live map
@@ -1544,6 +1640,7 @@ attachSwipeToDismiss(document.querySelector("#stop-overlay-sheet .handle"), () =
 attachSwipeToDismiss(document.querySelector("#credits-sheet .handle"), () => closeCreditsSheet());
 
 approveRouteBtn.addEventListener("click", () => {
+  if (trip.phase !== "reviewing" || trip.replacement || !isValidReviewingShape(trip)) return;
   trip.phase = "walking";
   saveActiveTrip(trip);
   showStep("walking");
@@ -1553,6 +1650,8 @@ approveRouteBtn.addEventListener("click", () => {
 // inputs and exclusions, but return storage to the existing setup shape.
 // This only prepares state: callers either show setup or start planning.
 function prepareSetupState() {
+  trip.replacement = null;
+  trip.replacement_notice = null;
   const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
   trip.phase = "setting_up";
   trip.setup_step = originStep;
@@ -1582,6 +1681,7 @@ reJauntBtn.addEventListener("click", () => {
 // showStep(originStep) persists a setup_step, or isValidTrip() would
 // reject the stored trip on the next reload).
 changeJauntBtn.addEventListener("click", () => {
+  prepareSetupState();
   const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
   trip.phase = "setting_up";
   showStep(originStep);
@@ -1617,6 +1717,7 @@ fallbackTopicChipBtn.addEventListener("click", () => {
 // in showHonestFallback()), persists it, and immediately starts a new
 // planning request with it.
 fallbackTimeChipBtn.addEventListener("click", () => {
+  if (trip.replacement) prepareSetupState();
   trip.available_minutes = Math.min(trip.available_minutes + TIME_CHIP_INCREMENT, TIME_MAX);
   saveActiveTrip(trip);
   startRoutePlanning();
@@ -1720,6 +1821,7 @@ chooseTopicBackBtn.addEventListener("click", () => goBack("choose_topic"));
 
 topicPillEls.forEach((btn) => {
   btn.addEventListener("click", () => {
+    trip.replacement = null;
     trip.topic = btn.dataset.topic;
     saveActiveTrip(trip);
     refreshTopicPills();

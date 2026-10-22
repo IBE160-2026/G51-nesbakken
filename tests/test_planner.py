@@ -583,5 +583,68 @@ class TestPlanRouteAttemptsLog(unittest.TestCase):
         self.assertIn("boom", log[0]["reason"])
 
 
+
+class TestReplacementPlanning(unittest.TestCase):
+    def setUp(self):
+        self.places = [make_place(str(i), START_LAT + i * .00001, START_LON, ['history']) for i in range(14)]
+
+    def plan(self, retained, selection='option_1', matrix=None):
+        with patch('planner.load_ready_places', return_value=self.places), patch('planner.fetch_duration_matrix', return_value=matrix or [[0 if i == j else 60 for j in range(13)] for i in range(13)]), patch('ai.select_stops', return_value={'selected_option': selection, 'none_suitable_reason': 'unsuitable'}):
+            return plan_route(START_LAT, START_LON, 'history', 60, excluded_ids=['0'], retained_ids=retained, replacement_mode=True)
+
+    def test_retained_beyond_cap_is_reserved(self):
+        shortlist = shortlist_candidates(START_LAT, START_LON, 'history', places=self.places, excluded_ids=['0'], retained_ids=['13'])
+        self.assertEqual(len(shortlist), SHORTLIST_CAP)
+        self.assertIn('13', [p['id'] for p in shortlist])
+
+    def test_found_keeps_every_retained_and_exactly_one_new(self):
+        result = self.plan(['13', '3'])
+        self.assertEqual(result['replacement_outcome'], 'replacement_found')
+        self.assertEqual(len(result['selected_ids']), 3)
+        self.assertTrue({'13', '3'} <= set(result['selected_ids']))
+        self.assertNotIn('0', result['selected_ids'])
+
+    def test_none_suitable_preserves_order_and_refreshes_time(self):
+        result = self.plan(['13', '3'], 'none_suitable')
+        self.assertEqual(result['replacement_outcome'], 'retained_only')
+        self.assertEqual(result['selected_ids'], ['13', '3'])
+        self.assertEqual(result['total_minutes'], 13)
+
+    def test_two_to_one_and_final_stop(self):
+        shorter = self.plan(['13'], 'none_suitable')
+        self.assertEqual(shorter['total_minutes'], 7)
+        self.assertEqual(shorter['selected_ids'], ['13'])
+        final = self.plan([])
+        self.assertEqual(len(final['selected_ids']), 1)
+        self.assertFalse(self.plan([], 'none_suitable')['feasible'])
+
+    def test_seven_stop_replacement_stays_seven(self):
+        self.assertEqual(len(self.plan(['1', '2', '3', '4', '5', '13'])['selected_ids']), 7)
+
+    def test_no_time_feasible_completion_keeps_retained(self):
+        matrix = [[0 if i == j else 3600 for j in range(13)] for i in range(13)]
+        matrix[0][1] = matrix[1][0] = 60
+        result = self.plan(['13'], matrix=matrix)
+        self.assertEqual(result['replacement_outcome'], 'retained_only')
+        self.assertEqual(result['total_minutes'], 7)
+
+    def test_unverified_retained_route_is_technical_failure(self):
+        import requests
+        with self.assertRaises(requests.RequestException):
+            self.plan(['13'], matrix=[[0 if i == j else None for j in range(13)] for i in range(13)])
+
+class TestUnavailableRetainedPlaces(unittest.TestCase):
+    def test_missing_or_coordinate_less_retained_record_fails_before_providers(self):
+        import requests
+        good = make_place('good', START_LAT, START_LON, ['history'])
+        bad = make_place('retained', None, START_LON, ['history'])
+        for places in ([good], [good, bad]):
+            with self.subTest(places=places), patch('planner.load_ready_places', return_value=places), patch('planner.fetch_duration_matrix') as matrix, patch('ai.select_stops') as select:
+                with self.assertRaises(requests.RequestException):
+                    plan_route(START_LAT, START_LON, 'history', 60, retained_ids=['retained'], replacement_mode=True)
+                matrix.assert_not_called()
+                select.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

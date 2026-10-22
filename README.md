@@ -58,7 +58,7 @@ python3 -m unittest discover -s tests -v
 node --test tests/frontend-recovery.test.cjs
 ```
 
-The Python suite contains 268 tests covering the planner, API, AI response handling and import pipelines. The focused JavaScript recovery tests require Node.js but no npm install or build step. They execute the actual frontend script with browser/map/network boundaries stubbed, covering Re-Jaunt recovery, reload and retry; they do not verify rendered layout. Both suites use fixed/mocked data, so no API keys are needed.
+The Python suite contains 280 tests covering the planner, API, AI response handling and import pipelines. The 27 JavaScript recovery tests require Node.js but no npm install or build step. They execute the actual frontend script with browser/map/network boundaries stubbed, covering Re-Jaunt and individual-stop replacement, malformed replacement responses, repeated edits, inline notice placement, reload and retry; they do not verify rendered layout. Both suites use fixed/mocked data, so no API keys are needed.
 
 ## Regenerating the catalogue (optional)
 

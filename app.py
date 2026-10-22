@@ -9,6 +9,7 @@ response).
 """
 
 import json
+import math
 import os
 
 import requests
@@ -161,7 +162,24 @@ def _validate_plan_request(data):
     ):
         raise PlanRequestError("excluded_ids must be a list of at most 500 strings, each at most 200 characters")
 
-    return start_lat, start_lon, topic, requested_minutes, excluded_ids
+    replacement_mode = data.get("replacement_mode", False)
+    if not isinstance(replacement_mode, bool):
+        raise PlanRequestError("replacement_mode must be a boolean")
+    retained_ids = data.get("retained_ids", [])
+    if (not isinstance(retained_ids, list) or len(retained_ids) > 6
+            or not all(isinstance(id_, str) and 0 < len(id_) <= 200 for id_ in retained_ids)
+            or len(set(retained_ids)) != len(retained_ids)):
+        raise PlanRequestError("retained_ids must contain at most six unique place IDs")
+    if retained_ids and not replacement_mode:
+        raise PlanRequestError("retained_ids requires replacement_mode")
+    if set(retained_ids).intersection(excluded_ids):
+        raise PlanRequestError("retained_ids cannot overlap excluded_ids")
+    if retained_ids:
+        ready_ids = {p["id"] for p in load_ready_places()}
+        if not set(retained_ids).issubset(ready_ids):
+            raise PlanRequestError("retained_ids must identify ready catalogue places")
+
+    return start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode
 
 
 @app.route("/api/plan", methods=["POST"])
@@ -180,15 +198,20 @@ def api_plan():
       failure: a real non-2xx, never the {"feasible": false} shape.
     """
     try:
-        start_lat, start_lon, topic, requested_minutes, excluded_ids = _validate_plan_request(
+        start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode = _validate_plan_request(
             request.get_json(silent=True)
         )
     except PlanRequestError as exc:
         return jsonify({"error": str(exc)}), 400
+    except CatalogueError as exc:
+        return jsonify({"error": str(exc)}), 503
 
     try:
+        options = {"excluded_ids": excluded_ids}
+        if replacement_mode:
+            options.update(retained_ids=retained_ids, replacement_mode=True)
         result = planner.plan_route(
-            start_lat, start_lon, topic, requested_minutes, excluded_ids=excluded_ids
+            start_lat, start_lon, topic, requested_minutes, **options
         )
     except ai.AiFatalError as exc:
         return jsonify({"error": str(exc)}), 503
@@ -226,8 +249,20 @@ def api_plan():
         # RequestException catch here missed entirely - this is the same
         # "expected provider-shape failure" as a network error, not a real
         # programming bug, so it gets the same controlled degradation.
+        if replacement_mode:
+            return jsonify({"error": f"replacement route geometry could not be verified: {exc}"}), 503
         print(f"Route geometry fetch failed, continuing without it: {exc}")
         geometry = None
+
+    if replacement_mode and not (
+        isinstance(geometry, list) and len(geometry) >= 2
+        and all(isinstance(point, (list, tuple)) and len(point) == 2
+                and all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                        and math.isfinite(value) for value in point)
+                and -180 <= point[0] <= 180 and -90 <= point[1] <= 90
+                for point in geometry)
+    ):
+        return jsonify({"error": "replacement route geometry is unusable"}), 503
 
     content_results = ai.generate_stop_content(ordered_stops, topic)
     content_by_id = {c["id"]: c for c in content_results}
@@ -255,6 +290,7 @@ def api_plan():
 
     return jsonify({
         "feasible": True,
+        **({"replacement_outcome": result["replacement_outcome"]} if replacement_mode else {}),
         "total_minutes": result["total_minutes"],
         "unused_minutes": result["unused_minutes"],
         "geometry": geometry,
