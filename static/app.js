@@ -1549,6 +1549,20 @@ approveRouteBtn.addEventListener("click", () => {
   showStep("walking");
 });
 
+// A rejected route must no longer be the resumable active route. Keep the
+// inputs and exclusions, but return storage to the existing setup shape.
+// This only prepares state: callers either show setup or start planning.
+function prepareSetupState() {
+  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  trip.phase = "setting_up";
+  trip.setup_step = originStep;
+  trip.stops = null;
+  trip.geometry = null;
+  trip.total_minutes = null;
+  trip.unused_minutes = null;
+  return originStep;
+}
+
 // Re-Jaunt (Story 1.7): rejects the whole currently-displayed route, not
 // just this specific combination (AD-5's deliberate "clean break") - every
 // stop id on it joins the accumulating excluded_ids list, and planning
@@ -1557,6 +1571,7 @@ approveRouteBtn.addEventListener("click", () => {
 reJauntBtn.addEventListener("click", () => {
   const rejectedIds = (trip.stops || []).map((stop) => stop.id);
   trip.excluded_ids = trip.excluded_ids.concat(rejectedIds);
+  prepareSetupState();
   saveActiveTrip(trip);
   startRoutePlanning();
 });
@@ -1573,13 +1588,11 @@ changeJauntBtn.addEventListener("click", () => {
 });
 
 honestFallbackBackBtn.addEventListener("click", () => {
-  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
-  showStep(originStep);
+  showStep(prepareSetupState());
 });
 
 technicalFailureBackBtn.addEventListener("click", () => {
-  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
-  showStep(originStep);
+  showStep(prepareSetupState());
 });
 
 // "Try a different topic" - navigates to Choose Topic (or Topic-at-rest
@@ -1592,7 +1605,7 @@ technicalFailureBackBtn.addEventListener("click", () => {
 // only observable - and only needed - on the choose_topic path, but it's
 // harmless to always do it.
 fallbackTopicChipBtn.addEventListener("click", () => {
-  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
+  const originStep = prepareSetupState();
   // bmad-code-review 2026-10-22: showStep() below already persists
   // trip whenever the target is a real setup step (both of these are) -
   // the explicit saveActiveTrip() here was a redundant second write.
@@ -1615,8 +1628,7 @@ technicalFailureRetryBtn.addEventListener("click", () => {
   startRoutePlanning();
 });
 
-// Unlike honestFallbackBackBtn/technicalFailureBackBtn above, trip.phase
-// actually left "setting_up" to get here (Approve set it to "walking") -
+// Approve set trip.phase to "walking" -
 // it must be put back before showStep(originStep) persists a setup_step,
 // or the stored trip would carry phase:"walking" with a non-null
 // setup_step, which isValidTrip() itself would reject on the next reload.

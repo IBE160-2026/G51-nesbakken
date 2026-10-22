@@ -55,9 +55,10 @@ If something in the running app looks incomplete compared to the PRD, that's thi
 
 ```bash
 python3 -m unittest discover -s tests -v
+node --test tests/frontend-recovery.test.cjs
 ```
 
-168 tests, all passing as of the last verified run. Tests cover the planner's combination-enumeration/feasibility logic, AI option-key handling, and the import pipelines, run against fixed/mocked data — not live external services, so no API keys are needed to run them.
+The Python suite contains 268 tests covering the planner, API, AI response handling and import pipelines. The focused JavaScript recovery tests require Node.js but no npm install or build step. They execute the actual frontend script with browser/map/network boundaries stubbed, covering Re-Jaunt recovery, reload and retry; they do not verify rendered layout. Both suites use fixed/mocked data, so no API keys are needed.
 
 ## Regenerating the catalogue (optional)
 
