@@ -14,7 +14,7 @@ A user sets a starting point, available time, and topic (or "surprise me," or a 
 - Story 1.4: Generate a proposed Route via a new planning endpoint (Must, backend-only) - done
 - Story 1.5: Review and approve the proposed Route (Must) - done
 - Story 1.6: Honest fallback when no suitable Route exists (Must) - in review
-- Story 1.7: Re-Jaunt (Should) - backlog
+- Story 1.7: Re-Jaunt (Should) - in review (implemented; follow-up recovery-state issues documented in AI-discussions.md, 2026-10-22)
 - Story 1.8: Manually remove or replace a stop (Should) - backlog
 - Story 1.9: Landmark <-> hidden-gem preference (Should) - backlog
 - Story 1.10: Use current location for starting point (Should) - backlog
