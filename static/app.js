@@ -1310,6 +1310,7 @@ async function startRoutePlanning() {
     start_lon: trip.starting_point.lng,
     topic: trip.topic,
     requested_minutes: trip.available_minutes,
+    preference: trip.preference,
     // Story 1.7: the full accumulated exclusion list, resent every time -
     // the backend is stateless (AD-2/AD-5), never a delta.
     excluded_ids: trip.excluded_ids,

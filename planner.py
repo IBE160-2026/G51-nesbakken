@@ -347,6 +347,8 @@ def _build_ai_options(shortlist, feasible_combos):
                     "name": shortlist[idx - 1]["name"],
                     "topics": shortlist[idx - 1].get("topics", []),
                     "source_excerpt": shortlist[idx - 1].get("source_excerpt"),
+                    "source_type": shortlist[idx - 1].get("source_type"),
+                    "source_title": shortlist[idx - 1].get("source_title"),
                 }
                 for idx in combo["order"]
             ],
@@ -365,6 +367,7 @@ def plan_route(
     excluded_ids=None,
     retained_ids=None,
     replacement_mode=False,
+    preference=0.5,
 ):
     """Sprint 4: shortlist real candidates, fetch a real duration matrix,
     deterministically enumerate every feasible stop combination (2 up to
@@ -454,7 +457,7 @@ def plan_route(
         attempts_used += 1
         try:
             selection = ai.select_stops(
-                ai_options, topic, requested_minutes, feedback=feedback
+                ai_options, topic, requested_minutes, feedback=feedback, preference=preference
             )
         except ai.AiFatalError:
             # Invalid credentials, permission errors, or exhausted quota -

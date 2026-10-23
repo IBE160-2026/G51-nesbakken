@@ -313,6 +313,17 @@ class TestEnumerateFeasibleCombinations(unittest.TestCase):
 
 
 class TestBuildAiOptions(unittest.TestCase):
+    def test_supplies_real_source_metadata_and_nullable_title(self):
+        shortlist = [dict(place, source_type="heritage_register", source_title="Register entry" if i == 0 else None)
+                     for i, place in enumerate(FAKE_SHORTLIST)]
+        combos = _enumerate_feasible_combinations(shortlist, PLAN_MATRIX, 60, DWELL_MINUTES_PER_STOP)
+        options, _ = _build_ai_options(shortlist, combos)
+        supplied = {stop["id"]: stop for option in options for stop in option["stops"]}
+        for place in shortlist:
+            self.assertEqual(supplied[place["id"]]["source_type"], place["source_type"])
+            self.assertEqual(supplied[place["id"]]["source_title"], place["source_title"])
+            self.assertNotIn("prominence", supplied[place["id"]])
+
     def test_ranks_options_by_budget_usage_descending(self):
         combos = _enumerate_feasible_combinations(FAKE_SHORTLIST, PLAN_MATRIX, 60, DWELL_MINUTES_PER_STOP)
         ai_options, _ = _build_ai_options(FAKE_SHORTLIST, combos)
@@ -407,6 +418,16 @@ class TestPlanRoute(unittest.TestCase):
         self.assertEqual(set(result["selected_ids"]), {"a", "b", "c"})
         self.assertEqual(result["attempts"], 1)
         self.assertEqual(mock_select.call_count, 1)
+        self.assertEqual(mock_select.call_args.kwargs["preference"], 0.5)
+
+    def test_preference_does_not_remove_only_suitable_option(self):
+        self.mock_matrix.return_value = ONLY_ONE_FEASIBLE_MATRIX
+        for preference in (0, 1):
+            with patch("ai.select_stops", return_value=_selection("option_1")) as selection:
+                result = plan_route(START_LAT, START_LON, "public_art", 60, preference=preference)
+            self.assertTrue(result["feasible"])
+            self.assertEqual(len(selection.call_args.args[0]), 1)
+            self.assertEqual(selection.call_args.kwargs["preference"], preference)
 
     def test_every_offered_option_key_yields_a_feasible_result(self):
         # Directly demonstrates the fix: no matter which offered option AI
@@ -596,6 +617,28 @@ class TestReplacementPlanning(unittest.TestCase):
         shortlist = shortlist_candidates(START_LAT, START_LON, 'history', places=self.places, excluded_ids=['0'], retained_ids=['13'])
         self.assertEqual(len(shortlist), SHORTLIST_CAP)
         self.assertIn('13', [p['id'] for p in shortlist])
+
+    def test_continuous_preference_and_hard_constraints_survive_retries(self):
+        menus = []
+        matrix = [[0 if i == j else 60 for j in range(13)] for i in range(13)]
+        for preference in (0, 0.5, 1, 0.37):
+            with patch('planner.load_ready_places', return_value=self.places), patch('planner.fetch_duration_matrix', return_value=matrix), patch('ai.select_stops', side_effect=[
+                AiSelectionError('temporary failure'), _selection('option_99'), _selection('option_1')
+            ]) as selection:
+                result = plan_route(START_LAT, START_LON, 'history', 60, excluded_ids=['0'],
+                                    retained_ids=['13', '3'], replacement_mode=True, preference=preference)
+            self.assertTrue({'13', '3'} <= set(result['selected_ids']))
+            self.assertNotIn('0', result['selected_ids'])
+            self.assertEqual(len(result['selected_ids']), 3)
+            self.assertEqual(selection.call_count, 3)
+            for call in selection.call_args_list:
+                self.assertEqual(call.kwargs['preference'], preference)
+                for option in call.args[0]:
+                    ids = {stop['id'] for stop in option['stops']}
+                    self.assertTrue({'13', '3'} <= ids)
+                    self.assertNotIn('0', ids)
+            menus.append(selection.call_args.args[0])
+        self.assertTrue(all(menu == menus[0] for menu in menus))
 
     def test_found_keeps_every_retained_and_exactly_one_new(self):
         result = self.plan(['13', '3'])

@@ -920,3 +920,9 @@ exactly as the source states it, on the same "verbatim or don't use it"
 principle as everywhere else in this project. Deterministic ordering for
 multi-point local items (beyond "keep the first point seen") was considered
 and deliberately left for a later pass, not implemented here.
+
+## 2026-10-23 — Story1.9 preference signal (Codex temporary developer)
+
+Connected the approved existing slider/state through the stateless API and planner retries to AI selection. Added candidate source type/title; preference remains qualitative, evidence-based guidance rather than Python prominence scoring or filtering. Defaults to Balanced only when omitted; explicit invalid values are rejected before provider calls. Re-Jaunt/replacement retain their hard constraints.
+
+Independent BMAD review clarified preference before the budget tie-breaker and strengthened integration/recovery coverage. Final checks:288 Python tests,37 native Node tests, JS syntax/diff checks and real Chrome mobile/keyboard/request checks with intercepted planning responses. No paid calls or catalogue edits. Newtown selection contrast needs later live evaluation; accepted examples are Bank Hotel/I Have A Dream versus St Peters station/Cragos Flour Mills, subject to feasible availability and adequate source evidence. User walkthrough pending; see build spec and AI-discussions.md for handover.

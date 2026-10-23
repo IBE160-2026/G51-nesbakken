@@ -67,6 +67,20 @@ def make_http_error_response(status_code, error_type=None, message=None):
 
 
 class TestBuildPrompt(unittest.TestCase):
+    def test_continuous_preference_and_soft_evidence_guidance(self):
+        for preference in (0, 0.5, 1, 0.37):
+            prompt = build_prompt(SAMPLE_OPTIONS, "public_art", 60, "retry feedback", preference)
+            details = json.JSONDecoder().raw_decode(prompt.split("\n\n", 1)[1])[0]
+            self.assertEqual(details["preference"], preference)
+            self.assertIn("retry feedback", prompt)
+            self.assertIn("0 for well-known landmarks, 0.5 for Balanced", prompt)
+            self.assertIn("1 for hidden gems", prompt)
+            self.assertIn("source_type) is not popularity", prompt)
+            self.assertIn("lesser-known does not mean low quality", prompt)
+            self.assertIn("only one kind of suitable stop", prompt)
+            self.assertIn("preference alone must not require rejecting an otherwise suitable offered walk", prompt)
+            self.assertIn("do not invent fame, obscurity or stories", prompt)
+
     def test_includes_option_keys_topic_and_time(self):
         prompt = build_prompt(SAMPLE_OPTIONS, "public_art", 60)
         self.assertIn("option_1", prompt)
@@ -107,7 +121,7 @@ class TestSystemPromptContent(unittest.TestCase):
 
     def test_states_budget_usage_as_a_secondary_preference(self):
         self.assertIn("budget_usage_ratio", SYSTEM_PROMPT)
-        self.assertIn("relevance and interest come first", SYSTEM_PROMPT)
+        self.assertIn("relevance, interest and evidence-based preference come first", SYSTEM_PROMPT)
 
 
 class TestSelectStops(unittest.TestCase):

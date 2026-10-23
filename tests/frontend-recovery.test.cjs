@@ -23,6 +23,7 @@ function browser(storedTrip) {
       classList: { toggle() {} },
       addEventListener(name, fn) { listeners.set(name, fn); },
       click() { listeners.get('click')?.(); },
+      input(value) { this.value = String(value); listeners.get('input')?.(); },
       appendChild(child) { this.children.push(child); },
       setAttribute() {}, removeAttribute() {}, focus() {}, scrollTo() {},
       getBoundingClientRect() { return { height: 220 }; },
@@ -112,6 +113,44 @@ function success(ids) {
     total_minutes: 35, unused_minutes: 25 };
 }
 
+test('both setup sliders synchronize and send continuous inverted preference through either topic path', async () => {
+  for (const slider of ['preference-range-rest', 'preference-range-choose']) {
+    for (const value of [0, 50, 100, 63]) {
+      for (const wild of [false, true]) {
+        const app = browser();
+        app.seed({ ...route(), phase: 'setting_up', setup_step: wild ? 'topic_at_rest' : 'choose_topic',
+          stops: null, geometry: null, total_minutes: null, unused_minutes: null });
+        app.elements.get(slider).input(value);
+        const preference = 1 - value / 100;
+        assert.equal(app.saved().preference, preference);
+        assert.equal(app.elements.get('preference-range-rest').value, String(value));
+        assert.equal(app.elements.get('preference-range-choose').value, String(value));
+        app.pending(); app.click(wild ? 'wild-jaunt-btn' : 'start-jaunt-btn'); app.click('confirm-btn');
+        assert.equal(app.requests[0].preference, preference);
+        assert.equal(app.requests[0].topic, wild ? 'surprise_me' : 'history');
+        const reload = browser(app.saved());
+        assert.equal(reload.requests.length, 0);
+        assert.equal(reload.saved().preference, preference);
+        // Each slider restores its displayed value when its setup step opens.
+        reload.evaluate("showStep('topic_at_rest')");
+        assert.equal(reload.elements.get('preference-range-rest').value, String(value));
+        reload.click('choose-topic-btn');
+        assert.equal(reload.elements.get('preference-range-choose').value, String(value));
+        await app.settle();
+      }
+    }
+  }
+});
+
+test('untouched fresh Wild Jaunt sends Balanced and confirmation has no preference slider', () => {
+  const app = browser();
+  app.evaluate("trip.starting_point = { lat: -33.9, lng: 151.18 }; trip.available_minutes = 60;");
+  app.pending(); app.click('wild-jaunt-btn'); app.click('confirm-btn');
+  assert.equal(app.requests[0].preference, 0.5);
+  const confirmation = html.split('id="confirm-sheet-wrap"')[1].split('</section>')[0];
+  assert(!confirmation.includes('type="range"'));
+});
+
 test('reload during Re-Jaunt keeps inputs/exclusions and never restores rejected stops or fetches', () => {
   for (const topic of ['history', 'surprise_me']) {
     const app = browser();
@@ -125,6 +164,7 @@ test('reload during Re-Jaunt keeps inputs/exclusions and never restores rejected
     for (const key of ['stops', 'geometry', 'total_minutes', 'unused_minutes']) assert.equal(saved[key], null);
     assert.deepEqual(saved.starting_point, original.starting_point);
     assert.equal(saved.preference, original.preference);
+    assert.equal(app.requests[0].preference, original.preference);
     assert.equal(saved.topic, original.topic);
     assert.equal(saved.available_minutes, original.available_minutes);
     assert.deepEqual(saved.excluded_ids, ['a', 'b']);
@@ -194,6 +234,8 @@ test('reload during an adjusted-time retry preserves the new budget without fetc
   app.pending(); app.click('fallback-time-chip');
   const reload = browser(app.saved());
   assert.equal(reload.saved().available_minutes, 120);
+  assert.equal(reload.saved().preference, 0.7);
+  assert(app.requests.every(request => request.preference === 0.7));
   assert.deepEqual(reload.saved().excluded_ids, ['a', 'b']);
   assert.equal(reload.saved().topic, 'history');
   assert.equal(reload.elements.get('screen-choose-topic').hidden, false);
@@ -231,6 +273,7 @@ test('time cap and technical retry keep the adjusted request and exclusions', as
   app.respond(success(['c', 'd']));
   app.click('technical-failure-retry-btn'); await app.settle();
   assert.equal(app.requests[1].requested_minutes, 120);
+  assert(app.requests.every(request => request.preference === 0.7));
   assert.deepEqual(app.requests[2], app.requests[1]);
   assert.equal(app.saved().phase, 'reviewing'); assert(app.valid());
   app.respond({ feasible: false }); app.click('re-jaunt-btn'); await app.settle();
@@ -255,6 +298,7 @@ test('replacement keeps constraints through technical retry and preserves retain
   assert.deepEqual(app.requests[0].retained_ids, ['a', 'c']);
   assert.deepEqual(app.requests[0].excluded_ids, ['b']);
   assert.equal(app.requests[0].replacement_mode, true);
+  assert.equal(app.requests[0].preference, 0.7);
   assert.equal(app.saved().phase, 'setting_up');
   assert(app.valid());
   const response = route(['c', 'd', 'a']);

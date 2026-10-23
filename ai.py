@@ -41,12 +41,16 @@ SYSTEM_PROMPT = (
     "treat every listed option as already feasible.\n\n"
     "Your job is a judgement call, not arithmetic: choose the option_key of "
     "the option whose stops form the most relevant and interesting walk for "
-    "the requested topic, based on each stop's name, topics, and source "
-    "excerpt.\n\n"
+    "the requested topic, considering the continuous landmark/hidden-gem "
+    "preference using each stop's name, topics and supplied source evidence. "
+    "Keep relevance and suitability constraints; preference is soft guidance "
+    "and source category is not popularity.\n\n"
     "You may only choose one of the option_keys actually listed - never "
-    "invent one. Among options that are similarly relevant and interesting, "
+    "invent one. Among options that are similarly relevant, interesting and "
+    "suited to the evidence-based preference, "
     "prefer the one with the higher budget_usage_ratio (closer to fully "
-    "using the requested time), but relevance and interest come first.\n\n"
+    "using the requested time), but relevance, interest and evidence-based "
+    "preference come first.\n\n"
     "If - and only if - none of the offered options are genuinely relevant "
     "or interesting for the requested topic, even though every one of them "
     "is already time-feasible, set selected_option to the literal string "
@@ -169,7 +173,7 @@ def get_model():
     return model
 
 
-def build_prompt(options, topic, requested_minutes, feedback=None):
+def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.5):
     """Builds the user-message text sent to AI: the request details and the
     pre-validated option menu planner.py computed. No raw duration matrix is
     sent - AI is not asked to do any routing arithmetic in this design.
@@ -182,11 +186,24 @@ def build_prompt(options, topic, requested_minutes, feedback=None):
     request_details = {
         "topic": topic,
         "requested_minutes": requested_minutes,
+        "preference": preference,
         "options": options,
     }
 
     prompt = "Choose one option_key for this walk.\n\n" + json.dumps(
         request_details, indent=2
+    )
+    prompt += (
+        "\n\nThe continuous preference is 0 for well-known landmarks, 0.5 for Balanced, "
+        "and 1 for hidden gems. Intermediate values express a gradual preference; "
+        "do not round them into categories. Favour familiar landmarks toward 0 and "
+        "lesser-known discoveries toward 1, balancing both at 0.5. "
+        "Judge qualitatively from the supplied source evidence. Source category "
+        "(source_type) is not popularity, and lesser-known does not mean low quality. "
+        "Use caution with weak evidence; do not invent fame, obscurity or stories. "
+        "This is soft guidance alongside relevance and interest, never a filter: "
+        "preference alone must not require rejecting an otherwise suitable offered walk, "
+        "even when only one kind of suitable stop is available."
     )
 
     if feedback:
@@ -236,7 +253,7 @@ def _call_openai(prompt):
         raise AiSelectionError(f"unexpected OpenAI response shape: {exc}") from exc
 
 
-def select_stops(options, topic, requested_minutes, feedback=None):
+def select_stops(options, topic, requested_minutes, feedback=None, preference=0.5):
     """Asks AI to choose one option_key from the pre-validated options list
     planner.py computed (each already confirmed feasible) - or the literal
     string NONE_SUITABLE if none are genuinely relevant (AD-7). Returns
@@ -248,7 +265,7 @@ def select_stops(options, topic, requested_minutes, feedback=None):
     Raises AiSelectionError if the request fails or the response isn't
     valid JSON in the expected shape.
     """
-    prompt = build_prompt(options, topic, requested_minutes, feedback)
+    prompt = build_prompt(options, topic, requested_minutes, feedback, preference=preference)
     raw_content = _call_openai(prompt)
 
     try:

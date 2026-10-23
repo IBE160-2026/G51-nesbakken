@@ -15,8 +15,8 @@ A user sets a starting point, available time, and topic (or "surprise me," or a 
 - Story 1.5: Review and approve the proposed Route (Must) - done
 - Story 1.6: Honest fallback when no suitable Route exists (Must) - in review
 - Story 1.7: Re-Jaunt (Should) - in review (implemented; recovery-state follow-up fixed and regression-tested, see spec-re-jaunt-recovery-state.md)
-- Story 1.8: Manually remove or replace a stop (Should) - in review (implemented and verified)
-- Story 1.9: Landmark <-> hidden-gem preference (Should) - backlog
+- Story 1.8: Manually remove or replace a stop (Should) - done (user accepted2026-10-23)
+- Story 1.9: Landmark <-> hidden-gem preference (Should) - in review (implemented2026-10-23; exact numeric signal reaches AI, source metadata supplied, soft guidance only)
 - Story 1.10: Use current location for starting point (Should) - backlog
 - Story 1.11: Stop photo, shown only when rights-cleared (Should) - backlog
 

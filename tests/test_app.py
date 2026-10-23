@@ -7,6 +7,8 @@ from unittest.mock import patch
 import requests
 
 import app as app_module
+import ai
+from tests.test_planner import FAKE_SHORTLIST, PLAN_MATRIX
 from ai import AiExhaustedError, AiFatalError
 
 FIXTURE_RECORDS = [
@@ -211,6 +213,67 @@ class TestApiPlanValidation(unittest.TestCase):
     def test_non_json_body_rejected(self):
         response = self.client.post("/api/plan", data="not json", content_type="text/plain")
         self.assertEqual(response.status_code, 400)
+
+    def test_invalid_preference_rejected_before_planning(self):
+        for value in (True, False, None, "0.5", [], {}, float("nan"), float("inf"), -float("inf"), -0.01, 1.01):
+            with self.subTest(value=value):
+                response, mock_plan = self._post(dict(VALID_PLAN_BODY, preference=value))
+                self.assertEqual(response.status_code, 400)
+                mock_plan.assert_not_called()
+
+    def test_preference_defaults_to_balanced_only_when_omitted(self):
+        with patch("app.planner.plan_route", return_value=INFEASIBLE_RESULT) as mock_plan:
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_plan.call_args.kwargs["preference"], 0.5)
+
+    def test_exact_preference_reaches_real_prompt_through_retry(self):
+        # Only external boundaries are mocked: API, planner and prompt builder run.
+        shortlist = [dict(place) for place in FAKE_SHORTLIST]
+        shortlist[0].update(source_type="heritage_register", source_title="Register entry")
+        shortlist[1].update(source_type="osm_tags", source_title=None)
+        for value in (0, 0.5, 1, 0.37):
+            with self.subTest(value=value), patch("planner.shortlist_candidates", return_value=shortlist), patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX), patch("ai._call_openai", side_effect=[
+                ai.AiSelectionError("temporary failure"),
+                json.dumps({"selected_option": ai.NONE_SUITABLE, "none_suitable_reason": "not relevant"}),
+            ]) as provider:
+                response = self.client.post("/api/plan", json=dict(VALID_PLAN_BODY, preference=value))
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(provider.call_count, 2)
+            for call in provider.call_args_list:
+                details = json.JSONDecoder().raw_decode(call.args[0].split("\n\n", 1)[1])[0]
+                self.assertEqual(details["preference"], value)
+                evidence = {stop["id"]: stop for option in details["options"] for stop in option["stops"]}
+                for place in shortlist:
+                    self.assertEqual(evidence[place["id"]]["source_type"], place.get("source_type"))
+                    self.assertEqual(evidence[place["id"]]["source_title"], place.get("source_title"))
+
+    def test_exact_preference_can_produce_successful_offered_route(self):
+        shortlist = [dict(place) for place in FAKE_SHORTLIST]
+        shortlist[0].update(source_type="heritage_register", source_title="Register entry")
+        shortlist[1].update(source_type="osm_tags", source_title=None)
+        geometry = [[151.18, -33.9], [151.181, -33.901], [151.18, -33.9]]
+        content = [{"id": place["id"], "content": "Grounded fixture text", "attribution": []}
+                   for place in shortlist]
+        for value in (0, 0.5, 1, 0.37):
+            with self.subTest(value=value), patch("planner.shortlist_candidates", return_value=shortlist), patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX), patch("ai._call_openai", return_value=json.dumps({"selected_option": "option_1", "none_suitable_reason": ""})) as provider, patch("app.services.fetch_route_geometry", return_value=geometry), patch("app.ai.generate_stop_content", return_value=content):
+                response = self.client.post("/api/plan", json=dict(VALID_PLAN_BODY, preference=value))
+            self.assertEqual(response.status_code, 200)
+            result = response.get_json()
+            self.assertTrue(result["feasible"])
+            self.assertEqual(result["geometry"], geometry)
+            self.assertLessEqual(result["total_minutes"], VALID_PLAN_BODY["requested_minutes"])
+            details = json.JSONDecoder().raw_decode(provider.call_args.args[0].split("\n\n", 1)[1])[0]
+            self.assertEqual(details["preference"], value)
+            offered = details["options"][0]["stops"]
+            self.assertEqual([stop["id"] for stop in result["stops"]], [stop["id"] for stop in offered])
+            for stop in result["stops"]:
+                self.assertEqual(stop["content"], "Grounded fixture text")
+            evidence = {stop["id"]: stop for stop in offered}
+            for place in shortlist:
+                stop = evidence[place["id"]]
+                self.assertEqual(stop["source_type"], place.get("source_type"))
+                self.assertEqual(stop["source_title"], place.get("source_title"))
 
     def test_missing_fields_rejected(self):
         response, mock_plan = self._post({"start_lat": -33.9})
@@ -464,7 +527,7 @@ class TestReplacementValidation(unittest.TestCase):
         with patch('planner.plan_route', return_value={'feasible': False, 'reason': 'none'}) as plan:
             response = self.client.post('/api/plan', json={**self.base, 'retained_ids': [], 'excluded_ids': ['old']})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(plan.call_args.kwargs, dict(excluded_ids=['old'], retained_ids=[], replacement_mode=True))
+        self.assertEqual(plan.call_args.kwargs, dict(excluded_ids=['old'], retained_ids=[], replacement_mode=True, preference=0.5))
 
     def test_retained_only_response_is_explicit_with_canonical_geometry(self):
         result = dict(feasible=True, shortlist=[FIXTURE_RECORDS[0]], order=[1], total_minutes=7, unused_minutes=53, replacement_outcome='retained_only')

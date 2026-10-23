@@ -10,7 +10,7 @@ sources: []
 
 # Story 1.9 — Landmark / hidden-gem preference
 
-Draft for implementation approval, 2026-10-23. Derived from this folder's decision log, Story1.9 in epics.md, AD-4 and the approved UX.
+Approved for implementation on2026-10-23. Derived from this folder's decision log, Story1.9 in epics.md, AD-4 and the approved UX.
 
 ## Why
 
@@ -40,11 +40,11 @@ The existing setup slider saves a preference but has no effect on selection. Con
 
 Automated frontend/API/planner/prompt checks establish exact end-to-end propagation and unchanged route constraints. A separately authorised live comparison can assess whether the offered real candidates support a useful preference distinction; weak contrast is reported honestly.
 
-## Assumptions for approval
+## Approved defaults
 
 - API callers omitting preference receive Balanced0.5; invalid explicit values receive400 before provider calls.
 - Wild Jaunt honours an explicitly moved slider, as EXPERIENCE.md says it applies to both paths; the epic's Balanced wording describes the untouched default.
 
 ## Open Questions
 
-- None blocking the draft. Implementation approval is pending; optional live AI evaluation is a separate step.
+- No unresolved implementation questions. Optional live AI evaluation remains a separate step.

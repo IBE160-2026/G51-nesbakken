@@ -99,7 +99,7 @@ class PlanRequestError(Exception):
 
 def _validate_plan_request(data):
     """Returns (start_lat, start_lon, topic, requested_minutes,
-    excluded_ids) if data is a well-formed plan request, else raises
+    excluded_ids, retained_ids, replacement_mode, preference) if data is a well-formed plan request, else raises
     PlanRequestError with a human-readable reason. isinstance(x, bool) is
     excluded everywhere a number is expected - bool is a subclass of int
     in Python, so JSON `true`/`false` would otherwise silently pass as
@@ -114,6 +114,10 @@ def _validate_plan_request(data):
 
     def is_number(value):
         return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    preference = data.get("preference", 0.5)
+    if not is_number(preference) or not (0 <= preference <= 1) or not math.isfinite(preference):
+        raise PlanRequestError("preference must be a finite number between 0 and 1")
 
     if not is_number(start_lat) or not (-90 <= start_lat <= 90):
         raise PlanRequestError("start_lat must be a number between -90 and 90")
@@ -179,7 +183,7 @@ def _validate_plan_request(data):
         if not set(retained_ids).issubset(ready_ids):
             raise PlanRequestError("retained_ids must identify ready catalogue places")
 
-    return start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode
+    return start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode, preference
 
 
 @app.route("/api/plan", methods=["POST"])
@@ -198,7 +202,7 @@ def api_plan():
       failure: a real non-2xx, never the {"feasible": false} shape.
     """
     try:
-        start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode = _validate_plan_request(
+        start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode, preference = _validate_plan_request(
             request.get_json(silent=True)
         )
     except PlanRequestError as exc:
@@ -207,7 +211,7 @@ def api_plan():
         return jsonify({"error": str(exc)}), 503
 
     try:
-        options = {"excluded_ids": excluded_ids}
+        options = {"excluded_ids": excluded_ids, "preference": preference}
         if replacement_mode:
             options.update(retained_ids=retained_ids, replacement_mode=True)
         result = planner.plan_route(
