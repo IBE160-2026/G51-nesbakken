@@ -1455,7 +1455,7 @@ function renderStopList() {
     const notice = document.createElement("li");
     notice.className = "replacement-notice";
     notice.setAttribute("role", "status");
-    notice.textContent = "No suitable replacement could be found with these settings.";
+    notice.textContent = "Jarrod could not find a suitable replacement with these settings";
     stopListEl.appendChild(notice);
   };
   visibleStops.forEach((stop, index) => {

@@ -367,7 +367,7 @@ test('consecutive successful and retained-only edits accumulate exclusions and r
   assert.deepEqual(app.saved().stops.map(stop => stop.content), ['Grounded text', 'Grounded text']);
   const list = app.elements.get('stop-list');
   assert.equal(list.children.length, 3);
-  assert.equal(list.children[1].textContent, 'No suitable replacement could be found with these settings.');
+  assert.equal(list.children[1].textContent, 'Jarrod could not find a suitable replacement with these settings');
   app.evaluate('renderStopList()');
   assert.equal(list.children.length, 3);
   assert.equal(list.children[1].className, 'replacement-notice');
@@ -388,7 +388,7 @@ test('last-row removal places one notice after remaining stops across rerenders'
   const list = app.elements.get('stop-list');
   for (let i = 0; i < 2; i++) {
     assert.equal(list.children.length, 3);
-    assert.equal(list.children[2].textContent, 'No suitable replacement could be found with these settings.');
+    assert.equal(list.children[2].textContent, 'Jarrod could not find a suitable replacement with these settings');
     assert.equal(list.children[2].className, 'replacement-notice');
     app.evaluate('renderStopList()');
   }
