@@ -2,6 +2,7 @@
 id: SPEC-1-9-landmark-hidden-gem-preference
 companions:
   - implementation-and-verification.md
+  - candidate-discovery-amendment.md
   - ../../planning-artifacts/architecture/architecture-IBE160-2026-10-07/ARCHITECTURE-SPINE.md
   - ../../planning-artifacts/ux-designs/ux-IBE160-2026-10-02/EXPERIENCE.md
   - ../../planning-artifacts/ux-designs/ux-IBE160-2026-10-02/DESIGN.md
@@ -10,11 +11,11 @@ sources: []
 
 # Story 1.9 — Landmark / hidden-gem preference
 
-Approved for implementation on2026-10-23. Derived from this folder's decision log, Story1.9 in epics.md, AD-4 and the approved UX.
+Initial wiring approved and implemented on2026-10-23; preference-aware shortlisting direction approved later that day. Amendment planning is in progress. Derived from this folder's decision log, Story1.9 in epics.md, AD-4 and the approved UX.
 
 ## Why
 
-The existing setup slider saves a preference but has no effect on selection. Connect it to qualitative AI selection so users can favour familiar landmarks or lesser-known discoveries as the catalogue expands.
+The slider reaches final AI selection, but nearest-place truncation can discard landmarks before selection and source excerpts do not reliably describe recognisability. Let AI use the preference when choosing routing candidates as well as the final feasible route.
 
 ## Capabilities
 
@@ -25,11 +26,15 @@ The existing setup slider saves a preference but has no effect on selection. Con
   - **intent:** Selection considers the preference alongside actual source evidence while respecting route constraints.
   - **success:** Exact numeric value reaches AI on initial requests, retries, Re-Jaunt and Replace; each option's candidates include source_type/source_title and existing content. Preference is guidance, not a filter; existing feasibility, rejection, retention and honest-fallback behaviour passes regression checks.
 
+- **CAP-3**
+  - **intent:** Users’ preference influences which eligible nearby places reach route planning.
+  - **success:** AI chooses only offered catalogue IDs from the topic-matching nearby pool before the routing cap; Python enforces exclusions, retained stops and route feasibility. Relevant landmarks can enter even when outside the nearest12. Unknown prominence is not automatically a hidden gem.
+
 ## Constraints
 
 - Follow AD-4: no Python prominence score, source-type proxy or production landmark/hidden-gem labels. Preserve continuous values rather than a three-value enum.
 - Reuse current UI, stateless endpoint and prevalidated option menu. Preserve geometry/time arithmetic, exclusion accumulation, retained stops and technical-versus-honest failure distinction.
-- Source evidence supports selection; do not invent prominence or stories from thin content. Catalogue changes and duplicate-source enrichment require separate review.
+- General knowledge may inform qualitative recognisability during selection; uncertainty must remain explicit. Generated stop stories and factual claims remain grounded in approved sources. Catalogue changes and duplicate-source enrichment require separate review.
 - Automated checks make no paid calls. Fixture tests prove wiring and instructions, not live model judgement.
 
 ## Non-goals
@@ -47,4 +52,5 @@ Automated frontend/API/planner/prompt checks establish exact end-to-end propagat
 
 ## Open Questions
 
-- No unresolved implementation questions. Optional live AI evaluation remains a separate step.
+- Technical design must settle input/token bounds, candidate-stage failure handling and feasibility recovery before implementation. See candidate-discovery-amendment.md; no further feature code approved through this planning update.
+- Live quality evaluation remains separate from mocked transport/constraint tests.
