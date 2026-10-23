@@ -47,9 +47,9 @@ SYSTEM_PROMPT = (
     "and source category is not popularity.\n\n"
     "You may only choose one of the option_keys actually listed - never "
     "invent one. Among options that are similarly relevant, interesting and "
-    "suited to the evidence-based preference, "
+    "suited to the preference, "
     "prefer the one with the higher budget_usage_ratio (closer to fully "
-    "using the requested time), but relevance, interest and evidence-based "
+    "using the requested time), but relevance, interest and "
     "preference come first.\n\n"
     "If - and only if - none of the offered options are genuinely relevant "
     "or interesting for the requested topic, even though every one of them "
@@ -198,7 +198,10 @@ def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.
         "and 1 for hidden gems. Intermediate values express a gradual preference; "
         "do not round them into categories. Favour familiar landmarks toward 0 and "
         "lesser-known discoveries toward 1, balancing both at 0.5. "
-        "Judge qualitatively from the supplied source evidence. Source category "
+        "Use supplied evidence and general knowledge of recognisability for prominence only. "
+        "Unknown does not mean hidden. Strong preferences should noticeably favour "
+        "matching options where available, before filling time. Keep mixed choices possible. "
+        "Stories must remain grounded in supplied sources. Source category "
         "(source_type) is not popularity, and lesser-known does not mean low quality. "
         "Use caution with weak evidence; do not invent fame, obscurity or stories. "
         "This is soft guidance alongside relevance and interest, never a filter: "
@@ -212,7 +215,7 @@ def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.
     return prompt
 
 
-def _call_openai(prompt):
+def _call_openai(prompt, schema=None, system_prompt=None):
     try:
         response = requests.post(
             CHAT_COMPLETIONS_URL,
@@ -223,12 +226,12 @@ def _call_openai(prompt):
             json={
                 "model": get_model(),
                 "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt or SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
                 "response_format": {
                     "type": "json_schema",
-                    "json_schema": SELECTION_SCHEMA,
+                    "json_schema": schema or SELECTION_SCHEMA,
                 },
             },
             timeout=60,
@@ -283,6 +286,68 @@ def select_stops(options, topic, requested_minutes, feedback=None, preference=0.
         raise AiSelectionError("AI response 'none_suitable_reason' must be a string")
 
     return {"selected_option": selected_option, "none_suitable_reason": none_suitable_reason}
+
+
+MAX_DISCOVERY_CANDIDATES = 200
+MAX_DISCOVERY_PROMPT_CHARS = 100000
+DISCOVERY_SYSTEM_PROMPT = (
+    "Choose routing candidate IDs only from the offered eligible places. Python owns "
+    "eligibility and walking feasibility. Select exactly the requested count of unique IDs. "
+    "Use the continuous preference: 0=well-known landmarks, 0.5=balanced, 1=hidden gems; "
+    "do not round intermediate values. Strong preferences should noticeably favour matching "
+    "places where available, with ordinary alternatives to fill remaining slots. Order IDs by "
+    "preference match, strongest matches first. "
+    "Use general knowledge of recognisability for prominence only; unknown does not mean hidden, "
+    "and source category is not popularity. Keep balanced/mixed choices possible. "
+    "Do not invent places, IDs or stories. Return only the required JSON."
+)
+DISCOVERY_SCHEMA = {
+    "name": "candidate_discovery", "strict": True,
+    "schema": {"type": "object", "properties": {
+        "candidate_ids": {"type": "array", "items": {"type": "string"}}},
+        "required": ["candidate_ids"], "additionalProperties": False},
+}
+
+
+def discover_candidates(candidates, topic, preference, count):
+    """At most two provider attempts; malformed discovery is a service error."""
+    if len(candidates) > MAX_DISCOVERY_CANDIDATES:
+        raise AiExhaustedError("candidate discovery exceeds the 200-place service limit")
+    compact = [{"id": p["id"], "name": str(p.get("name") or "")[:120],
+                "topics": p.get("topics", []),
+                "latitude": p.get("latitude"), "longitude": p.get("longitude"),
+                "source_title": str(p.get("source_title") or "")[:160],
+                "source_excerpt": str(p.get("source_excerpt") or "")[:320]}
+               for p in candidates]
+    prompt = json.dumps({"location_context": "Sydney, Australia pilot", "topic": topic, "preference": preference,
+                         "count": count, "candidates": compact}, ensure_ascii=False)
+    if len(prompt) > MAX_DISCOVERY_PROMPT_CHARS:
+        raise AiExhaustedError("candidate discovery exceeds the prompt service limit")
+    offered = {p["id"] for p in candidates}
+    for attempt in range(2):
+        try:
+            raw = _call_openai(prompt, schema=DISCOVERY_SCHEMA,
+                               system_prompt=DISCOVERY_SYSTEM_PROMPT)
+            try:
+                parsed = json.loads(raw)
+                ids = parsed["candidate_ids"]
+            except (ValueError, KeyError, TypeError) as exc:
+                raise AiSelectionError("invalid discovery response shape") from exc
+            if (not isinstance(parsed, dict) or set(parsed) != {"candidate_ids"}
+                    or not isinstance(ids, list) or len(ids) != count
+                    or any(not isinstance(id_, str) for id_ in ids)
+                    or len(set(ids)) != len(ids) or not set(ids) <= offered):
+                raise AiSelectionError("discovery must return exactly the requested unique offered IDs")
+            return ids
+        except AiFatalError:
+            raise
+        except AiSelectionError as exc:
+            if attempt == 1:
+                raise AiExhaustedError("candidate discovery failed after 2 attempts") from exc
+            feedback = "\nPrevious response failed: " + str(exc)[:200] + ". Return exactly the requested count of unique offered IDs."
+            if len(prompt) + len(feedback) > MAX_DISCOVERY_PROMPT_CHARS:
+                raise AiExhaustedError("candidate discovery retry exceeds the prompt service limit") from exc
+            prompt += feedback
 
 
 # =====================================================================

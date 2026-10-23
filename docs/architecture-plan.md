@@ -210,3 +210,8 @@ Known limitations accepted at the end of Sprint 6:
 - **The pipeline cannot grow itself.** Adding another heritage stop means manually picking an ArcGIS id and manually copying its Statement of Significance - there is no automated path from "more candidates exist" to "more ready records," unlike the other two importers. This was a deliberate trade-off to avoid working around an access control, not an oversight.
 - **Only 29 of roughly 174 individually-listed heritage items in the pilot bbox are covered.** The 29 were chosen for variety and spread, not because the other ~145 are unsuitable - most are simply unnamed/generic entries ("Terrace group", "Commercial building") that would need their own Statement of Significance read before being worth adding.
 - **HMS access is inherently fragile and outside this project's control.** If NSW ever changes or removes the public `ViewItem`/`SectionContainer` pages, the seed file's `hms_url` links (used for manual retrieval and citation) could break with no warning; there is no automated check for this.
+
+
+## 2026-10-23 amendment — preference-aware candidate discovery
+
+The earlier nearest-only shortlisting description is superseded for Story1.9: qualitative AI discovery can inspect the wider topic-eligible nearby pool before the12-place routing cap. Python still owns eligibility, exclusions/retention and all route arithmetic. General knowledge informs recognisability only; generated content stays source-grounded. One bounded nearest-candidate recovery remains available after honest lack of a suitable preferred walk. See current AD-4 amendment and spec-1-9-preference-aware-discovery.md for input/call bounds and feasible-option diversity. No permanent popularity labels or Python prominence heuristic.

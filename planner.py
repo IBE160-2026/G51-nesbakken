@@ -72,7 +72,7 @@ def load_ready_places(data_path=DATA_PATH):
     return [r for r in records if r.get("status") == "ready"]
 
 
-def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=None, retained_ids=None):
+def collect_eligible_candidates(start_lat, start_lon, topic, places=None, excluded_ids=None, retained_ids=None):
     """topic: one of the catalogue's topic strings, or "surprise_me" to skip
     topic filtering entirely - candidates across all topics are kept so
     Sprint 4's AI can make the final cross-topic selection itself, rather
@@ -114,8 +114,15 @@ def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=
     nearby.sort(key=lambda pair: pair[0])  # closest first
     reserved = [retained[id_] for id_ in retained_ids if id_ in retained]
     alternatives = [p for _, p in nearby if p["id"] not in retained]
-    return reserved + alternatives[:SHORTLIST_CAP - len(reserved)]
+    return reserved + alternatives
 
+
+
+def shortlist_candidates(start_lat, start_lon, topic, places=None, excluded_ids=None, retained_ids=None):
+    """Preserve the nearest twelve contract for existing callers."""
+    return collect_eligible_candidates(
+        start_lat, start_lon, topic, places, excluded_ids, retained_ids
+    )[:SHORTLIST_CAP]
 
 def _round_trip_seconds(start_index, order, duration_matrix):
     """Sums start->first, each stop->next stop, and last stop->start.
@@ -286,7 +293,7 @@ def _enumerate_feasible_combinations(
     return feasible
 
 
-def _build_ai_options(shortlist, feasible_combos):
+def _build_ai_options(shortlist, feasible_combos, prefer_prefixes=False):
     """Ranks feasible combinations by budget usage (closest to fully using
     the requested time first) and caps the menu at AI_OPTION_MENU_SIZE, so
     AI's input stays small regardless of how many combinations exist (see
@@ -317,8 +324,15 @@ def _build_ai_options(shortlist, feasible_combos):
         needs_coverage.update(combo["order"])
 
     menu = []
-    covered = set()
     remaining = list(ranked)
+    if prefer_prefixes:
+        for size in range(MIN_STOPS, ABSOLUTE_MAX_STOPS + 1):
+            prefix = set(range(1, size + 1))
+            match = next((combo for combo in remaining if set(combo["order"]) == prefix), None)
+            if match is not None:
+                menu.append(match)
+                remaining.remove(match)
+    covered = {idx for combo in menu for idx in combo["order"]}
     i = 0
     while covered != needs_coverage and len(menu) < AI_OPTION_MENU_SIZE and i < len(remaining):
         combo = remaining[i]
@@ -401,7 +415,46 @@ def plan_route(
     shortlist_args = {"excluded_ids": excluded_ids}
     if replacement_mode:
         shortlist_args["retained_ids"] = retained_ids
-    shortlist = shortlist_candidates(start_lat, start_lon, topic, **shortlist_args)
+    pool = collect_eligible_candidates(start_lat, start_lon, topic, **shortlist_args)
+    if replacement_mode and not set(retained_ids).issubset({p["id"] for p in pool}):
+        raise requests.RequestException("retained catalogue places are no longer available for routing")
+    retained = [p for p in pool if p["id"] in retained_ids] if replacement_mode else []
+    alternatives = [p for p in pool if p not in retained]
+    slots = SHORTLIST_CAP - len(retained)
+    if slots < 0:
+        raise ai.AiExhaustedError("too many retained stops for the routing limit")
+    nearest = retained + alternatives[:slots]
+    shortlist = nearest
+    needs_discovery = len(alternatives) > slots or (not replacement_mode and len(alternatives) >= 5)
+    if needs_discovery:
+        selected_ids = ai.discover_candidates(alternatives, topic, preference, min(slots, len(alternatives)))
+        by_id = {p["id"]: p for p in alternatives}
+        shortlist = retained + [by_id[id_] for id_ in selected_ids]
+    result = _plan_shortlist(
+        shortlist, start_lat, start_lon, topic, requested_minutes,
+        dwell_minutes_per_stop, retained_ids, replacement_mode, preference,
+        prefer_prefixes=needs_discovery,
+    )
+    if ((not result["feasible"] or result.get("replacement_outcome") == "retained_only")
+            and {p["id"] for p in shortlist} != {p["id"] for p in nearest}):
+        recovery = _plan_shortlist(
+            nearest, start_lat, start_lon, topic, requested_minutes,
+            dwell_minutes_per_stop, retained_ids, replacement_mode, preference,
+        )
+        recovery["attempts"] += result["attempts"]
+        recovery["attempts_log"] = [
+            dict(entry, shortlist=label)
+            for label, attempt_result in (("discovery", result), ("nearest_recovery", recovery))
+            for entry in attempt_result["attempts_log"]
+        ]
+        return recovery
+    return result
+
+
+def _plan_shortlist(shortlist, start_lat, start_lon, topic, requested_minutes,
+                    dwell_minutes_per_stop, retained_ids, replacement_mode, preference,
+                    prefer_prefixes=False):
+    """One bounded matrix/feasibility/selection attempt; technical errors propagate."""
     if replacement_mode and not set(retained_ids).issubset({p["id"] for p in shortlist}):
         raise requests.RequestException("retained catalogue places are no longer available for routing")
     if not replacement_mode and len(shortlist) < MIN_STOPS:
@@ -447,7 +500,7 @@ def plan_route(
             attempts=0,
         )
 
-    ai_options, combos_by_key = _build_ai_options(shortlist, feasible_combos)
+    ai_options, combos_by_key = _build_ai_options(shortlist, feasible_combos, prefer_prefixes=prefer_prefixes)
 
     feedback = None
     attempts_used = 0
@@ -493,7 +546,7 @@ def plan_route(
                 "outcome": "none_suitable", "reason": selection["none_suitable_reason"],
             })
             return no_replacement(
-                selection["none_suitable_reason"] or "no offered option was genuinely suitable",
+                "Among the candidates checked: " + (selection["none_suitable_reason"] or "no offered option was genuinely suitable"),
                 attempts=attempts_used, attempts_log=attempts_log,
             )
 

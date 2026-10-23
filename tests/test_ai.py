@@ -121,7 +121,7 @@ class TestSystemPromptContent(unittest.TestCase):
 
     def test_states_budget_usage_as_a_secondary_preference(self):
         self.assertIn("budget_usage_ratio", SYSTEM_PROMPT)
-        self.assertIn("relevance, interest and evidence-based preference come first", SYSTEM_PROMPT)
+        self.assertIn("relevance, interest and preference come first", SYSTEM_PROMPT)
 
 
 class TestSelectStops(unittest.TestCase):

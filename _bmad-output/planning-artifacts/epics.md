@@ -530,6 +530,8 @@ So that I can fine-tune a Route I otherwise like.
 
 ### Story 1.9: Landmark <-> hidden-gem preference (Should)
 
+**User-approved amendment,2026-10-23:** Preference must affect discovery before the nearest12 routing cap, not only selection among already-truncated options. AI may use general knowledge to recognise landmarks, never to invent stop-story facts; unknown is not proof of hidden-gem status. Strong preference should favour matching nearby topic-eligible places, but return ordinary suitable alternatives when preferred candidates do not fit. Preserve bounded Python feasibility, hard exclusions/retention and source-grounded stories. Include shorter options from AI's top-ranked candidates so fuller mixed walks do not crowd them out. See AD-4 amendment and spec-1-9-preference-aware-discovery.md; source-only recognisability wording below is superseded.
+
 Depends on Story 1.4 (the planning endpoint's AI-selection call, which this story adds fields to) and Story 1.1 (Trip Setup screens, where the control lives).
 
 As a user with an opinion about well-known vs. lesser-known places,

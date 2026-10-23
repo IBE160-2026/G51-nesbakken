@@ -16,7 +16,7 @@ A user sets a starting point, available time, and topic (or "surprise me," or a 
 - Story 1.6: Honest fallback when no suitable Route exists (Must) - in review
 - Story 1.7: Re-Jaunt (Should) - in review (implemented; recovery-state follow-up fixed and regression-tested, see spec-re-jaunt-recovery-state.md)
 - Story 1.8: Manually remove or replace a stop (Should) - done (user accepted2026-10-23)
-- Story 1.9: Landmark <-> hidden-gem preference (Should) - in review (implemented2026-10-23; exact numeric signal reaches AI, source metadata supplied, soft guidance only)
+- Story 1.9: Landmark <-> hidden-gem preference (Should) - in review (implemented2026-10-23; exact numeric signal reaches AI; preference-aware discovery before routing cap, general-knowledge recognisability, prefix options and bounded nearest recovery; awaiting live quality acceptance)
 - Story 1.10: Use current location for starting point (Should) - backlog
 - Story 1.11: Stop photo, shown only when rights-cleared (Should) - backlog
 
@@ -63,3 +63,5 @@ A user sets a starting point, available time, and topic (or "surprise me," or a 
 Replacement uses AI over feasible options constrained by retained_ids plus exactly one new stop. Keep retained records in the bounded shortlist. With no suitable replacement, preserve the remaining route order/content, recalculate time/geometry and show an inline notice; allow the shorter walk, including one stop. The later user-approved UI revision removes the Remove control entirely: Replace sits inside each full-width beige card, remains possible at one stop, and rejects that last stop. No suitable final replacement shows sad Jarrod, never an empty walk. Editing is pre-walk only. Request replacement_mode explicitly distinguishes zero-retained final-stop editing from ordinary >=2-stop generation; response replacement_outcome distinguishes replacement_found from retained_only. Retry retains edit constraints; setup edits cancel them. See spec-1-8-manually-remove-or-replace-a-stop.md.
 
 Stop replacement now shows progress inside the selected card, keeping map/other stops visible and blocking Start/further edits while pending. This is the approved loading revision in spec-inline-stop-replacement-loading.md; initial generation/Re-Jaunt still use Concocting.
+
+Story1.9 follow-up: preference-aware discovery inspects wider eligible pool before12 routing cap, retaining hard topic/exclusion/retention rules; AI ranks choices using general knowledge for prominence only, not story facts. Leading feasible preference-prefix options preserve shorter matching walks; one nearest recovery returns suitable ordinary walks when preference cannot be met. Pilot bounds200 alternatives/100000 characters; small ordinary<=4 and fitting replacement pools avoid discovery. See spec-1-9-preference-aware-discovery.md and updated AD-4. No production prominence labels.

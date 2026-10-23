@@ -402,7 +402,7 @@ class TestPlanRoute(unittest.TestCase):
     "Redesign after live testing" in docs/ai-development-log.md."""
 
     def setUp(self):
-        shortlist_patcher = patch("planner.shortlist_candidates", return_value=FAKE_SHORTLIST)
+        shortlist_patcher = patch("planner.collect_eligible_candidates", return_value=FAKE_SHORTLIST)
         matrix_patcher = patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX)
         self.mock_shortlist = shortlist_patcher.start()
         self.mock_matrix = matrix_patcher.start()
@@ -494,7 +494,7 @@ class TestPlanRoute(unittest.TestCase):
         with patch("ai.select_stops", return_value=_selection("none_suitable", "none fit the mood")) as mock_select:
             result = plan_route(START_LAT, START_LON, "public_art", 60)
         self.assertFalse(result["feasible"])
-        self.assertEqual(result["reason"], "none fit the mood")
+        self.assertEqual(result["reason"], "Among the candidates checked: none fit the mood")
         self.assertEqual(result["attempts"], 1)
         self.assertEqual(mock_select.call_count, 1)
         self.assertEqual(result["attempts_log"][0]["outcome"], "none_suitable")
@@ -577,7 +577,7 @@ class TestPlanRouteAttemptsLog(unittest.TestCase):
     the model actually tried - see docs/ai-development-log.md."""
 
     def setUp(self):
-        shortlist_patcher = patch("planner.shortlist_candidates", return_value=FAKE_SHORTLIST)
+        shortlist_patcher = patch("planner.collect_eligible_candidates", return_value=FAKE_SHORTLIST)
         matrix_patcher = patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX)
         shortlist_patcher.start()
         matrix_patcher.start()
@@ -607,6 +607,9 @@ class TestPlanRouteAttemptsLog(unittest.TestCase):
 
 class TestReplacementPlanning(unittest.TestCase):
     def setUp(self):
+        discovery = patch('ai.discover_candidates', side_effect=lambda places, topic, preference, count: [p['id'] for p in places[:count]])
+        discovery.start()
+        self.addCleanup(discovery.stop)
         self.places = [make_place(str(i), START_LAT + i * .00001, START_LON, ['history']) for i in range(14)]
 
     def plan(self, retained, selection='option_1', matrix=None):

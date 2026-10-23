@@ -11,7 +11,7 @@ sources: []
 
 # Story 1.9 — Landmark / hidden-gem preference
 
-Initial wiring approved and implemented on2026-10-23; preference-aware shortlisting direction approved later that day. Amendment planning is in progress. Derived from this folder's decision log, Story1.9 in epics.md, AD-4 and the approved UX.
+Initial wiring approved and implemented on2026-10-23; preference-aware shortlisting direction approved later that day. Amended implementation completed and independently reviewed; live quality acceptance pending. See build contract in ../../implementation-artifacts/spec-1-9-preference-aware-discovery.md. Derived from this folder's decision log, Story1.9 in epics.md, AD-4 and the approved UX.
 
 ## Why
 
@@ -50,7 +50,7 @@ Automated frontend/API/planner/prompt checks establish exact end-to-end propagat
 - API callers omitting preference receive Balanced0.5; invalid explicit values receive400 before provider calls.
 - Wild Jaunt honours an explicitly moved slider, as EXPERIENCE.md says it applies to both paths; the epic's Balanced wording describes the untouched default.
 
-## Open Questions
+## Implementation status
 
-- Technical design must settle input/token bounds, candidate-stage failure handling and feasibility recovery before implementation. See candidate-discovery-amendment.md; no further feature code approved through this planning update.
+- Technical bounds and recovery policy are settled in the build contract: at most200 compact alternatives,100000-character candidate input, at most2 discovery attempts and one nearest shortlist recovery after honest failure. Preference never blocks an otherwise suitable walk.
 - Live quality evaluation remains separate from mocked transport/constraint tests.

@@ -233,7 +233,7 @@ class TestApiPlanValidation(unittest.TestCase):
         shortlist[0].update(source_type="heritage_register", source_title="Register entry")
         shortlist[1].update(source_type="osm_tags", source_title=None)
         for value in (0, 0.5, 1, 0.37):
-            with self.subTest(value=value), patch("planner.shortlist_candidates", return_value=shortlist), patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX), patch("ai._call_openai", side_effect=[
+            with self.subTest(value=value), patch("planner.collect_eligible_candidates", return_value=shortlist), patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX), patch("ai._call_openai", side_effect=[
                 ai.AiSelectionError("temporary failure"),
                 json.dumps({"selected_option": ai.NONE_SUITABLE, "none_suitable_reason": "not relevant"}),
             ]) as provider:
@@ -256,7 +256,7 @@ class TestApiPlanValidation(unittest.TestCase):
         content = [{"id": place["id"], "content": "Grounded fixture text", "attribution": []}
                    for place in shortlist]
         for value in (0, 0.5, 1, 0.37):
-            with self.subTest(value=value), patch("planner.shortlist_candidates", return_value=shortlist), patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX), patch("ai._call_openai", return_value=json.dumps({"selected_option": "option_1", "none_suitable_reason": ""})) as provider, patch("app.services.fetch_route_geometry", return_value=geometry), patch("app.ai.generate_stop_content", return_value=content):
+            with self.subTest(value=value), patch("planner.collect_eligible_candidates", return_value=shortlist), patch("planner.fetch_duration_matrix", return_value=PLAN_MATRIX), patch("ai._call_openai", return_value=json.dumps({"selected_option": "option_1", "none_suitable_reason": ""})) as provider, patch("app.services.fetch_route_geometry", return_value=geometry), patch("app.ai.generate_stop_content", return_value=content):
                 response = self.client.post("/api/plan", json=dict(VALID_PLAN_BODY, preference=value))
             self.assertEqual(response.status_code, 200)
             result = response.get_json()
