@@ -811,6 +811,8 @@ const startingPointTitleEl = document.getElementById("starting-point-title");
 const startChipEls = Array.from(document.querySelectorAll(".start-chip"));
 const pendingPinRowEl = document.getElementById("pending-pin-row");
 const confirmStartBtn = document.getElementById("confirm-start-btn");
+const startMapHintEl = document.getElementById("start-map-hint");
+const pendingPinLabelEl = document.getElementById("pending-pin-label");
 const currentLocationBtn = document.getElementById("current-location-btn");
 const currentLocationStatusEl = document.getElementById("current-location-status");
 let locationGeneration = 0;
@@ -1083,6 +1085,7 @@ function showStep(step, { focusDefault = true } = {}) {
       placeStartMarker(trip.starting_point.lat, trip.starting_point.lng);
     }
     clearPendingPin();
+    instructionsEl.textContent = "";
     if (focusDefault) startingPointTitleEl.focus();
   } else if (step === "available_time") {
     screenAvailableTime.hidden = false;
@@ -1889,14 +1892,9 @@ currentLocationBtn.addEventListener("click", () => {
         fail("Your location could not be read. Try again or choose a spot on the map or below.");
         return;
       }
-      trip.starting_point = start;
-      saveActiveTrip(trip);
-      placeStartMarker(start.lat, start.lng);
-      map.jumpTo({ center: [start.lng, start.lat] });
-      clearPendingPin();
-      instructionsEl.textContent = "";
-      triggerElementByStep.available_time = currentLocationBtn;
-      showStep("available_time");
+      showPendingPin(start.lat, start.lng, "Current location");
+      focusPendingPin();
+      confirmStartBtn.focus();
     }, (error) => {
       const message = error?.code === 1
         ? "Location permission was not granted. Choose a spot on the map or below, or try again."
@@ -1910,17 +1908,38 @@ currentLocationBtn.addEventListener("click", () => {
   }
 });
 
-function showPendingPin(lat, lng) {
+function showPendingPin(lat, lng, label = "Dropped pin") {
   invalidateLocationRequest();
-  pendingPin = { lat, lng };
+  pendingPin = { lat, lng, label };
+  pendingPinLabelEl.textContent = label;
   placeStartMarker(lat, lng);
   pendingPinRowEl.hidden = false;
-  instructionsEl.textContent = "Tap elsewhere to move the pin, or confirm below";
+  instructionsEl.textContent = "";
+  startMapHintEl.textContent = "Check the pin on the map. Tap elsewhere to move it, or confirm below.";
+}
+
+// Leave space for the header above and the measured panel below. Offset does
+// not persist camera padding into Route Review.
+function focusPendingPin() {
+  if (!pendingPin) return;
+  const panelHeight = document.querySelector(".start-panel").getBoundingClientRect().height;
+  map.easeTo({ center: [pendingPin.lng, pendingPin.lat],
+    offset: [0, 32 - panelHeight / 2], duration: 0 });
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener?.("resize", () => {
+    if (trip.setup_step === "starting_point" && pendingPin) {
+      map.resize();
+      focusPendingPin();
+    }
+  });
 }
 
 function clearPendingPin() {
   pendingPin = null;
   pendingPinRowEl.hidden = true;
+  startMapHintEl.textContent = "Tap the map to place your starting pin.";
 }
 
 map.on("click", (event) => {
@@ -1931,7 +1950,7 @@ map.on("click", (event) => {
 
 confirmStartBtn.addEventListener("click", () => {
   if (!pendingPin) return;
-  trip.starting_point = { lat: pendingPin.lat, lng: pendingPin.lng, label: "Dropped pin" };
+  trip.starting_point = { lat: pendingPin.lat, lng: pendingPin.lng, label: pendingPin.label };
   saveActiveTrip(trip);
   clearPendingPin();
   instructionsEl.textContent = "";

@@ -441,7 +441,14 @@ input:focus-visible,
   gap: 10px;
   margin-bottom: 12px;
 }
+.start-map-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
 .current-location-btn {
+  margin: 0 0 18px;
   min-height: 44px;
   max-width: 100%;
   white-space: normal;

@@ -45,6 +45,7 @@ function browser(storedTrip, location = {}) {
   const mapEvents = new Map();
   const markerPositions = [];
   const cameraPositions = [];
+  const cameraOptions = [];
   const timers = new Map();
   let nextTimer = 0;
   elements.get('screen-splash').hidden = false;
@@ -81,6 +82,7 @@ function browser(storedTrip, location = {}) {
         touchZoomRotate = { disableRotation() {} };
         keyboard = { disable() {} };
         jumpTo(options) { cameraPositions.push(options.center); }
+        easeTo(options) { cameraPositions.push(options.center); cameraOptions.push(options); }
         on(name, callback) { mapEvents.set(name, callback); } addControl() {} resize() {}
       },
       NavigationControl: class {}, Marker, Popup: class { setText() { return this; } },
@@ -102,7 +104,7 @@ function browser(storedTrip, location = {}) {
   const evaluate = code => vm.runInContext(code, context);
   evaluate('dismissSplash()');
   return {
-    requests, elements, evaluate, locationRequests, markerPositions, cameraPositions, timers, startChips,
+    requests, elements, evaluate, locationRequests, markerPositions, cameraPositions, cameraOptions, timers, startChips,
     fireTimer(id) { const timer = timers.get(id); timers.delete(id); timer.callback(); },
     mapClick(lat, lng) { mapEvents.get('click')({ lngLat: { lat, lng } }); },
     seed(trip) { evaluate(`trip = ${JSON.stringify(trip)}; saveActiveTrip(trip);`); },
@@ -562,7 +564,7 @@ for (const outcome of ['replacement_found', 'retained_only', 'technical', 'final
 }
 
 
-test('current location is explicit, one-shot, saved, restored and sent only on planning', () => {
+test('current location previews first and is saved only after explicit confirmation', () => {
   const app = browser();
   assert.equal(app.locationRequests.length, 0);
   app.click('current-location-btn'); app.click('current-location-btn');
@@ -571,9 +573,19 @@ test('current location is explicit, one-shot, saved, restored and sent only on p
   const request = app.locationRequests[0];
   assert.deepEqual(JSON.parse(JSON.stringify(request.options)), { timeout: 10000, maximumAge: 0, enableHighAccuracy: false });
   request.success({ coords: { latitude: 40, longitude: -74 } });
+  assert.equal(app.saved().starting_point, null);
+  assert.equal(app.saved().setup_step, 'starting_point');
+  assert.equal(app.elements.get('pending-pin-row').hidden, false);
+  assert.equal(app.elements.get('pending-pin-label').textContent, 'Current location');
+  assert.match(app.elements.get('start-map-hint').textContent, /Check the pin/);
+  assert.equal(app.requests.length, 0);
+  assert.equal(browser(app.saved()).saved().starting_point, null);
+  app.click('confirm-start-btn');
   assert.deepEqual(app.saved().starting_point, { lat: 40, lng: -74, label: 'Current location' });
   assert.deepEqual(Array.from(app.markerPositions.at(-1)), [-74, 40]);
   assert.deepEqual(Array.from(app.cameraPositions.at(-1)), [-74, 40]);
+  assert.deepEqual(Array.from(app.cameraOptions.at(-1).offset), [0, -78]);
+  assert.equal(app.cameraOptions.at(-1).duration, 0);
   assert.equal([...app.timers.values()].filter(timer => timer.delay === 10000).length, 0);
   assert.equal(app.elements.get('screen-available-time').hidden, false);
   assert.equal(app.requests.length, 0);
@@ -627,6 +639,8 @@ test('retry supersedes old callbacks and pending reload never requests location'
   old.success({ coords: { latitude: 1, longitude: 2 } });
   assert.equal(app.saved().starting_point, null);
   app.locationRequests[1].success({ coords: { latitude: -90, longitude: 180 } });
+  assert.equal(app.saved().starting_point, null);
+  app.click('confirm-start-btn');
   assert.equal(app.saved().starting_point.lat, -90);
 });
 
@@ -786,4 +800,26 @@ test('malformed optional photos preserve saved review and planned response text'
     assert.equal(planned.elements.get('stop-overlay-figure').hidden, true);
     assert.equal(planned.elements.get('stop-overlay-photo').src, undefined);
   }
+});
+
+
+test('GPS preview can be moved on the map before confirming without changing other inputs', () => {
+  const app = browser();
+  app.seed({ ...route(), phase: 'setting_up', setup_step: 'starting_point', stops: null, geometry: null, total_minutes: null, unused_minutes: null });
+  const before = app.saved();
+  app.click('current-location-btn');
+  app.locationRequests[0].success({ coords: { latitude: -33.8, longitude: 151.1 } });
+  assert.deepEqual(app.saved(), before);
+  const reload = browser(app.saved());
+  assert.deepEqual(reload.saved().starting_point, before.starting_point);
+  assert.equal(reload.locationRequests.length, 0);
+  app.mapClick(-33.81, 151.11);
+  assert.equal(app.elements.get('pending-pin-label').textContent, 'Dropped pin');
+  app.click('confirm-start-btn');
+  assert.deepEqual(app.saved().starting_point, { lat: -33.81, lng: 151.11, label: 'Dropped pin' });
+  for (const key of ['available_minutes', 'topic', 'preference', 'excluded_ids']) assert.deepEqual(app.saved()[key], before[key]);
+  assert(app.valid());
+  app.evaluate("showStep('starting_point')");
+  assert.match(app.elements.get('start-map-hint').textContent, /Tap the map/);
+  assert.equal(app.elements.get('pending-pin-row').hidden, true);
 });
