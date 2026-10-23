@@ -556,5 +556,102 @@ class TestReplacementGeometry(unittest.TestCase):
                 content.assert_not_called()
 
 
+class TestCuratedPhotos(unittest.TestCase):
+    def setUp(self):
+        with open(app_module.PHOTO_MANIFEST_PATH, encoding="utf-8") as source:
+            self.entry = json.load(source)["heritage/2420855"]
+        self.photo = {key: self.entry[key] for key in app_module.PHOTO_FIELDS}
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.manifest = os.path.join(self.temp.name, "photos.json")
+
+    def read_manifest(self, data):
+        with open(self.manifest, "w", encoding="utf-8") as output:
+            json.dump(data, output)
+        with patch("app.PHOTO_MANIFEST_PATH", self.manifest):
+            return app_module.load_place_photos()
+
+    def test_complete_reviewed_metadata_and_local_original(self):
+        self.assertEqual(self.read_manifest({"node/1": self.entry}), {"node/1": self.photo})
+        public = app_module.to_public_place(FIXTURE_RECORDS[0], {"node/1": self.photo})
+        self.assertEqual(public["photo"], self.photo)
+        self.assertNotIn("reviewed", public["photo"])
+        # Catalogue photo fields are never themselves authoritative.
+        self.assertNotIn("photo", app_module.to_public_place({**FIXTURE_RECORDS[0], "photo": self.photo, "photo_url": self.photo["url"]}, {}))
+
+    def test_missing_malformed_or_wrong_manifest_is_optional(self):
+        for data in (None, [], "invalid", {"node/1": None}):
+            self.assertEqual(self.read_manifest(data), {})
+        for text in ("{broken", ""):
+            with open(self.manifest, "w", encoding="utf-8") as output:
+                output.write(text)
+            with patch("app.PHOTO_MANIFEST_PATH", self.manifest):
+                self.assertEqual(app_module.load_place_photos(), {})
+        with patch("app.PHOTO_MANIFEST_PATH", os.path.join(self.temp.name, "missing")):
+            self.assertEqual(app_module.load_place_photos(), {})
+            self.assertTrue(app_module.load_ready_places())
+
+    def test_invalid_entry_does_not_hide_other_photos(self):
+        invalid_entries = [None, {}, {**self.entry, "reviewed": False}, {**self.entry, "reviewed": 1}]
+        invalid_entries += [{**self.entry, key: value} for key in app_module.PHOTO_FIELDS for value in (None, "", " ")]
+        invalid_entries += [{**self.entry, "url": url} for url in (
+            "https://example.org/image.jpg", "/static/place-photos/../image.jpg",
+            "/static/place-photos/%2e%2e/image.jpg", "/static/place-photos/missing.jpg",
+            self.photo["url"] + "?query=1")]
+        invalid_entries += [{**self.entry, key: url} for key in ("source_url", "license_url")
+                            for url in ("http://example.org", "javascript:alert(1)", "https:///missing", "https://user:pass@example.org", "https://example.org/space here")]
+        for entry in invalid_entries:
+            with self.subTest(entry=entry):
+                self.assertEqual(self.read_manifest({"bad": entry, "good": self.entry}), {"good": self.photo})
+
+    def test_symlink_cannot_escape_photo_directory(self):
+        with tempfile.TemporaryDirectory() as root:
+            asset_dir = os.path.join(root, "static", "place-photos")
+            os.makedirs(asset_dir)
+            outside = os.path.join(root, "outside.jpg")
+            with open(outside, "wb") as asset:
+                asset.write(b"test")
+            os.symlink(outside, os.path.join(asset_dir, "escape.jpg"))
+            with patch("app.BASE_DIR", root):
+                self.assertEqual(self.read_manifest({"bad": {**self.entry, "url": "/static/place-photos/escape.jpg"}}), {})
+
+    def test_both_api_responses_join_sidecar_independently_of_catalogue(self):
+        self.read_manifest({"a": self.entry, "node/1": self.entry})
+        with patch("app.PHOTO_MANIFEST_PATH", self.manifest):
+            catalogue = os.path.join(self.temp.name, "catalogue.json")
+            with open(catalogue, "w", encoding="utf-8") as output:
+                json.dump(FIXTURE_RECORDS, output)
+            with patch("app.DATA_PATH", catalogue):
+                places_response = app_module.app.test_client().get("/api/places")
+            self.assertEqual(places_response.status_code, 200)
+            self.assertEqual(places_response.json[0]["photo"], self.photo)
+            self.assertNotIn("photo", places_response.json[1])
+            with patch("app.planner.plan_route", return_value=FEASIBLE_RESULT), \
+                 patch("app.services.fetch_route_geometry", return_value=None), \
+                 patch("app.ai.generate_stop_content", return_value=[fake_content("a"), fake_content("b")]):
+                response = app_module.app.test_client().post("/api/plan", json=VALID_PLAN_BODY)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json["stops"][0]["photo"], self.photo)
+            self.assertNotIn("photo", response.json["stops"][1])
+
+
+    def test_asset_root_resolution_failure_preserves_public_text(self):
+        self.read_manifest({"node/1": self.entry})
+        catalogue = os.path.join(self.temp.name, "catalogue.json")
+        with open(catalogue, "w", encoding="utf-8") as output:
+            json.dump(FIXTURE_RECORDS, output)
+        for error in (OSError("unavailable directory"), RuntimeError("symlink loop")):
+            with self.subTest(error=error), \
+                 patch("app.PHOTO_MANIFEST_PATH", self.manifest), \
+                 patch("app.DATA_PATH", catalogue), \
+                 patch("app.Path.resolve", side_effect=error):
+                self.assertEqual(app_module.load_place_photos(), {})
+                response = app_module.app.test_client().get("/api/places")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json[0]["name"], FIXTURE_RECORDS[0]["name"])
+                self.assertEqual(response.json[0]["source_excerpt"], FIXTURE_RECORDS[0]["source_excerpt"])
+                self.assertTrue(all("photo" not in place for place in response.json))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -286,11 +286,10 @@
         <h2 id="stop-overlay-heading"></h2>
         <button type="button" class="close-x" id="stop-overlay-close-btn" aria-label="Close stop details">&#10005;</button>
       </div>
-      <!-- User feedback 2026-10-21: a photo should appear over the text when
-           one exists, "so people know what they're looking for" - the real
-           rights-cleared photo data is Story 1.11's own job (backlog), so
-           this stays hidden until a stop actually carries one. -->
-      <img class="stop-overlay-photo" id="stop-overlay-photo" alt="" hidden>
+      <figure class="stop-overlay-figure" id="stop-overlay-figure" hidden>
+        <img class="stop-overlay-photo" id="stop-overlay-photo" alt="">
+        <figcaption class="stop-overlay-credit" id="stop-overlay-credit"></figcaption>
+      </figure>
       <p class="stop-overlay-body" id="stop-overlay-body"></p>
       <ul class="stop-attribution-list" id="stop-overlay-attribution"></ul>
     </div>

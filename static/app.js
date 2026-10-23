@@ -597,6 +597,23 @@ function isValidAttributionEntry(entry) {
   );
 }
 
+function isHttpsPhotoCreditLink(link) {
+  try {
+    const url = new URL(link);
+    return url.protocol === "https:" && !!url.hostname && !url.username && !url.password && !/\s/.test(link);
+  } catch {
+    return false;
+  }
+}
+
+function isValidPhoto(photo) {
+  return !!photo && typeof photo === "object" &&
+    ["url", "source_url", "creator", "license", "license_url", "alt", "changes"].every(
+      key => typeof photo[key] === "string" && photo[key].trim().length > 0) &&
+    /^\/static\/place-photos\/[A-Za-z0-9][A-Za-z0-9_.-]*\.(jpg|jpeg|png|webp)$/.test(photo.url) &&
+    [photo.source_url, photo.license_url].every(isHttpsPhotoCreditLink);
+}
+
 function isValidStop(stop) {
   return (
     stop &&
@@ -613,12 +630,8 @@ function isValidStop(stop) {
     Array.isArray(stop.topics) &&
     typeof stop.content === "string" &&
     Array.isArray(stop.attribution) &&
-    stop.attribution.every(isValidAttributionEntry) &&
-    // bmad-code-review 2026-10-21: not populated by any real backend
-    // response yet (Story 1.11), but still read from a possibly-restored
-    // localStorage trip and assigned straight to an <img>.src - every
-    // other field here is validated, this one wasn't.
-    (stop.photo_url === undefined || typeof stop.photo_url === "string")
+    // Optional photo failures must never invalidate an otherwise usable route.
+    stop.attribution.every(isValidAttributionEntry)
   );
 }
 
@@ -851,6 +864,9 @@ const stopOverlaySheetEl = document.getElementById("stop-overlay-sheet");
 const stopOverlayBackBtn = document.getElementById("stop-overlay-back-btn");
 const stopOverlayCloseBtn = document.getElementById("stop-overlay-close-btn");
 const stopOverlayHeadingEl = document.getElementById("stop-overlay-heading");
+const stopOverlayFigureEl = document.getElementById("stop-overlay-figure");
+const stopOverlayCreditEl = document.getElementById("stop-overlay-credit");
+let stopPhotoGeneration = 0;
 const stopOverlayPhotoEl = document.getElementById("stop-overlay-photo");
 const stopOverlayBodyEl = document.getElementById("stop-overlay-body");
 const stopOverlayAttributionEl = document.getElementById("stop-overlay-attribution");
@@ -1262,6 +1278,7 @@ function finishReplacementLoading() {
   // The user may have closed progress and opened credits while waiting.
   // Dismiss review overlays before showing the result or a failure screen.
   creditsSheetWrapEl.hidden = true;
+  resetStopPhoto();
   stopOverlayWrapEl.hidden = true;
   stopOverlayTriggerEl = null;
   closeStopListSheet({ restoreFocus: false });
@@ -1561,22 +1578,47 @@ function closeStopListSheet({ restoreFocus = true } = {}) {
 
 // Shows a stop's full generated content and every attribution entry (not
 // only the first - AD-3) in the shared overlay shell.
+function resetStopPhoto() {
+  stopPhotoGeneration += 1;
+  stopOverlayFigureEl.hidden = true;
+  stopOverlayPhotoEl.onload = null;
+  stopOverlayPhotoEl.onerror = null;
+  stopOverlayPhotoEl.removeAttribute("src");
+  stopOverlayPhotoEl.alt = "";
+  stopOverlayCreditEl.textContent = "";
+}
+
 function openStopOverlay(stop, triggerEl) {
   stopOverlayTriggerEl = triggerEl || null;
   setReviewSheetInert(true);
 
   stopOverlayHeadingEl.textContent = stop.name || "Stop";
 
-  // Optional, not yet populated by any real backend response (Story 1.11's
-  // own job) - degrades to hidden exactly like a missing attribution
-  // entry would, never a broken image.
-  if (stop.photo_url) {
-    stopOverlayPhotoEl.src = stop.photo_url;
-    stopOverlayPhotoEl.alt = stop.name ? `Photo of ${stop.name}` : "";
-    stopOverlayPhotoEl.hidden = false;
-  } else {
-    stopOverlayPhotoEl.hidden = true;
-    stopOverlayPhotoEl.removeAttribute("src");
+  resetStopPhoto();
+  if (isValidPhoto(stop.photo)) {
+    const photo = stop.photo;
+    const generation = stopPhotoGeneration;
+    stopOverlayPhotoEl.onload = () => {
+      if (generation !== stopPhotoGeneration) return;
+      stopOverlayCreditEl.appendChild(document.createTextNode(`Photo by ${photo.creator}. `));
+      for (const [label, url] of [["Source", photo.source_url], [photo.license, photo.license_url]]) {
+        const link = document.createElement("a");
+        link.textContent = label;
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        stopOverlayCreditEl.appendChild(link);
+        stopOverlayCreditEl.appendChild(document.createTextNode(". "));
+      }
+      stopOverlayCreditEl.appendChild(document.createTextNode(photo.changes));
+      stopOverlayPhotoEl.onload = null;
+      stopOverlayFigureEl.hidden = false;
+    };
+    stopOverlayPhotoEl.onerror = () => {
+      if (generation === stopPhotoGeneration) resetStopPhoto();
+    };
+    stopOverlayPhotoEl.alt = photo.alt;
+    stopOverlayPhotoEl.src = photo.url;
   }
 
   stopOverlayBodyEl.textContent = stop.content || "";
@@ -1604,6 +1646,7 @@ function openStopOverlay(stop, triggerEl) {
 }
 
 function closeStopOverlay() {
+  resetStopPhoto();
   stopOverlayWrapEl.hidden = true;
   setReviewSheetInert(false);
   if (stopOverlayTriggerEl) stopOverlayTriggerEl.focus();
@@ -1614,6 +1657,7 @@ function closeStopOverlay() {
 // a real "back to list" affordance reopens it directly, rather than
 // requiring "close, then tap View stops again."
 function backToStopListFromOverlay() {
+  resetStopPhoto();
   stopOverlayWrapEl.hidden = true;
   stopOverlayTriggerEl = null;
   openStopListSheet();

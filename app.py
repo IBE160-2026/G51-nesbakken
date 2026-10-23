@@ -11,6 +11,9 @@ response).
 import json
 import math
 import os
+import re
+from pathlib import Path
+from urllib.parse import urlsplit
 
 import requests
 from flask import Flask, jsonify, render_template, request
@@ -20,6 +23,9 @@ import planner
 import services
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PHOTO_MANIFEST_PATH = os.path.join(BASE_DIR, "data", "place_photos.json")
+PHOTO_FIELDS = ("url", "source_url", "creator", "license", "license_url", "alt", "changes")
+
 DATA_PATH = os.path.join(BASE_DIR, "data", "sydney_places.json")
 
 app = Flask(__name__)
@@ -57,8 +63,51 @@ PUBLIC_FIELDS = (
 )
 
 
-def to_public_place(record):
-    return {field: record.get(field) for field in PUBLIC_FIELDS}
+def load_place_photos():
+    """Optional curated sidecar: failures must never prevent text-only planning."""
+    try:
+        with open(PHOTO_MANIFEST_PATH, encoding="utf-8") as source:
+            manifest = json.load(source)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(manifest, dict):
+        return {}
+    photos = {}
+    try:
+        asset_root = Path(BASE_DIR, "static", "place-photos").resolve()
+    except (OSError, RuntimeError):
+        return {}
+    for place_id, entry in manifest.items():
+        if not isinstance(entry, dict) or entry.get("reviewed") is not True:
+            continue
+        if not all(isinstance(entry.get(key), str) and entry[key].strip() for key in PHOTO_FIELDS):
+            continue
+        # A single plain filename excludes traversal, URL escapes, queries and remote URLs.
+        if not re.fullmatch(r"/static/place-photos/[A-Za-z0-9][A-Za-z0-9_.-]*\.(?:jpg|jpeg|png|webp)", entry["url"]):
+            continue
+        try:
+            asset = (asset_root / entry["url"].rsplit("/", 1)[-1]).resolve()
+            if asset.parent != asset_root or not asset.is_file():
+                continue
+        except (OSError, RuntimeError):
+            continue
+        try:
+            links = [urlsplit(entry[key]) for key in ("source_url", "license_url")]
+            if any(link.scheme != "https" or not link.hostname or link.username or link.password
+                   or any(char.isspace() for char in link.geturl()) for link in links):
+                continue
+        except ValueError:
+            continue
+        photos[place_id] = {key: entry[key] for key in PHOTO_FIELDS}
+    return photos
+
+
+def to_public_place(record, photos=None):
+    public = {field: record.get(field) for field in PUBLIC_FIELDS}
+    photo = (load_place_photos() if photos is None else photos).get(record.get("id"))
+    if photo:
+        public["photo"] = photo
+    return public
 
 
 def load_ready_places():
@@ -71,8 +120,9 @@ def load_ready_places():
         raise CatalogueError(f"catalogue file is not valid JSON: {exc}") from exc
     if not isinstance(records, list):
         raise CatalogueError("catalogue file does not contain a JSON list")
+    photos = load_place_photos()
     return [
-        to_public_place(r) for r in records
+        to_public_place(r, photos) for r in records
         if isinstance(r, dict) and r.get("status") == "ready"
     ]
 
@@ -278,9 +328,11 @@ def api_plan():
     # (which returns the whole catalogue, not a lookup by id) just to
     # render its own response. These four extra fields are already on
     # each stop dict at zero extra cost - no second request required.
+    photos = load_place_photos()
     stops_response = [
         {
             "id": stop["id"],
+            **({"photo": photos[stop["id"]]} if stop["id"] in photos else {}),
             "order": position,
             "name": stop.get("name"),
             "latitude": stop.get("latitude"),

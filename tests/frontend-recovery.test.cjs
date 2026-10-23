@@ -18,6 +18,8 @@ function browser(storedTrip, location = {}) {
     const listeners = new Map();
     return {
       hidden: true, inert: false, dataset: {}, style: {}, children: [],
+      get textContent() { return this._textContent || ""; },
+      set textContent(value) { this._textContent = value; this.children = []; },
       get innerHTML() { return this._innerHTML || ""; },
       set innerHTML(value) { this._innerHTML = value; this.children = []; },
       classList: { toggle() {} },
@@ -25,7 +27,8 @@ function browser(storedTrip, location = {}) {
       click() { if (!this.disabled) listeners.get('click')?.({ type: 'click', target: this }); },
       input(value) { this.value = String(value); listeners.get('input')?.(); },
       appendChild(child) { this.children.push(child); },
-      setAttribute() {}, removeAttribute() {}, focus() {}, scrollTo() {},
+      setAttribute(name, value) { this[name] = value; },
+      removeAttribute(name) { delete this[name]; }, focus() {}, scrollTo() {},
       getBoundingClientRect() { return { height: 220 }; },
     };
   }
@@ -55,6 +58,7 @@ function browser(storedTrip, location = {}) {
     remove() {}
   }
   const context = vm.createContext({
+    URL,
     window: { isSecureContext: location.secure !== false },
     navigator: location.unsupported ? {} : { geolocation: {
       getCurrentPosition(success, failure, options) {
@@ -69,6 +73,7 @@ function browser(storedTrip, location = {}) {
       },
       querySelector() { return element(); },
       querySelectorAll(selector) { return selector === '.topic-pill' ? topicPills : selector === '.start-chip' ? startChips : []; },
+      createTextNode: text => ({ textContent: text }),
       createElement: element, addEventListener() {}, removeEventListener() {},
     },
     maplibregl: {
@@ -671,4 +676,114 @@ test('location failure recovers through map pin confirmation and preserves other
   for (const key of ['available_minutes', 'topic', 'preference', 'excluded_ids']) assert.deepEqual(app.saved()[key], before[key]);
   assert.equal(app.elements.get('screen-available-time').hidden, false);
   assert(app.valid());
+});
+
+const curatedPhoto = JSON.parse(fs.readFileSync(path.join(root, 'data/place_photos.json'), 'utf8'))['heritage/2420855'];
+const publicPhoto = Object.fromEntries(Object.entries(curatedPhoto).filter(([key]) => key !== 'reviewed'));
+
+test('photo lifecycle reveals complete credit only after load and resets on errors, switching and close', () => {
+  const app = browser();
+  const photoStop = { ...stop('photo', 1), photo: publicPhoto,
+    attribution: [{ source_type: 'wikipedia', source_title: 'Prose source', source_url: 'https://example.org/story' }] };
+  const open = value => app.evaluate(`openStopOverlay(${JSON.stringify(value)})`);
+  const figure = app.elements.get('stop-overlay-figure');
+  const image = app.elements.get('stop-overlay-photo');
+  const credit = app.elements.get('stop-overlay-credit');
+  open(photoStop);
+  assert.equal(figure.hidden, true);
+  assert.equal(image.alt, publicPhoto.alt);
+  assert.equal(image.src, publicPhoto.url);
+  image.onload();
+  assert.equal(figure.hidden, false);
+  assert.equal(app.elements.get('stop-overlay-body').textContent, photoStop.content);
+  assert.equal(app.elements.get('stop-overlay-attribution').children.length, 1);
+  const links = credit.children.filter(child => child.href);
+  assert.deepEqual(links.map(link => link.href), [publicPhoto.source_url, publicPhoto.license_url]);
+  assert(links.every(link => link.rel === 'noopener noreferrer'));
+  assert(credit.children.some(child => child.textContent.includes(publicPhoto.creator)));
+  assert(credit.children.some(child => child.textContent === publicPhoto.changes));
+  open(photoStop);
+  const staleLoad = image.onload;
+  open({ ...stop('plain', 2), photo_url: 'https://example.org/old.jpg' });
+  staleLoad();
+  assert.equal(figure.hidden, true);
+  assert.equal(image.src, undefined);
+  assert.equal(credit.textContent, '');
+  open(photoStop); image.onerror();
+  assert.equal(figure.hidden, true);
+  assert.equal(image.src, undefined);
+  open(photoStop); const afterClose = image.onload;
+  app.evaluate('closeStopOverlay()'); afterClose();
+  assert.equal(figure.hidden, true);
+  open(photoStop); image.onload();
+  app.evaluate('backToStopListFromOverlay()');
+  assert.equal(figure.hidden, true);
+});
+
+test('structured optional photos survive save/reload; incomplete and unsafe metadata cannot display', () => {
+  const trip = route(); trip.stops[0].photo = publicPhoto;
+  const app = browser(); app.seed(trip);
+  const reload = browser(app.saved());
+  assert.equal(reload.valid(), true);
+  assert.deepEqual(reload.saved().stops[0].photo, publicPhoto);
+  assert.equal(reload.requests.length, 0);
+  for (const invalid of [null, {}, { ...publicPhoto, creator: '' },
+    { ...publicPhoto, url: 'https://example.org/photo.jpg' },
+    { ...publicPhoto, url: '/static/place-photos/../photo.jpg' },
+    { ...publicPhoto, url: '/static/place-photos/%2e%2e/photo.jpg' },
+    { ...publicPhoto, source_url: 'javascript:alert(1)' },
+    { ...publicPhoto, license_url: 'http://example.org/license' }]) {
+    assert.equal(app.evaluate(`isValidStop(${JSON.stringify({ ...stop('x', 1), photo: invalid })})`), true);
+    app.evaluate(`openStopOverlay(${JSON.stringify({ ...stop('x', 1), photo: invalid })})`);
+    assert.equal(app.elements.get('stop-overlay-figure').hidden, true);
+  }
+  assert.equal(app.evaluate(`isValidStop(${JSON.stringify(stop('old', 1))})`), true);
+});
+
+
+test('replacement uses canonical backend photo metadata while retaining grounded stories', async () => {
+  const trip = route(); trip.stops[1].photo = publicPhoto;
+  const app = browser(trip);
+  const response = route(['b', 'c']);
+  response.stops[0].content = 'Regenerated';
+  response.stops[1].photo = publicPhoto;
+  app.respond({ feasible: true, ...response, replacement_outcome: 'replacement_found' });
+  app.evaluate("replaceStop('a')");
+  await app.settle();
+  assert.equal(app.saved().stops[0].photo, undefined);
+  assert.equal(app.saved().stops[0].content, 'Grounded text');
+  assert.deepEqual(app.saved().stops[1].photo, publicPhoto);
+  assert.equal(browser(app.saved()).valid(), true);
+});
+
+
+test('malformed optional photos preserve saved review and planned response text', async () => {
+  for (const photo of [null, {}, { ...publicPhoto, creator: '' },
+    { ...publicPhoto, url: 'https://example.org/unsafe.jpg' },
+    { ...publicPhoto, source_url: 'javascript:alert(1)' }]) {
+    const savedTrip = route(); savedTrip.stops[0].photo = photo;
+    const restored = browser(savedTrip);
+    assert.equal(restored.valid(), true);
+    assert.equal(restored.saved().phase, 'reviewing');
+    assert.equal(restored.elements.get('screen-reviewing').hidden, false);
+    assert.equal(restored.requests.length, 0);
+    restored.evaluate('openStopOverlay(trip.stops[0])');
+    assert.equal(restored.elements.get('stop-overlay-body').textContent, savedTrip.stops[0].content);
+    assert.equal(restored.elements.get('stop-overlay-figure').hidden, true);
+    assert.equal(restored.elements.get('stop-overlay-photo').src, undefined);
+
+    const planned = browser();
+    planned.seed({ ...route(), phase: 'setting_up', setup_step: 'confirm_sheet', stops: null,
+      geometry: null, total_minutes: null, unused_minutes: null });
+    const response = success(['new-a', 'new-b']); response.stops[0].photo = photo;
+    planned.respond(response);
+    await planned.evaluate('startRoutePlanning()');
+    assert.equal(planned.saved().phase, 'reviewing');
+    assert.equal(planned.valid(), true);
+    assert.deepEqual(planned.saved().stops.map(stop => stop.id), ['new-a', 'new-b']);
+    planned.evaluate('openStopOverlay(trip.stops[0])');
+    assert.equal(planned.elements.get('stop-overlay-body').textContent, response.stops[0].content);
+    assert.equal(planned.elements.get('stop-overlay-figure').hidden, true);
+    assert.equal(planned.elements.get('stop-overlay-photo').src, undefined);
+  }
 });

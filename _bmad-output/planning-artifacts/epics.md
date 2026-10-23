@@ -146,7 +146,9 @@ NFRs and the Additional/UX Design Requirements are cross-cutting rather than tie
 A user can set a starting point, available time, and topic (or "surprise me," or a landmark/hidden-gem preference); see a real, source-grounded, time-feasible proposed Route with inspectable per-stop content and visible attribution; adjust it (remove/replace a stop, Re-Jaunt for a different one) before approving; and, if nothing suitable exists, get an honest, non-dead-end explanation instead of a weak result. This is V1's Must-tier core plus its directly-attached Should-tier refinements - the entire unscheduled Trip-Setup/Route-Review frontend the PRD itself flags as real, unsized work, plus the AI content-generation and grounding-check pipeline that review depends on. The Must-tier path (Stories 1.1-1.6) is sequenced so backend capabilities (catalogue coverage, content generation, the planning endpoint) are built and independently tested before the frontend stories that consume them - no Must-tier story depends on a Should/Could story, and none depend on Epic 2, 3, or 4. Standalone: delivers a complete, demoable "plan and approve a real walk" experience on its own.
 **FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-9, FR-10, FR-11, FR-19, FR-20, FR-22, FR-24
 
-### Epic 2: Walk It
+#**Coverage/implementation note,2026-10-23:** Catalogue stored verified photos initially0/159 ready stops. One audited CC BY3.0 photograph for Newtown Post Office now demonstrates the optional local-photo pipeline with complete credit. Curated coverage1/159 is a lower bound; remaining external photo availability was not exhaustively researched. See docs/stop-photo-coverage.md. No placeholders, thumbnails or map-photo pins. Story remains review pending combined acceptance.
+
+## Epic 2: Walk It
 A user can actually walk the approved Route: open any stop's content at any time without being nagged about it, see their live position (Jarrod's head marker) on the map when permission is granted and a calm non-error fallback when it isn't, explicitly mark a stop Visited while walking (distinct from merely opening its content), and see a muted, clearly-subordinate layer of nearby cafes/amenities when zoomed in. Reuses the real route geometry Epic 1 already fetches - no new geometry work here, only rendering it during the walk. Standalone: a user can complete a full walk end to end; does not require Epic 3 or 4.
 **FRs covered:** FR-6 (reused), FR-12, FR-13, FR-14, FR-15, FR-23 (Story 2.6 adds the PRD-required real-world validation pass, not tied to one FR - added 2026-10-18)
 
@@ -594,6 +596,8 @@ So that I don't have to hunt for a map reference I don't have.
 **When** the trip request is sent
 **Then** this one-time coordinate is sent to the routing/planning service like any other chosen starting coordinate - this is not the continuous GPS stream NFR-3 keeps device-only
 
+**Implementation note,2026-10-23:** Story1.10 implemented with native one-shot location, app deadline and stale-result guards; physical-phone HTTPS/native permission accessibility acceptance remains pending for the combined Epic1 test.
+
 ### Story 1.11: Stop photo, shown only when rights-cleared (Should)
 
 Depends on Story 1.5 (Stop row component). PRD Open Question 16 (real coverage) must be checked before this is treated as more than a nice-to-have.
@@ -617,6 +621,8 @@ So that I get a better sense of the place without Jaunt showing anything it does
 **Then** the fraction of `ready` Stops that actually have a qualifying rights-cleared image is checked and documented before this feature is treated as more than a nice-to-have for the Stops that happen to qualify (PRD Open Question 16)
 
 ---
+
+**Coverage/implementation note,2026-10-23:** Catalogue stored verified photos initially0/159 ready stops. One audited CC BY3.0 photograph for Newtown Post Office now demonstrates the optional local-photo pipeline with complete credit. Curated coverage1/159 is a lower bound; remaining external photo availability was not exhaustively researched. See docs/stop-photo-coverage.md. No placeholders, thumbnails or map-photo pins. Story remains review pending combined acceptance.
 
 ## Epic 2: Walk It
 
