@@ -798,6 +798,11 @@ const startingPointTitleEl = document.getElementById("starting-point-title");
 const startChipEls = Array.from(document.querySelectorAll(".start-chip"));
 const pendingPinRowEl = document.getElementById("pending-pin-row");
 const confirmStartBtn = document.getElementById("confirm-start-btn");
+const currentLocationBtn = document.getElementById("current-location-btn");
+const currentLocationStatusEl = document.getElementById("current-location-status");
+let locationGeneration = 0;
+let locationPending = false;
+let locationDeadline = null;
 
 const availableTimeBackBtn = document.getElementById("available-time-back-btn");
 const availableTimeTitleEl = document.getElementById("available-time-title");
@@ -1025,6 +1030,7 @@ function hideAllScreens() {
 // move it somewhere more specific itself (e.g. a recorded back-navigation
 // trigger).
 function showStep(step, { focusDefault = true } = {}) {
+  if (step !== "starting_point") invalidateLocationRequest();
   hideAllScreens();
 
   // Only a real Trip Setup step is persisted as setup_step - "reviewing"/
@@ -1794,7 +1800,74 @@ walkingStubBackBtn.addEventListener("click", () => {
 // still set starting_point and advance immediately, with no confirm step.
 let pendingPin = null;
 
+// Browser permission can outlive setup navigation. Ignore callbacks from any
+// request superseded by another choice or by leaving this screen.
+function invalidateLocationRequest() {
+  clearTimeout(locationDeadline);
+  locationDeadline = null;
+  locationGeneration += 1;
+  locationPending = false;
+  currentLocationBtn.disabled = false;
+  currentLocationStatusEl.textContent = "";
+}
+
+currentLocationBtn.addEventListener("click", () => {
+  if (locationPending || trip.setup_step !== "starting_point") return;
+  invalidateLocationRequest();
+  const generation = locationGeneration;
+  const fail = (message) => {
+    if (generation !== locationGeneration) return;
+    invalidateLocationRequest();
+    currentLocationStatusEl.textContent = message;
+  };
+  if (typeof window !== "undefined" && window.isSecureContext === false) {
+    fail("Current location needs a secure connection. Choose a spot on the map or below.");
+    return;
+  }
+  const geolocation = typeof navigator !== "undefined" ? navigator.geolocation : null;
+  if (!geolocation || typeof geolocation.getCurrentPosition !== "function") {
+    fail("Current location is unavailable in this browser. Choose a spot on the map or below.");
+    return;
+  }
+  locationPending = true;
+  currentLocationBtn.disabled = true;
+  currentLocationStatusEl.textContent = "Finding your current location…";
+  // Native timeout does not include time waiting for permission. Bound that
+  // wait too, and invalidate any callbacks from a prompt answered later.
+  locationDeadline = setTimeout(() => {
+    fail("Finding your location took too long. Try again or choose a spot on the map or below.");
+  }, 10000);
+  try {
+    geolocation.getCurrentPosition((position) => {
+      if (generation !== locationGeneration || !locationPending) return;
+      const start = { lat: position?.coords?.latitude, lng: position?.coords?.longitude, label: "Current location" };
+      if (!isValidStartingPoint(start)) {
+        fail("Your location could not be read. Try again or choose a spot on the map or below.");
+        return;
+      }
+      trip.starting_point = start;
+      saveActiveTrip(trip);
+      placeStartMarker(start.lat, start.lng);
+      map.jumpTo({ center: [start.lng, start.lat] });
+      clearPendingPin();
+      instructionsEl.textContent = "";
+      triggerElementByStep.available_time = currentLocationBtn;
+      showStep("available_time");
+    }, (error) => {
+      const message = error?.code === 1
+        ? "Location permission was not granted. Choose a spot on the map or below, or try again."
+        : error?.code === 3
+          ? "Finding your location took too long. Try again or choose a spot on the map or below."
+          : "Your location is unavailable. Try again or choose a spot on the map or below.";
+      fail(message);
+    }, { timeout: 10000, maximumAge: 0, enableHighAccuracy: false });
+  } catch {
+    fail("Your location is unavailable. Try again or choose a spot on the map or below.");
+  }
+});
+
 function showPendingPin(lat, lng) {
+  invalidateLocationRequest();
   pendingPin = { lat, lng };
   placeStartMarker(lat, lng);
   pendingPinRowEl.hidden = false;
@@ -1823,6 +1896,7 @@ confirmStartBtn.addEventListener("click", () => {
 
 startChipEls.forEach((btn) => {
   btn.addEventListener("click", () => {
+    invalidateLocationRequest();
     const start = NAMED_STARTS[btn.dataset.startId];
     trip.starting_point = { lat: start.lat, lng: start.lng, label: start.label };
     saveActiveTrip(trip);
