@@ -38,3 +38,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-expand-curated-photos.md`
   summary: Obtain verified photograph and artwork reuse permission before adding Newtown Graffiti Map or Council Perfect Match gallery mural photos.
   evidence: User-provided sources match catalogue stops but no applicable reuse grant verified; Newtown footer reserves rights, Council photographer permissions absent. Draft in docs/photo-permission-request.md, not sent.
+
+
+Resolution update2026-10-25: photo download follow-up for Bank Hotel/StPeters from spec-expand-curated-photos.md is resolved by spec-catalogue-photo-matches.md; both now in17-entry manifest. Original dated backlog entries retained for history. Other gallery-image permissions remain unresolved where no separately verified Commons source was found.

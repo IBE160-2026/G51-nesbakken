@@ -1042,3 +1042,6 @@ So that FR-21's stretch goal is actually demonstrated, not just architecturally 
 
 
 **Story1.11 coverage update,2026-10-25:** Verified local-photo coverage is now4/159 ready stops (Post Office, Enmore Theatre, Cragos Flour Mill, The Trail sculpture), superseding the earlier1/159 snapshot. Additional Bank Hotel/St Peters candidates await downloaded assets; gallery mural photos await verified permissions. No placeholders or new provider dependency. Evidence and primary links: docs/stop-photo-coverage.md. Human acceptance and preference1.9 feedback remain open; Epic2 not started.
+
+
+**Story1.11 coverage update,2026-10-25 latest:** Verified local-photo manifest now17/159 (13 additional matches including Bank Hotel, StPeters Station and Dream mural), superseding previous4/159 and pending-download snapshots. Exact asset/licence/source evidence in docs/photo-match-audit-2026-10-25.json; current coverage/limits in docs/stop-photo-coverage.md.311 backend/65 frontend and17asset browser checks pass; independent review no remaining findings after docs correction. Human acceptance/preference1.9 remain open; no Epic2.

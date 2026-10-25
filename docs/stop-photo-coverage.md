@@ -1,5 +1,7 @@
 # Stop photo coverage —2026-10-23
 
+**Latest status —2026-10-25:** 17/159 ready stops now have verified local images (10.69%). The dated sections below preserve earlier audits; their1/159 and4/159 counts and pending Bank/St Peters/Dream notes are superseded by the latest batch at the end. Source evidence, exact asset hashes and changes for the13 new images are in `docs/photo-match-audit-2026-10-25.json`.
+
 Initial catalogue audit:226 total records,159 ready. None carries verified photo/licence/creator metadata: stored usable coverage0/159. Existing Wikidata tags are not proof of reusable image rights. This is a metadata audit, not an exhaustive search for photographs of every stop.
 
 ## Audited image
@@ -52,3 +54,45 @@ Bank Hotel (heritage/2420858), user confirms correct subject, primary licence/cr
 - City of Sydney Archives https://archives.cityofsydney.nsw.gov.au/nodes/view/587176 explicitly retains Juilee Pryor photograph copyright and notes artist permission may be needed for mural publication. Archive access alone does not clear rights.
 
 These sources could supply many matched photos if the rights holders grant permission covering both photographs and artwork, public app display, local hosting and necessary sizing. Prepare a permission request for user review rather than sending it. No contact made; research findings are not legal assurance or permission. Retain no-photo presentation until a specific grant or open licence is recorded.
+
+
+## Wikipedia follow-up —2026-10-25
+
+User suggested Wikipedia. Wikipedia’s Newtown area graffiti and street art article provides further image leads: https://en.wikipedia.org/wiki/Newtown_area_graffiti_and_street_art . A concrete Dream mural candidate is https://commons.wikimedia.org/wiki/File:Newtown_area_graffiti_and_street_art_04.jpg : author Hpeterswald, CC BY-SA4.0, current original2593×1928, file page records VRT permission ticket2016080910018537 and says reuse is permitted under its licence. This is distinct from the photographer-retained archive image or the Newtown Graffiti Map copy. Thus needing permission for those copies does not mean every Dream photograph lacks an open-licence route.
+
+Not integrated yet: file page and VRT notice verified, but original bytes/visual match and whether permission documentation covers the underlying mural as well as photograph remain to be established before reviewed:true. Private ticket contents were not accessed. Keep catalogue mapping node/6836072185 (ready), not rejected duplicate perfect_match/16. No blanket conclusion that Wikipedia display itself grants reuse. Coverage remains4/159.
+
+
+## Latest completed batch —2026-10-25
+
+Added13 individually matched and visually inspected photographs. Implemented coverage is now **17/159 ready stops (10.69%)**, superseding all earlier counts in this document. This is stored verified coverage, not a claim that the remaining142 places have no images elsewhere. Existing API/UI contracts and importer files are unchanged.
+
+| Stop / stable ID | Creator and selected licence | Local asset | Stored dimensions / bytes |
+|---|---|---|---|
+| St Peters Railway Station group / heritage/5012222 | Collywolly / CC BY-SA 4.0 | static/place-photos/st-peters-station.jpg | 2816×2112 / 1586840 |
+| I Have A Dream / node/6836072185 | Hpeterswald; mural by Andrew Aiken and Juilee Pryor / CC BY-SA 4.0 | static/place-photos/i-have-a-dream.jpg | 2593×1928 / 2515106 |
+| Newtown Railway Station group and Former Newtown Tramway Depot / heritage/5012123 | Wykymania / CC BY-SA 3.0 | static/place-photos/newtown-station.jpg | 1600×1067 / 211664 |
+| Uniting Church and Pipe Organ / heritage/5045004 | J Bar / CC BY 3.0 | static/place-photos/newtown-mission.jpg | 1920×2560 / 1706897 |
+| Imperial Hotel, Erskineville / heritage/5068106 | Sardaka / CC BY-SA 4.0 | static/place-photos/imperial-hotel.jpg | 1460×1075 / 954375 |
+| St Stephen's Anglican Church and Cemetery / heritage/5045479 | TTaylor / CC BY-SA 4.0 | static/place-photos/st-stephens-church.jpg | 1200×1600 / 512598 |
+| Newtown Baptist Church / way/172735167 | Sardaka / CC BY-SA 4.0 | static/place-photos/newtown-baptist-church.jpg | 1280×1834 / 742569 |
+| Erskineville Hotel / heritage/2420715 | J Bar / CC BY 3.0 | static/place-photos/erskineville-hotel.jpg | 2560×1920 / 1798168 |
+| Bank Hotel / heritage/2420858 | Sardaka / CC BY 3.0 | static/place-photos/bank-hotel.jpg | 1280×960 / 212861 |
+| Stead House (circa 1850s, also known as Frankfort Villa and Waterloo Villa), including interiors / heritage/2030138 | Sardaka / CC BY 3.0 | static/place-photos/stead-house.jpg | 1280×853 / 413748 |
+| Erskineville Town Hall / heritage/2420716 | Sardaka / CC BY-SA 4.0 | static/place-photos/erskineville-town-hall.jpg | 1280×770 / 256288 |
+| Former brickworks group / heritage/2421330 | Adam.J.W.C. (photograph); Ashton 29 (colour enhancement) / CC BY 3.0 | static/place-photos/sydney-park-brickworks.jpg | 1280×1083 / 424971 |
+| Union Hotel / heritage/2423037 | Nick-D / CC BY-SA 3.0 | static/place-photos/union-hotel.jpg | 1280×853 / 321917 |
+
+Each source page, licence URL, original/download URL, SHA256 and changes statement is preserved in docs/photo-match-audit-2026-10-25.json. All13 local assets were visually inspected against the catalogue names/locations and source descriptions. Seven new assets retain original published bytes; six use Commons' published1280px renditions. Attribution accurately states downscaling; source author credits retained. Baptist Church original was13,483,952bytes; stored rendition742,569bytes. No13MB image was added. Sydney Park brickworks credits both Adam.J.W.C. and colour enhancement by Ashton29; source modifications and downscaling disclosed. Proportions retained, no AI edits/crops. Older originals from the initial4-photo batch remain unchanged.
+
+### Dream mural reuse basis
+
+The added photograph is the exact Commons file https://commons.wikimedia.org/wiki/File:Newtown_area_graffiti_and_street_art_04.jpg , not a copy from Newtown Graffiti Map or City Archives. Commons identifies Hpeterswald, CC BY-SA4.0, and publicly states reuse under its licensing requirements is permitted with VRT permission-confirmation ticket2016080910018537. This selection relies on that specific published licence plus public permission notice. We did not access the private correspondence and do not claim independent knowledge of its contents or a blanket grant for all mural photographs. Visible credit includes photographer and mural artists Andrew Aiken/Juilee Pryor. The licence and source remain linked. Other murals without equivalent evidence remain text-only.
+
+### Rejected or pending candidates
+
+- The Commons Come out Hippo photo is NOT a match for node/12771471818: its coordinates(-33.951815,151.162757)/category place it in Brighton-Le-Sands, while Jaunt's Will Coles artwork is in Newtown(-33.8971631,151.1786346). No hippo image added.
+- Wikipedia redirected Newington Manor search to Newington, Swale in the UK; unrelated imagery rejected. Newtown town halls/churches in the UK, Victoria and USA, unrelated PDFs/maps and images merely depicting a train/person were also rejected.
+- Stanmore House's historic circa1900 photograph is a promising lead but has unknown original photographer and restored/source provenance requiring further checking. Not added under a generic unknown-author guess.
+- Remaining ready art/heritage stops without a verified subject/right/image remain without a photo. Metadata searches paused at429; research and downloaded original queues in/private/tmp are temporary only. Durable evidence for every added asset is in the JSON audit; further broad searching is not represented as exhaustive.
+- Additional sources remain available for future permission checks; no rights holders were contacted and the user's deletion of the permission-request draft was preserved.

@@ -38,5 +38,135 @@
     "license_url": "https://creativecommons.org/licenses/by/2.5/",
     "alt": "The Trail, a red curved-steel sculpture by Michael Snape on a grassy hill in Sydney Park",
     "changes": "Unmodified photograph."
+  },
+  "heritage/5012222": {
+    "reviewed": true,
+    "url": "/static/place-photos/st-peters-station.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:St_Peters_Railway_Station_in_2018_--_01.jpg",
+    "creator": "Collywolly",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "alt": "St Peters railway station platform buildings and railway tracks",
+    "changes": "Unmodified photograph."
+  },
+  "node/6836072185": {
+    "reviewed": true,
+    "url": "/static/place-photos/i-have-a-dream.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Newtown_area_graffiti_and_street_art_04.jpg",
+    "creator": "Hpeterswald; mural by Andrew Aiken and Juilee Pryor",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "alt": "I Have a Dream mural by Andrew Aiken and Juilee Pryor on King Street, Newtown",
+    "changes": "Unmodified photograph."
+  },
+  "heritage/5012123": {
+    "reviewed": true,
+    "url": "/static/place-photos/newtown-station.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Newtown_Railway_Station_Side_Entrance.jpg",
+    "creator": "Wykymania",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "alt": "Side entrance to Newtown railway station from the adjoining lane",
+    "changes": "Unmodified photograph."
+  },
+  "heritage/5045004": {
+    "reviewed": true,
+    "url": "/static/place-photos/newtown-mission.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Newtown_Mission_Uniting_Church.JPG",
+    "creator": "J Bar",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "alt": "Newtown Mission Uniting Church facade on King Street",
+    "changes": "Unmodified photograph."
+  },
+  "heritage/5068106": {
+    "reviewed": true,
+    "url": "/static/place-photos/imperial-hotel.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:(1)Imperial_Hotel_Erskineville.jpg",
+    "creator": "Sardaka",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "alt": "Imperial Hotel facade on the corner of Erskineville Road and Union Street",
+    "changes": "Unmodified photograph."
+  },
+  "heritage/5045479": {
+    "reviewed": true,
+    "url": "/static/place-photos/st-stephens-church.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Newtown_St_Stephens_Church_01.JPG",
+    "creator": "TTaylor",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "alt": "St Stephen's Church seen from Camperdown Memorial Rest Park",
+    "changes": "Unmodified photograph."
+  },
+  "way/172735167": {
+    "reviewed": true,
+    "url": "/static/place-photos/newtown-baptist-church.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:(1)Newtown_Baptist_Church.jpg",
+    "creator": "Sardaka",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "alt": "Newtown Baptist Church facade on Church Street",
+    "changes": "Downscaled by Wikimedia Commons; no further changes by Jaunt."
+  },
+  "heritage/2420715": {
+    "reviewed": true,
+    "url": "/static/place-photos/erskineville-hotel.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Erskineville_Hotel.JPG",
+    "creator": "J Bar",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "alt": "Erskineville Hotel brick corner facade and street-level awning",
+    "changes": "Unmodified photograph."
+  },
+  "heritage/2420858": {
+    "reviewed": true,
+    "url": "/static/place-photos/bank-hotel.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Bank_Hotel,_Newtown.jpg",
+    "creator": "Sardaka",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "alt": "Bank Hotel facade beside Newtown railway station",
+    "changes": "Downscaled by Wikimedia Commons; no further changes by Jaunt."
+  },
+  "heritage/2030138": {
+    "reviewed": true,
+    "url": "/static/place-photos/stead-house.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:(1)Stead_House-1.jpg",
+    "creator": "Sardaka",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "alt": "Stead House in Marrickville, with a bay window and wraparound balconies",
+    "changes": "Downscaled by Wikimedia Commons; no further changes by Jaunt."
+  },
+  "heritage/2420716": {
+    "reviewed": true,
+    "url": "/static/place-photos/erskineville-town-hall.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:(1)Erskineville_Town_Hall.jpg",
+    "creator": "Sardaka",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "alt": "Erskineville Town Hall brick facade with its central columned entrance",
+    "changes": "Downscaled by Wikimedia Commons; no further changes by Jaunt."
+  },
+  "heritage/2421330": {
+    "reviewed": true,
+    "url": "/static/place-photos/sydney-park-brickworks.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Sydneychimneyssydpark.jpg",
+    "creator": "Adam.J.W.C. (photograph); Ashton 29 (colour enhancement)",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "alt": "Former brickworks chimneys and kilns in Sydney Park",
+    "changes": "Colour-enhanced Commons version, downscaled by Wikimedia Commons; no further changes by Jaunt."
+  },
+  "heritage/2423037": {
+    "reviewed": true,
+    "url": "/static/place-photos/union-hotel.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Union_Hotel_Newtown_July_2018.jpg",
+    "creator": "Nick-D",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "alt": "Union Hotel brick corner facade on King Street, Newtown",
+    "changes": "Downscaled by Wikimedia Commons; no further changes by Jaunt."
   }
 }
