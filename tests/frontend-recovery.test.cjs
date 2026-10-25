@@ -49,6 +49,10 @@ function browser(storedTrip, location = {}, placesSeed) {
   });
   const locationRequests = [];
   const mapEvents = new Map();
+  const windowEvents = new Map();
+  let startPanelHeight = 220;
+  const startPanelEl = element();
+  startPanelEl.getBoundingClientRect = () => ({ height: startPanelHeight });
   const markerPositions = [];
   const cameraPositions = [];
   const cameraOptions = [];
@@ -67,7 +71,11 @@ function browser(storedTrip, location = {}, placesSeed) {
   }
   const context = vm.createContext({
     URL,
-    window: { isSecureContext: location.secure !== false },
+    window: {
+      isSecureContext: location.secure !== false,
+      addEventListener(name, fn) { windowEvents.set(name, fn); },
+      removeEventListener() {},
+    },
     navigator: location.unsupported ? {} : { geolocation: {
       getCurrentPosition(success, failure, options) {
         if (location.throws) throw new Error('Location failed');
@@ -79,7 +87,7 @@ function browser(storedTrip, location = {}, placesSeed) {
         assert(elements.has(id), `Real template must contain #${id}`);
         return elements.get(id);
       },
-      querySelector() { return element(); },
+      querySelector(selector) { return selector === '.start-panel' ? startPanelEl : element(); },
       querySelectorAll(selector) { return selector === '.topic-pill' ? topicPills : selector === '.start-chip' ? startChips : []; },
       createTextNode: text => ({ textContent: text }),
       createElement: element, addEventListener() {}, removeEventListener() {},
@@ -119,6 +127,8 @@ function browser(storedTrip, location = {}, placesSeed) {
     requests, elements, evaluate, locationRequests, markerPositions, cameraPositions, cameraOptions, timers, startChips,
     fireTimer(id) { const timer = timers.get(id); timers.delete(id); timer.callback(); },
     mapClick(lat, lng) { mapEvents.get('click')({ lngLat: { lat, lng } }); },
+    fireResize() { windowEvents.get('resize')?.(); },
+    setStartPanelHeight(height) { startPanelHeight = height; },
     seed(trip) { evaluate(`trip = ${JSON.stringify(trip)}; saveActiveTrip(trip);`); },
     saved: () => JSON.parse(storage.get(storageKey)),
     valid: () => evaluate('isValidTrip(JSON.parse(localStorage.getItem(STORAGE_KEY)))'),
@@ -1082,3 +1092,39 @@ for (const origin of ['fresh', 'named', 'GPS', 'expanded']) {
     assert.deepEqual(app.saved().starting_point, { lat: -33.898, lng: 151.181, label: 'Dropped pin' });
   });
 }
+
+// Regression: mobile browsers fire window "resize" for reasons (address bar
+// collapsing on scroll/tap, keyboard appearing) that don't actually change
+// the start panel's size - the handler must only recenter when the panel
+// itself genuinely grew or shrank, or a plain tap can still appear to move
+// the map on a phone even though the tap handler itself never moves it.
+test('a resize that does not change the start panel\'s height leaves the camera unchanged after a manual pin drop', () => {
+  const app = browser();
+  app.mapClick(-33.897, 151.179);
+  const cameras = JSON.stringify(app.cameraPositions);
+  app.fireResize();
+  assert.equal(JSON.stringify(app.cameraPositions), cameras);
+});
+
+test('a resize that genuinely changes the start panel\'s height still recenters on the pending pin', () => {
+  const app = browser();
+  app.mapClick(-33.897, 151.179);
+  const cameras = JSON.stringify(app.cameraPositions);
+  app.setStartPanelHeight(320); // e.g. an on-screen keyboard shrinking the visible map area
+  app.fireResize();
+  assert.notEqual(JSON.stringify(app.cameraPositions), cameras);
+  assert.deepEqual(Array.from(app.cameraPositions.at(-1)), [151.179, -33.897]);
+});
+
+test('resize does nothing once there is no pending pin or the step has moved on', () => {
+  const app = browser();
+  const cameras = JSON.stringify(app.cameraPositions);
+  app.fireResize(); // nothing dropped yet
+  assert.equal(JSON.stringify(app.cameraPositions), cameras);
+  app.mapClick(-33.897, 151.179);
+  app.click('confirm-start-btn'); // advances past starting_point and clears pendingPin
+  const camerasAfterConfirm = JSON.stringify(app.cameraPositions);
+  app.setStartPanelHeight(999);
+  app.fireResize();
+  assert.equal(JSON.stringify(app.cameraPositions), camerasAfterConfirm);
+});

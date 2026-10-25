@@ -1937,6 +1937,17 @@ startSpotsToggleBtn.addEventListener("click", () => {
   if (pendingPin) focusPendingPin();
 });
 
+function currentPanelHeight() {
+  return document.querySelector(".start-panel").getBoundingClientRect().height;
+}
+
+// Baseline panel height for the pin currently pending, set without moving
+// the camera (see showPendingPin) so the resize handler below can tell a
+// genuine layout change (panel grew/shrank) from a mobile browser firing
+// resize for its own reasons - e.g. the address bar collapsing - which
+// changes nothing about the panel and must not recenter the map.
+let pendingPinPanelHeight = null;
+
 function showPendingPin(lat, lng, label = "Dropped pin") {
   invalidateLocationRequest();
   pendingPin = { lat, lng, label };
@@ -1945,13 +1956,15 @@ function showPendingPin(lat, lng, label = "Dropped pin") {
   confirmStartBtn.disabled = false;
   setStartSpotsExpanded(false);
   instructionsEl.textContent = "";
+  pendingPinPanelHeight = currentPanelHeight();
 }
 
 // Leave space for the header above and the measured panel below. Offset does
 // not persist camera padding into Route Review.
 function focusPendingPin() {
   if (!pendingPin) return;
-  const panelHeight = document.querySelector(".start-panel").getBoundingClientRect().height;
+  const panelHeight = currentPanelHeight();
+  pendingPinPanelHeight = panelHeight;
   map.easeTo({ center: [pendingPin.lng, pendingPin.lat],
     offset: [0, 32 - panelHeight / 2], duration: 0 });
 }
@@ -1960,7 +1973,7 @@ if (typeof window !== "undefined") {
   window.addEventListener?.("resize", () => {
     if (trip.setup_step === "starting_point" && pendingPin) {
       map.resize();
-      focusPendingPin();
+      if (currentPanelHeight() !== pendingPinPanelHeight) focusPendingPin();
     }
   });
 }
