@@ -29,3 +29,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-honest-fallback-when-no-suitable-route-exists.md`
   summary: Three new interactive behaviors Story 1.6 added - the "Try a different topic" chip clearing `trip.topic` before navigating, the time chip's `min(available_minutes + 15, 120)` cap/hide logic, and the marker-origin stop overlay's focus-return to `map.getCanvas()` - have no automated regression coverage, for the same pre-existing reason as every other frontend behavior in this repo.
   evidence: Same root cause as the existing JS-test-harness entry above (no `package.json`, no JS test file exists anywhere in the repo), not a new gap this story introduced. Each was traced and confirmed correct as currently written (verification-gap review, 2026-10-22) - the risk is a future edit silently reintroducing an already-identified bug (the topic-chip fix directly undoes a real defect Codex's review caught in this same story), not that the current code is wrong. Concrete demonstration per behavior: dropping `trip.topic = null` would re-leave the failed topic pre-selected; dropping the `Math.min(..., 120)` cap could let the chip propose an out-of-range value; reverting `map.getCanvas()` to `null` would re-leave focus on a hidden element after close - none of these would fail any existing test.
+
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-expand-curated-photos.md`
+  summary: Download and visually inspect the already identified Bank Hotel and St Peters station photo candidates once Wikimedia permits requests again.
+  evidence: Candidate primary licences/creators and ready IDs are documented, but429 Retry-After600 stopped downloads; no manifest entries until actual asset/subject verification.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-expand-curated-photos.md`
+  summary: Obtain verified photograph and artwork reuse permission before adding Newtown Graffiti Map or Council Perfect Match gallery mural photos.
+  evidence: User-provided sources match catalogue stops but no applicable reuse grant verified; Newtown footer reserves rights, Council photographer permissions absent. Draft in docs/photo-permission-request.md, not sent.

@@ -8,5 +8,35 @@
     "license_url": "https://creativecommons.org/licenses/by/3.0/",
     "alt": "Newtown Post Office, showing its brick facade and clock tower",
     "changes": "Unmodified photograph."
+  },
+  "heritage/2030116": {
+    "reviewed": true,
+    "url": "/static/place-photos/enmore-theatre.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Enmore_Theatre.jpg",
+    "creator": "Sardaka",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "alt": "Enmore Theatre facade with its stepped Art Deco tower and entrance canopy",
+    "changes": "Unmodified photograph."
+  },
+  "heritage/2030114": {
+    "reviewed": true,
+    "url": "/static/place-photos/cragos-flour-mill.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Newtown_Crago_Flour_Mill_1.JPG",
+    "creator": "J Bar",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "alt": "Brick facade of Cragos Flour Mill, with painted flour-mill lettering beside the railway",
+    "changes": "Unmodified photograph."
+  },
+  "node/5301587126": {
+    "reviewed": true,
+    "url": "/static/place-photos/the-trail.jpg",
+    "source_url": "https://commons.wikimedia.org/wiki/File:MichaelSnapeTheTrail1990SydneyPark.jpg",
+    "creator": "Paul McCarthy (Xxpaulm)",
+    "license": "CC BY 2.5",
+    "license_url": "https://creativecommons.org/licenses/by/2.5/",
+    "alt": "The Trail, a red curved-steel sculpture by Michael Snape on a grassy hill in Sydney Park",
+    "changes": "Unmodified photograph."
   }
 }

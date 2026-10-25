@@ -71,10 +71,12 @@
 
     <div class="start-panel">
       <div class="panel-label" id="start-map-hint">Tap to drop a pin</div>
-      <button type="button" class="btn-pill current-location-btn" id="current-location-btn" aria-describedby="current-location-status">Use my current location</button>
+      <div class="start-location-actions">
+        <button type="button" class="btn-pill current-location-btn" id="current-location-btn" aria-describedby="current-location-status">Use current location</button>
+        <button type="button" class="btn-pill start-spots-toggle" id="start-panel-label" aria-expanded="false" aria-controls="named-starts">Or pick a spot</button>
+      </div>
       <p id="current-location-status" class="current-location-status" role="status" aria-live="polite" aria-atomic="true"></p>
-      <div class="panel-label" id="start-panel-label">Or pick a spot</div>
-      <div class="chip-scroll" role="group" aria-labelledby="start-panel-label">
+      <div class="chip-scroll named-starts" id="named-starts" role="group" aria-labelledby="start-panel-label" hidden>
         <button type="button" class="chip start-chip" data-start-id="newtown_station" aria-label="Preview starting point at Newtown Station">Newtown Station</button>
         <button type="button" class="chip start-chip" data-start-id="king_st" aria-label="Preview starting point at King St">King St</button>
         <button type="button" class="chip start-chip" data-start-id="camperdown_park" aria-label="Preview starting point at Camperdown Park">Camperdown Park</button>

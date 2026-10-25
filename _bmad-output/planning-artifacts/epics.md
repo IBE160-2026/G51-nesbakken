@@ -1039,3 +1039,6 @@ So that FR-21's stretch goal is actually demonstrated, not just architecturally 
 **Given** this is an explicit stretch goal
 **When** Epics 1-3 and this epic compete for time
 **Then** this epic is never allowed to delay the Newtown end-to-end flow
+
+
+**Story1.11 coverage update,2026-10-25:** Verified local-photo coverage is now4/159 ready stops (Post Office, Enmore Theatre, Cragos Flour Mill, The Trail sculpture), superseding the earlier1/159 snapshot. Additional Bank Hotel/St Peters candidates await downloaded assets; gallery mural photos await verified permissions. No placeholders or new provider dependency. Evidence and primary links: docs/stop-photo-coverage.md. Human acceptance and preference1.9 feedback remain open; Epic2 not started.

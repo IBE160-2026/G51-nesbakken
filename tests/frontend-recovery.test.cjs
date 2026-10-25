@@ -912,3 +912,33 @@ for (const source of ['named', 'map', 'GPS']) {
     assert.equal(reload.locationRequests.length, 0);
   });
 }
+
+
+test('named starts are an accessible disclosure and selecting one restores the compact panel', () => {
+  const app = browser();
+  const group = app.elements.get('named-starts');
+  const toggle = app.elements.get('start-panel-label');
+  assert.equal(group.hidden, true);
+  assert.equal(toggle['aria-expanded'], 'false');
+  app.click('start-panel-label');
+  assert.equal(group.hidden, false);
+  assert.equal(toggle['aria-expanded'], 'true');
+  assert.equal(app.saved().starting_point, null);
+  assert.equal(app.saved().setup_step, 'starting_point');
+  app.startChips[0].click();
+  assert.equal(group.hidden, true);
+  assert.equal(toggle['aria-expanded'], 'false');
+  assert.equal(app.elements.get('pending-pin-label').textContent, 'Newtown Station');
+  assert.equal(app.elements.get('confirm-start-btn').disabled, false);
+  assert.equal(app.saved().starting_point, null);
+  app.click('start-panel-label');
+  assert.equal(group.hidden, false);
+  app.click('start-panel-label');
+  assert.equal(group.hidden, true);
+  assert.equal(app.elements.get('confirm-start-btn').disabled, false);
+  app.click('confirm-start-btn');
+  app.click('available-time-back-btn');
+  assert.equal(group.hidden, true);
+  assert.equal(toggle['aria-expanded'], 'false');
+  assert.equal(app.saved().starting_point.label, 'Newtown Station');
+});

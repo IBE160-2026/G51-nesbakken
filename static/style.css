@@ -442,16 +442,34 @@ input:focus-visible,
   justify-content: space-between;
   gap: 10px;
   margin-top: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   position: sticky;
   bottom: 0;
   background: var(--surface);
 }
-.current-location-btn {
-  margin: 0 0 18px;
+.start-location-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.start-location-actions .btn-pill {
+  margin: 0;
+  padding: 8px 10px;
   min-height: 44px;
   max-width: 100%;
+  width: 100%;
   white-space: normal;
+}
+.start-location-actions .start-spots-toggle {
+  background: transparent;
+  border: 1px solid var(--forest);
+  color: var(--forest);
+}
+.named-starts {
+  margin-top: 10px;
+}
+.named-starts[hidden] {
+  display: none;
 }
 .current-location-status {
   margin: 8px 0 12px;
@@ -462,13 +480,18 @@ input:focus-visible,
   display: none;
 }
 .pending-pin-row span {
-  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
   font-weight: 700;
   color: var(--ink-soft);
 }
 .pending-pin-row .btn-pill {
   margin-top: 0;
-  width: 100%;
+  padding: 10px 16px;
+  max-width: none;
+  flex-shrink: 0;
   min-height: 44px;
 }
 .pending-pin-row .btn-pill:disabled {

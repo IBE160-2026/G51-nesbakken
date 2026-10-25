@@ -809,6 +809,8 @@ const screenWalkingStub = document.getElementById("screen-walking-stub");
 
 const startingPointTitleEl = document.getElementById("starting-point-title");
 const startChipEls = Array.from(document.querySelectorAll(".start-chip"));
+const startSpotsToggleBtn = document.getElementById("start-panel-label");
+const namedStartsEl = document.getElementById("named-starts");
 const confirmStartBtn = document.getElementById("confirm-start-btn");
 const pendingPinLabelEl = document.getElementById("pending-pin-label");
 const currentLocationBtn = document.getElementById("current-location-btn");
@@ -1904,12 +1906,23 @@ currentLocationBtn.addEventListener("click", () => {
   }
 });
 
+function setStartSpotsExpanded(expanded) {
+  namedStartsEl.hidden = !expanded;
+  startSpotsToggleBtn.setAttribute("aria-expanded", String(expanded));
+  if (pendingPin) focusPendingPin();
+}
+
+startSpotsToggleBtn.addEventListener("click", () => {
+  setStartSpotsExpanded(namedStartsEl.hidden);
+});
+
 function showPendingPin(lat, lng, label = "Dropped pin") {
   invalidateLocationRequest();
   pendingPin = { lat, lng, label };
   pendingPinLabelEl.textContent = label;
   placeStartMarker(lat, lng);
   confirmStartBtn.disabled = false;
+  setStartSpotsExpanded(false);
   instructionsEl.textContent = "";
 }
 
@@ -1933,6 +1946,7 @@ if (typeof window !== "undefined") {
 
 function clearPendingPin() {
   pendingPin = null;
+  setStartSpotsExpanded(false);
   confirmStartBtn.disabled = true;
   pendingPinLabelEl.textContent = "Choose a starting point";
 }
@@ -1960,6 +1974,7 @@ startChipEls.forEach((btn) => {
     const start = NAMED_STARTS[btn.dataset.startId];
     showPendingPin(start.lat, start.lng, start.label);
     focusPendingPin();
+    confirmStartBtn.focus();
   });
 });
 
