@@ -942,3 +942,29 @@ test('named starts are an accessible disclosure and selecting one restores the c
   assert.equal(toggle['aria-expanded'], 'false');
   assert.equal(app.saved().starting_point.label, 'Newtown Station');
 });
+
+
+for (const origin of ['fresh', 'named', 'GPS', 'expanded']) {
+  test(`manual pin placement leaves the camera unchanged from ${origin} state`, () => {
+    const app = browser();
+    if (origin === 'named') app.startChips[0].click();
+    if (origin === 'GPS') {
+      app.click('current-location-btn');
+      app.locationRequests[0].success({ coords: { latitude: -33.8, longitude: 151.1 } });
+    }
+    if (origin === 'expanded') app.click('start-panel-label');
+    const before = app.saved();
+    const cameras = JSON.stringify(app.cameraPositions);
+    app.mapClick(-33.897, 151.179);
+    app.mapClick(-33.898, 151.181);
+    assert.equal(JSON.stringify(app.cameraPositions), cameras);
+    assert.deepEqual(JSON.parse(app.evaluate('JSON.stringify(pendingPin)')), { lat: -33.898, lng: 151.181, label: 'Dropped pin' });
+    assert.deepEqual(Array.from(app.markerPositions.at(-1)), [151.181, -33.898]);
+    assert.equal(app.elements.get('named-starts').hidden, true);
+    assert.equal(app.elements.get('confirm-start-btn').disabled, false);
+    assert.equal(app.saved().setup_step, 'starting_point');
+    assert.deepEqual(app.saved(), before);
+    app.click('confirm-start-btn');
+    assert.deepEqual(app.saved().starting_point, { lat: -33.898, lng: 151.181, label: 'Dropped pin' });
+  });
+}

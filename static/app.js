@@ -1909,11 +1909,13 @@ currentLocationBtn.addEventListener("click", () => {
 function setStartSpotsExpanded(expanded) {
   namedStartsEl.hidden = !expanded;
   startSpotsToggleBtn.setAttribute("aria-expanded", String(expanded));
-  if (pendingPin) focusPendingPin();
 }
 
 startSpotsToggleBtn.addEventListener("click", () => {
   setStartSpotsExpanded(namedStartsEl.hidden);
+  // Only an explicit disclosure action adjusts for its changed panel height.
+  // A map tap also closes this group, but must leave the camera still.
+  if (pendingPin) focusPendingPin();
 });
 
 function showPendingPin(lat, lng, label = "Dropped pin") {

@@ -15,3 +15,5 @@ Use http://127.0.0.1:5056 locally. Real routes consume ordinary ORS/AI credits; 
 After acceptance, reconcile story statuses and Epic1 closure/retrospective. Active walking screen and continuous tracking are Epic2 and remain backlog. Existing examiner keyless demo, shared request deadline and other deferred-work.md items are separate outstanding project work; completing Epic1 does not declare the whole assignment finished.
 
 Photo coverage update2026-10-25: manifest now17/159, including Bank Hotel, St Peters Station and the Dream mural. See latest stop-photo-coverage.md batch and photo-match-audit-2026-10-25.json for13 additions and exact credits. Earlier4/159/pending-download notes are historical. Human acceptance and preference1.9 remain open; no Epic2 work.
+
+Map-tap regression check2026-10-25: repeatedly tap different map positions before Confirm. Only the pin moves to each tapped point; map centre/zoom stay fixed, including when a tap closes expanded named choices. Named/GPS selections still bring their locations into view.
