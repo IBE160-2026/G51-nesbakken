@@ -575,9 +575,9 @@ test('current location previews first and is saved only after explicit confirmat
   request.success({ coords: { latitude: 40, longitude: -74 } });
   assert.equal(app.saved().starting_point, null);
   assert.equal(app.saved().setup_step, 'starting_point');
-  assert.equal(app.elements.get('pending-pin-row').hidden, false);
+  assert.equal(app.elements.get('confirm-start-btn').disabled, false);
   assert.equal(app.elements.get('pending-pin-label').textContent, 'Current location');
-  assert.match(app.elements.get('start-map-hint').textContent, /Check the pin/);
+  assert.match(html, />Tap to drop a pin</);
   assert.equal(app.requests.length, 0);
   assert.equal(browser(app.saved()).saved().starting_point, null);
   app.click('confirm-start-btn');
@@ -609,6 +609,8 @@ for (const failure of ['denied', 'unavailable', 'timeout', 'unsupported', 'insec
     assert.equal(app.elements.get('current-location-btn').disabled, false);
     assert.match(app.elements.get('current-location-status').textContent, /Choose|choose/);
     app.startChips[0].click();
+    assert.deepEqual(app.saved(), before);
+    app.click('confirm-start-btn');
     assert.equal(app.saved().starting_point.label, 'Newtown Station');
     assert.equal(app.saved().available_minutes, before.available_minutes);
     assert.equal(app.saved().preference, before.preference);
@@ -619,7 +621,7 @@ for (const choice of ['named', 'map', 'leave']) {
   test(`late location callbacks cannot overwrite ${choice} choice`, () => {
     const app = browser(); app.click('current-location-btn');
     const request = app.locationRequests[0];
-    if (choice === 'named') app.startChips[1].click();
+    if (choice === 'named') { app.startChips[1].click(); app.click('confirm-start-btn'); }
     else if (choice === 'map') { app.mapClick(-33.9, 151.2); app.click('confirm-start-btn'); }
     else app.evaluate("showStep('available_time')");
     const saved = app.saved();
@@ -674,7 +676,7 @@ test('map tap invalidates pending location before pin confirmation', () => {
   assert.deepEqual(app.saved(), saved);
   assert.equal(app.evaluate('JSON.stringify(pendingPin)'), pendingPin);
   assert.equal(app.elements.get('screen-starting-point').hidden, false);
-  assert.equal(app.elements.get('pending-pin-row').hidden, false);
+  assert.equal(app.elements.get('confirm-start-btn').disabled, false);
   assert.equal(app.elements.get('current-location-status').textContent, status);
   assert.equal([...app.timers.values()].filter(timer => timer.delay === 10000).length, 0);
 });
@@ -820,6 +822,93 @@ test('GPS preview can be moved on the map before confirming without changing oth
   for (const key of ['available_minutes', 'topic', 'preference', 'excluded_ids']) assert.deepEqual(app.saved()[key], before[key]);
   assert(app.valid());
   app.evaluate("showStep('starting_point')");
-  assert.match(app.elements.get('start-map-hint').textContent, /Tap the map/);
-  assert.equal(app.elements.get('pending-pin-row').hidden, true);
+  assert.equal(app.elements.get('confirm-start-btn').disabled, false);
+  assert.equal(app.elements.get('pending-pin-label').textContent, 'Dropped pin');
 });
+
+
+test('all named starts require confirmation and preserve the existing trip until confirmed', () => {
+  for (let i = 0; i < 3; i++) {
+    const app = browser();
+    assert.equal(app.elements.get('confirm-start-btn').disabled, true);
+    app.click('confirm-start-btn');
+    assert.equal(app.saved().setup_step, 'starting_point');
+    app.startChips[i].click();
+    assert.equal(app.saved().starting_point, null);
+    assert.equal(app.saved().setup_step, 'starting_point');
+    assert.equal(app.elements.get('confirm-start-btn').disabled, false);
+    const selected = JSON.parse(app.evaluate('JSON.stringify(pendingPin)'));
+    const reload = browser(app.saved());
+    assert.equal(reload.saved().starting_point, null);
+    assert.equal(reload.elements.get('confirm-start-btn').disabled, true);
+    app.click('confirm-start-btn');
+    assert.deepEqual(app.saved().starting_point, selected);
+    assert.equal(app.saved().setup_step, 'available_time');
+    app.click('available-time-back-btn');
+    assert.equal(app.saved().setup_step, 'starting_point');
+    assert.equal(app.elements.get('confirm-start-btn').disabled, false);
+    assert.deepEqual(JSON.parse(app.evaluate('JSON.stringify(pendingPin)')), selected);
+    const restored = browser(app.saved());
+    assert.equal(restored.elements.get('confirm-start-btn').disabled, false);
+    restored.click('confirm-start-btn');
+    assert.equal(restored.saved().setup_step, 'available_time');
+  }
+});
+
+test('changing a named preview or moving its pin commits only the last choice', () => {
+  const app = browser();
+  app.startChips[0].click(); app.startChips[1].click();
+  assert.equal(app.saved().starting_point, null);
+  app.mapClick(-33.9, 151.2);
+  app.click('confirm-start-btn');
+  assert.deepEqual(app.saved().starting_point, { lat: -33.9, lng: 151.2, label: 'Dropped pin' });
+});
+
+test('confirming a selected spot cancels an unanswered GPS request', () => {
+  const app = browser();
+  app.startChips[0].click(); app.click('current-location-btn');
+  const request = app.locationRequests[0];
+  app.click('confirm-start-btn');
+  const saved = app.saved();
+  request.success({ coords: { latitude: 1, longitude: 2 } });
+  assert.deepEqual(app.saved(), saved);
+  assert.equal(saved.starting_point.label, 'Newtown Station');
+});
+
+
+test('named preview cancels stale GPS callbacks before confirmation', () => {
+  const app = browser(); app.click('current-location-btn');
+  const request = app.locationRequests[0];
+  app.startChips[0].click();
+  const before = app.saved();
+  const preview = app.evaluate('JSON.stringify(pendingPin)');
+  request.success({ coords: { latitude: 1, longitude: 2 } });
+  request.failure({ code: 1 });
+  assert.deepEqual(app.saved(), before);
+  assert.equal(app.evaluate('JSON.stringify(pendingPin)'), preview);
+  assert.equal(app.elements.get('pending-pin-label').textContent, 'Newtown Station');
+  assert.equal(app.elements.get('confirm-start-btn').disabled, false);
+  assert.equal(app.elements.get('screen-starting-point').hidden, false);
+});
+
+for (const source of ['named', 'map', 'GPS']) {
+  test(`reload discards unconfirmed ${source} replacement and restores the committed start`, () => {
+    const app = browser();
+    app.startChips[0].click(); app.click('confirm-start-btn');
+    const committed = app.saved().starting_point;
+    app.click('available-time-back-btn');
+    if (source === 'named') app.startChips[1].click();
+    else if (source === 'map') app.mapClick(-33.8, 151.1);
+    else {
+      app.click('current-location-btn');
+      app.locationRequests[0].success({ coords: { latitude: -33.8, longitude: 151.1 } });
+    }
+    assert.deepEqual(app.saved().starting_point, committed);
+    const reload = browser(app.saved());
+    assert.deepEqual(reload.saved().starting_point, committed);
+    assert.deepEqual(JSON.parse(reload.evaluate('JSON.stringify(pendingPin)')), committed);
+    assert.equal(reload.elements.get('confirm-start-btn').disabled, false);
+    assert.equal(reload.saved().setup_step, 'starting_point');
+    assert.equal(reload.locationRequests.length, 0);
+  });
+}

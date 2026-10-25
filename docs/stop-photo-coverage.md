@@ -15,3 +15,13 @@ Initial catalogue audit:226 total records,159 ready. None carries verified photo
 ## Maintenance
 
 Curate data/place_photos.json by stable place ID so catalogue importers cannot erase metadata. reviewed:true means a human/agent checked the actual primary file-description page, specific licence and matching subject; it is not automatic copyright detection. Store complete attribution and a local asset, with audit evidence here. Do not infer rights from a URL, OSM image tag, WikidataP18 or provider category. No automatic harvesting or generated substitute photos. Missing, incomplete, unreviewed or broken assets must render text-only with no placeholder. New licences/sources need their own primary evidence and accurate attribution.
+
+## Additional photo candidates found —2026-10-25
+
+Research only; no new assets have been downloaded, visually audited or joined to place IDs. Implemented coverage remains1/159.
+
+- Bank Hotel: https://commons.wikimedia.org/wiki/File:Bank_Hotel,_Newtown.jpg — file-description page identifies Bank Hotel, Newtown, Sydney, own work by Sardaka and offers CC BY3.0 (also GFDL; CC BY3.0 would be selected). Original2816×2112,1091406bytes. Suitable candidate for exterior identification, subject to visual inspection and exact catalogue mapping before adding. Search index returned the primary file page; a later direct fetch missed the cache.
+- Enmore Theatre: https://commons.wikimedia.org/wiki/File:Enmore_Theatre.jpg — primary page identifies Enmore Theatre, Enmore, Sydney, own work by Sardaka and offers CC BY3.0 (also GFDL). Original2816×2112,1288795bytes. File page directly checked. Same remaining visual/ID checks before adding.
+- St Peters station has a Commons collection: https://commons.wikimedia.org/wiki/Category:St_Peters_railway_station,_Sydney . A category is not licence evidence for any individual image; no selected image approved here.
+
+CC BY3.0 licence: https://creativecommons.org/licenses/by/3.0/ . Retain creator/source/licence links and accurate changes statement when integrating. These examples show more reusable candidates exist; no Google service, account or billing dependency is needed for this approach.

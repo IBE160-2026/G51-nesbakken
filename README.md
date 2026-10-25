@@ -58,7 +58,7 @@ python3 -m unittest discover -s tests -v
 node --test tests/frontend-recovery.test.cjs
 ```
 
-The Python suite contains 311 tests covering the planner, preference-aware discovery/recovery, API, AI response handling and import pipelines. The 57 JavaScript frontend tests require Node.js but no npm install or build step. They execute the actual frontend script with browser/map/network boundaries stubbed, covering continuous preference transport/slider synchronization, Re-Jaunt and individual-stop replacement, malformed replacement responses, repeated edits, inline notice placement, card-local progress/modal cleanup, one-shot location races, optional photo lifecycle, reload and retry; they do not verify rendered layout. Both suites use fixed/mocked data, so no API keys are needed.
+The Python suite contains 311 tests covering the planner, preference-aware discovery/recovery, API, AI response handling and import pipelines. The 64 JavaScript frontend tests require Node.js but no npm install or build step. They execute the actual frontend script with browser/map/network boundaries stubbed, covering continuous preference transport/slider synchronization, Re-Jaunt and individual-stop replacement, malformed replacement responses, repeated edits, inline notice placement, card-local progress/modal cleanup, one-shot location races, optional photo lifecycle, reload and retry; they do not verify rendered layout. Both suites use fixed/mocked data, so no API keys are needed.
 
 ## Regenerating the catalogue (optional)
 

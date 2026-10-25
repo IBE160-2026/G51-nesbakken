@@ -70,18 +70,18 @@
     </div>
 
     <div class="start-panel">
-      <p class="start-map-hint" id="start-map-hint">Tap the map to place your starting pin.</p>
+      <div class="panel-label" id="start-map-hint">Tap to drop a pin</div>
       <button type="button" class="btn-pill current-location-btn" id="current-location-btn" aria-describedby="current-location-status">Use my current location</button>
       <p id="current-location-status" class="current-location-status" role="status" aria-live="polite" aria-atomic="true"></p>
-      <div class="pending-pin-row" id="pending-pin-row" hidden>
-        <span id="pending-pin-label">Dropped pin</span>
-        <button type="button" class="btn-pill" id="confirm-start-btn" aria-label="Confirm this starting point">Confirm this spot</button>
-      </div>
       <div class="panel-label" id="start-panel-label">Or pick a spot</div>
       <div class="chip-scroll" role="group" aria-labelledby="start-panel-label">
-        <button type="button" class="chip start-chip" data-start-id="newtown_station" aria-label="Set starting point to Newtown Station">Newtown Station</button>
-        <button type="button" class="chip start-chip" data-start-id="king_st" aria-label="Set starting point to King St">King St</button>
-        <button type="button" class="chip start-chip" data-start-id="camperdown_park" aria-label="Set starting point to Camperdown Park">Camperdown Park</button>
+        <button type="button" class="chip start-chip" data-start-id="newtown_station" aria-label="Preview starting point at Newtown Station">Newtown Station</button>
+        <button type="button" class="chip start-chip" data-start-id="king_st" aria-label="Preview starting point at King St">King St</button>
+        <button type="button" class="chip start-chip" data-start-id="camperdown_park" aria-label="Preview starting point at Camperdown Park">Camperdown Park</button>
+      </div>
+      <div class="pending-pin-row" id="pending-pin-row">
+        <span id="pending-pin-label" role="status" aria-live="polite">Choose a starting point</span>
+        <button type="button" class="btn-pill" id="confirm-start-btn" aria-label="Confirm this starting point" disabled>Confirm this spot</button>
       </div>
     </div>
   </div>

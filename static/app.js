@@ -809,9 +809,7 @@ const screenWalkingStub = document.getElementById("screen-walking-stub");
 
 const startingPointTitleEl = document.getElementById("starting-point-title");
 const startChipEls = Array.from(document.querySelectorAll(".start-chip"));
-const pendingPinRowEl = document.getElementById("pending-pin-row");
 const confirmStartBtn = document.getElementById("confirm-start-btn");
-const startMapHintEl = document.getElementById("start-map-hint");
 const pendingPinLabelEl = document.getElementById("pending-pin-label");
 const currentLocationBtn = document.getElementById("current-location-btn");
 const currentLocationStatusEl = document.getElementById("current-location-status");
@@ -1079,12 +1077,13 @@ function showStep(step, { focusDefault = true } = {}) {
 
   if (step === "starting_point") {
     screenStartingPoint.hidden = false;
-    // Re-show the already-confirmed marker on return (e.g. via back nav) -
-    // already confirmed, so no pending-pin confirm row for it.
-    if (trip.starting_point) {
-      placeStartMarker(trip.starting_point.lat, trip.starting_point.lng);
-    }
     clearPendingPin();
+    // A saved choice can be inspected and reconfirmed on return/reload.
+    if (trip.starting_point) {
+      const start = trip.starting_point;
+      showPendingPin(start.lat, start.lng, start.label);
+      focusPendingPin();
+    }
     instructionsEl.textContent = "";
     if (focusDefault) startingPointTitleEl.focus();
   } else if (step === "available_time") {
@@ -1840,11 +1839,8 @@ walkingStubBackBtn.addEventListener("click", () => {
 // TRIP SETUP - control wiring
 // =====================================================================
 
-// Starting point: a free-form map tap drops a movable pin that needs an
-// explicit "Confirm this spot" tap before it becomes the trip's starting
-// point - the user needs to see and check where they placed it first. The
-// 3 named-start chips are already an unambiguous exact location, so they
-// still set starting_point and advance immediately, with no confirm step.
+// Every starting-point choice previews a pin. Only explicit confirmation
+// commits it and advances, including named spots and current location.
 let pendingPin = null;
 
 // Browser permission can outlive setup navigation. Ignore callbacks from any
@@ -1913,9 +1909,8 @@ function showPendingPin(lat, lng, label = "Dropped pin") {
   pendingPin = { lat, lng, label };
   pendingPinLabelEl.textContent = label;
   placeStartMarker(lat, lng);
-  pendingPinRowEl.hidden = false;
+  confirmStartBtn.disabled = false;
   instructionsEl.textContent = "";
-  startMapHintEl.textContent = "Check the pin on the map. Tap elsewhere to move it, or confirm below.";
 }
 
 // Leave space for the header above and the measured panel below. Offset does
@@ -1938,8 +1933,8 @@ if (typeof window !== "undefined") {
 
 function clearPendingPin() {
   pendingPin = null;
-  pendingPinRowEl.hidden = true;
-  startMapHintEl.textContent = "Tap the map to place your starting pin.";
+  confirmStartBtn.disabled = true;
+  pendingPinLabelEl.textContent = "Choose a starting point";
 }
 
 map.on("click", (event) => {
@@ -1950,9 +1945,11 @@ map.on("click", (event) => {
 
 confirmStartBtn.addEventListener("click", () => {
   if (!pendingPin) return;
+  invalidateLocationRequest();
   trip.starting_point = { lat: pendingPin.lat, lng: pendingPin.lng, label: pendingPin.label };
   saveActiveTrip(trip);
   clearPendingPin();
+  triggerElementByStep.available_time = confirmStartBtn;
   instructionsEl.textContent = "";
   showStep("available_time");
 });
@@ -1961,12 +1958,8 @@ startChipEls.forEach((btn) => {
   btn.addEventListener("click", () => {
     invalidateLocationRequest();
     const start = NAMED_STARTS[btn.dataset.startId];
-    trip.starting_point = { lat: start.lat, lng: start.lng, label: start.label };
-    saveActiveTrip(trip);
-    placeStartMarker(start.lat, start.lng);
-    clearPendingPin();
-    triggerElementByStep.available_time = btn;
-    showStep("available_time");
+    showPendingPin(start.lat, start.lng, start.label);
+    focusPendingPin();
   });
 });
 

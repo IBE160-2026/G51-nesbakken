@@ -433,19 +433,19 @@ input:focus-visible,
   pointer-events: auto; /* the one interactive piece of this overlay screen */
   max-width: 480px;
   margin: 0 auto;
+  max-height: 70dvh;
+  overflow-y: auto;
 }
 .pending-pin-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
-}
-.start-map-hint {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--ink-soft);
+  margin-top: 16px;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
 }
 .current-location-btn {
   margin: 0 0 18px;
@@ -461,9 +461,6 @@ input:focus-visible,
 .current-location-status:empty {
   display: none;
 }
-.pending-pin-row[hidden] {
-  display: none;
-}
 .pending-pin-row span {
   font-size: 13px;
   font-weight: 700;
@@ -471,7 +468,12 @@ input:focus-visible,
 }
 .pending-pin-row .btn-pill {
   margin-top: 0;
-  flex-shrink: 0;
+  width: 100%;
+  min-height: 44px;
+}
+.pending-pin-row .btn-pill:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .start-panel .panel-label {
   font-size: 10.5px;

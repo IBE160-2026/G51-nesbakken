@@ -4,7 +4,7 @@ Status: automated implementation verification is separate from human acceptance.
 
 Use http://127.0.0.1:5056 locally. Real routes consume ordinary ORS/AI credits; automated tests use mocks. Start fresh trips when comparing preference, because Re-Jaunt intentionally excludes old stops. Remote testing deferred by user; temporary gateway/tunnel stopped rather than maintained during development.
 
-1. **Setup and route review:** choose each named/map start, time and topic; confirm route totals fit budget, stop details open/close, attribution links remain, and reload restores a valid review.
+1. **Setup and route review:** check Confirm is visible but disabled before selection; choose each named/map/GPS start and inspect the preview without advancing; press Confirm, then choose time and topic; confirm route totals fit budget, stop details open/close, attribution links remain, and reload restores a valid review.
 2. **Honest fallback1.6:** with an unsuitable/distant start or rejected alternatives, check calm sad-Jarrod outcome, more-time cap and topic/setup recovery. A provider error must use technical retry, not claim no suitable route.
 3. **Re-Jaunt1.7:** request another walk; rejected IDs stay excluded, settings persist and retry/reload never silently restores the old route or sends automatic paid requests.
 4. **Replace1.8:** only chosen card loads; other stops stay visible and unchanged. Replacement stays within budget. No suitable replacement keeps shorter verified walk plus beige notice; final-stop rejection with no replacement shows sad Jarrod. No separate Remove button.
