@@ -89,6 +89,55 @@ function placeStartMarker(lat, lng) {
   }
 }
 
+function removeStartMarker() {
+  if (startMarker) {
+    startMarker.remove();
+    startMarker = null;
+  }
+}
+
+// User feedback 2026-10-25: during an active walk, the fixed starting
+// point and the moving live-position marker (Story 2.2) both used Jarrod's
+// head - indistinguishable, confusing ("two Jarrods"), especially when the
+// walk didn't start from the user's actual current location. The Jarrod
+// head stays for Trip Setup/Route Review's own starting-point marker (an
+// earlier, separate, deliberate choice) - only the walking screen's static
+// start marker changes to a plain, unmistakably different pin.
+function buildWalkingStartMarkerElement() {
+  const el = document.createElement("div");
+  el.className = "walking-start-marker";
+  el.innerHTML = '<svg viewBox="0 0 28 36" aria-hidden="true">'
+    + '<path d="M14 0C6.3 0 0 6.3 0 14c0 9.3 14 22 14 22s14-12.7 14-22C28 6.3 21.7 0 14 0z" fill="#1E4A3A"/>'
+    + '<circle cx="14" cy="14" r="8" fill="#FFFFFF"/>'
+    + '<path d="M10.5 9.5v9l7-4.5z" fill="#1E4A3A"/>'
+    + '</svg>';
+  return el;
+}
+
+let walkingStartMarker = null;
+
+function placeWalkingStartMarker(lat, lng) {
+  removeStartMarker(); // the Jarrod-head marker, if Route Review placed one
+  if (walkingStartMarker) {
+    walkingStartMarker.setLngLat([lng, lat]);
+  } else {
+    // anchor: 'bottom' - unlike the circular head markers (center-anchored,
+    // symmetric either way), this is a teardrop pin shape; its pointed tip,
+    // not its bounding-box center, must sit on the actual coordinate.
+    walkingStartMarker = new maplibregl.Marker({ element: buildWalkingStartMarkerElement(), anchor: "bottom" })
+      .setLngLat([lng, lat])
+      .setPopup(new maplibregl.Popup(POPUP_OPTIONS).setText("Start point"))
+      .addTo(map);
+  }
+}
+
+function removeWalkingStartMarker() {
+  if (walkingStartMarker) {
+    walkingStartMarker.remove();
+    walkingStartMarker = null;
+  }
+}
+
 // =====================================================================
 // LIVE POSITION (Story 2.2, FR-14, UX-DR14, NFR-3) - never transmitted to
 // or stored on a server; drives only the client's own map display. Follows
@@ -1044,13 +1093,19 @@ function isStopVisited(stopId) {
   return loadVisitHistory().some((entry) => entry && entry.id === stopId && entry.state === "visited_completed");
 }
 
-function markStopVisited(stopId) {
+// User feedback 2026-10-25: an accidental tap had no way back - the
+// Visited control must stay a real toggle, not a one-way action. Un-
+// marking reverts to opened_engaged (AD-6's own next state down - the
+// user has definitely opened this stop's content, just no longer
+// confirms being there), never back to proposed.
+function setStopVisited(stopId, visited) {
   const entries = loadVisitHistory();
   const existing = entries.find((entry) => entry && entry.id === stopId);
+  const state = visited ? "visited_completed" : "opened_engaged";
   if (existing) {
-    existing.state = "visited_completed";
+    existing.state = state;
   } else {
-    entries.push({ id: stopId, state: "visited_completed", favourited: false, rejected: false });
+    entries.push({ id: stopId, state, favourited: false, rejected: false });
   }
   saveVisitHistory(entries);
 }
@@ -1406,15 +1461,17 @@ function showStep(step, { focusDefault = true } = {}) {
     // Same resume-after-reload gap Story 1.5 already hit for "reviewing":
     // a page reload that lands straight on "walking" never ran the
     // starting-point screen's own branch, so the start pin needs placing
-    // here too.
+    // here too. Uses the distinct walking-start pin, not Jarrod's head -
+    // see placeWalkingStartMarker()'s own comment.
     if (trip.starting_point) {
-      placeStartMarker(trip.starting_point.lat, trip.starting_point.lng);
+      placeWalkingStartMarker(trip.starting_point.lat, trip.starting_point.lng);
     }
     refreshMapRouteLayers();
     refreshAmenityLayer();
     startLiveLocationWatch();
     if (focusDefault) walkingTitleEl.focus();
   }
+  if (step !== "walking") removeWalkingStartMarker();
 }
 
 function buildReviewSummary() {
@@ -1941,15 +1998,15 @@ function openStopOverlay(stop, triggerEl) {
   // (handled entirely by the separate click below).
   if (trip.phase === "walking") {
     stopOverlayVisitedBtn.hidden = false;
-    const visited = isStopVisited(stop.id);
-    stopOverlayVisitedBtn.setAttribute("aria-pressed", String(visited));
-    stopOverlayVisitedBtn.classList.toggle("visited", visited);
-    stopOverlayVisitedBtn.disabled = visited;
+    const applyVisitedState = (visited) => {
+      stopOverlayVisitedBtn.setAttribute("aria-pressed", String(visited));
+      stopOverlayVisitedBtn.classList.toggle("visited", visited);
+    };
+    applyVisitedState(isStopVisited(stop.id));
     stopOverlayVisitedBtn.onclick = () => {
-      markStopVisited(stop.id);
-      stopOverlayVisitedBtn.setAttribute("aria-pressed", "true");
-      stopOverlayVisitedBtn.classList.toggle("visited", true);
-      stopOverlayVisitedBtn.disabled = true;
+      const nowVisited = stopOverlayVisitedBtn.getAttribute("aria-pressed") !== "true";
+      setStopVisited(stop.id, nowVisited);
+      applyVisitedState(nowVisited);
     };
   } else {
     stopOverlayVisitedBtn.hidden = true;

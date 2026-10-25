@@ -289,14 +289,18 @@
         <h2 id="stop-overlay-heading"></h2>
         <button type="button" class="close-x" id="stop-overlay-close-btn" aria-label="Close stop details">&#10005;</button>
       </div>
-      <!-- Story 2.3, UX-DR16: floating top-right, visually separate from the
+      <!-- Story 2.3, UX-DR16: right-aligned, visually separate from the
            content below - opening/reading the story never toggles this.
            Context-gated to an active walk only (AD-2); hidden entirely
-           during the pre-walk preview Story 1.5 already built. -->
-      <button type="button" class="visited-badge" id="stop-overlay-visited-btn" aria-pressed="false" hidden>
-        <span class="visited-badge-box" aria-hidden="true"></span>
-        Visited
-      </button>
+           during the pre-walk preview Story 1.5 already built. A normal-
+           flow row, not absolutely positioned - user feedback 2026-10-25:
+           a fixed-offset placement collided with the close-X above it. -->
+      <div class="visited-badge-row">
+        <button type="button" class="visited-badge" id="stop-overlay-visited-btn" aria-pressed="false" hidden>
+          <span class="visited-badge-box" aria-hidden="true"></span>
+          Visited
+        </button>
+      </div>
       <figure class="stop-overlay-figure" id="stop-overlay-figure" hidden>
         <img class="stop-overlay-photo" id="stop-overlay-photo" alt="">
         <figcaption class="stop-overlay-credit" id="stop-overlay-credit"></figcaption>

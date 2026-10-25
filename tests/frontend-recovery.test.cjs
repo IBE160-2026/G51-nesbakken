@@ -1239,7 +1239,7 @@ test('Story 2.1: the hamburger drawer opens/closes and restores focus to the men
 test('Story 2.1: End Jaunt clears the active trip only, leaving visit history untouched, and returns to a fresh setup', () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');
-  app.evaluate("markStopVisited('a')");
+  app.evaluate("setStopVisited('a', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
   const saved = app.saved();
@@ -1262,7 +1262,7 @@ test('Story 2.3: the Visited badge is hidden before a walk starts and shown, act
   assert.equal(badge['aria-pressed'], 'false');
 });
 
-test('Story 2.3: tapping Visited records it separately from opening content, and disables further taps', () => {
+test('Story 2.3: tapping Visited records it separately from opening content, and a second tap undoes an accidental one', () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');
   app.evaluate("openStopOverlay(trip.stops[0])");
@@ -1271,13 +1271,16 @@ test('Story 2.3: tapping Visited records it separately from opening content, and
   assert.equal(app.evaluate("isStopVisited('a')"), true);
   const badge = app.elements.get('stop-overlay-visited-btn');
   assert.equal(badge['aria-pressed'], 'true');
-  assert.equal(badge.disabled, true);
+  // User feedback 2026-10-25: an accidental tap must be undoable.
+  app.click('stop-overlay-visited-btn');
+  assert.equal(app.evaluate("isStopVisited('a')"), false);
+  assert.equal(badge['aria-pressed'], 'false');
 });
 
 test('Story 2.3: a stop marked Visited survives a reload, stored under a separate localStorage key from the active trip', () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');
-  app.evaluate("markStopVisited('a')");
+  app.evaluate("setStopVisited('a', true)");
   assert.equal(app.saved().stops.some((s) => 'state' in s), false); // never written onto the trip object itself
   const visitHistory = JSON.parse(app.evaluate("localStorage.getItem('jaunt_visit_history')"));
   const reload = browser(app.saved(), {}, undefined, visitHistory);
@@ -1344,7 +1347,7 @@ test('Story 2.5: an already-visited stop never triggers the arrival nudge, and i
   // unvisited stop at the exact same coordinates, confounding this check.
   const app = browser(route(['a']));
   app.click('approve-route-btn');
-  app.evaluate("markStopVisited('a')");
+  app.evaluate("setStopVisited('a', true)");
   app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
   assert.equal(app.elements.get('arrival-pill').hidden, true);
   // Without ever granting position (no success callback fired at all):
