@@ -289,6 +289,14 @@
         <h2 id="stop-overlay-heading"></h2>
         <button type="button" class="close-x" id="stop-overlay-close-btn" aria-label="Close stop details">&#10005;</button>
       </div>
+      <!-- Story 2.3, UX-DR16: floating top-right, visually separate from the
+           content below - opening/reading the story never toggles this.
+           Context-gated to an active walk only (AD-2); hidden entirely
+           during the pre-walk preview Story 1.5 already built. -->
+      <button type="button" class="visited-badge" id="stop-overlay-visited-btn" aria-pressed="false" hidden>
+        <span class="visited-badge-box" aria-hidden="true"></span>
+        Visited
+      </button>
       <figure class="stop-overlay-figure" id="stop-overlay-figure" hidden>
         <img class="stop-overlay-photo" id="stop-overlay-photo" alt="">
         <figcaption class="stop-overlay-credit" id="stop-overlay-credit"></figcaption>
@@ -358,15 +366,59 @@
     </div>
   </section>
 
-  <!-- ============== WALKING STUB (Story 1.5): throwaway landing screen after
-       Approve; replaced wholesale by Epic 2's real walking UI. ============== -->
-  <section id="screen-walking-stub" class="setup-screen setup-screen--full" hidden>
-    <div class="content">
-      <h2 id="walking-stub-heading" tabindex="-1">Walking (temporary)</h2>
-      <p id="walking-stub-detail"></p>
-      <button type="button" class="btn-full" id="walking-stub-back-btn" aria-label="Back to Trip Setup">Back to Trip Setup</button>
+  <!-- ============== ACTIVE WALKING SCREEN (Story 2.1) - replaces the Story 1.5
+       throwaway stub wholesale. Reuses the same map/route/stop-circle layers
+       and stop-content overlay Story 1.5 already built - no new fetch (FR-6).
+       The hamburger reuses .back-btn: same top-left icon-button role/size
+       (44x44, UX-DR22) as the stop overlay's own back arrow, just a
+       different icon. ============== -->
+  <div id="screen-walking" class="setup-screen setup-screen--map-overlay" hidden>
+    <header class="screen-header">
+      <button type="button" class="back-btn" id="walking-menu-btn" aria-label="Open menu">&#9776;</button>
+      <h1 class="header-title" id="walking-title" tabindex="-1">Your Jaunt</h1>
+      <span class="header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <!-- UX-DR14: a calm, non-error baseline shown whenever live position
+         isn't active (denied/deferred/never attempted/lost signal) - never
+         shown as a failure, and otherwise identical to a GPS-on walk. -->
+    <div class="location-status-pill" id="location-off-pill" hidden>Location off</div>
+
+    <!-- Story 2.5 (Could, depends on 2.2): a subtle, dismissible nudge near
+         an unvisited stop - never sound/vibration/a modal, and only ever
+         shown while live position is genuinely active. -->
+    <div class="arrival-pill" id="arrival-pill" hidden>
+      <span id="arrival-pill-text"></span>
+      <button type="button" class="btn-pill" id="arrival-pill-open-btn">Open</button>
+      <button type="button" class="close-x" id="arrival-pill-close-btn" aria-label="Dismiss">&#10005;</button>
     </div>
-  </section>
+
+    <div class="start-panel review-panel">
+      <div class="review-summary" id="walking-summary"></div>
+      <div class="review-actions">
+        <button type="button" class="btn-pill" id="walking-open-stop-list-btn" aria-label="View all stops">View stops</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== WALKING MENU DRAWER (Story 2.1, UX-DR15) - a full-height
+       panel from the left (~78% width) over a dimmed scrim, reusing the
+       generic .dim-overlay/.sheet-wrap shell. Holds only "End Jaunt" for
+       now; two Post-V1 rows (weather-rerouting, mid-walk re-route) are
+       reserved in the design but intentionally unbuilt - no placeholder UI
+       for features that don't exist yet. ============== -->
+  <div id="walking-drawer-wrap" class="sheet-wrap" hidden>
+    <div class="dim-overlay" id="walking-drawer-scrim"></div>
+    <nav class="walking-drawer" id="walking-drawer" role="dialog" aria-modal="true" aria-labelledby="walking-drawer-heading" tabindex="-1">
+      <div class="sheet-header-row">
+        <h2 id="walking-drawer-heading">Menu</h2>
+        <button type="button" class="close-x" id="walking-drawer-close-btn" aria-label="Close menu">&#10005;</button>
+      </div>
+      <ul class="drawer-list">
+        <li><button type="button" class="drawer-row" id="end-jaunt-btn">End Jaunt</button></li>
+      </ul>
+    </nav>
+  </div>
 
   <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>

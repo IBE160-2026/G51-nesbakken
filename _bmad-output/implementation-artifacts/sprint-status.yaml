@@ -49,12 +49,12 @@ development_status:
   1-11-stop-photo-shown-only-when-rights-cleared-should: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-the-active-walking-screen-must: backlog
-  2-2-show-live-position-during-the-walk-should: backlog
-  2-3-mark-a-stop-visited-completed-should: backlog
-  2-4-muted-background-amenities-at-high-zoom-should: backlog
-  2-5-automatic-arrival-notification-could: backlog
+  epic-2: in-progress
+  2-1-the-active-walking-screen-must: review
+  2-2-show-live-position-during-the-walk-should: review
+  2-3-mark-a-stop-visited-completed-should: review
+  2-4-muted-background-amenities-at-high-zoom-should: review
+  2-5-automatic-arrival-notification-could: review
   2-6-real-world-validation-tester-sessions-and-an-outdoor-walk-mu: backlog
   epic-2-retrospective: optional
 

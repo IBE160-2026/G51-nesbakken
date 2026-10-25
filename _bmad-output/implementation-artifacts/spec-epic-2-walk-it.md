@@ -1,0 +1,63 @@
+---
+title: 'Epic 2: Walk It (Stories 2.1-2.5)'
+type: 'feature'
+created: '2026-10-25'
+status: 'done'
+route: 'batched'
+review_loop_iteration: 0
+baseline_commit: 'a58d157'
+context: []
+---
+
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+
+## Intent
+
+User explicitly requested Epic 2 (Stories 2.1-2.5) be built as one combined pass rather than the usual one-story-at-a-time BMAD flow, with a single review at the end - an intentional departure from Epic 1's process, not an oversight. Story 2.6 (real-world validation - tester sessions and an outdoor walk) is excluded entirely: it is a human-only acceptance task (actual phone, actual walking, tester judgment calls on relevance/accuracy), not something this pass could implement.
+
+**Scope per `_bmad-output/planning-artifacts/epics.md`'s Epic 2 (lines 627-835):**
+- **2.1 (Must):** the active walking screen - reuses Story 1.4's route geometry and Story 1.5's stop-content overlay, no new fetch. Replaces the Story 1.5 throwaway `#screen-walking-stub` wholesale.
+- **2.2 (Should):** live position during the walk - Jarrod's head-only marker (UX-DR14), calm "Location off" pill as the clean non-error baseline, directional arrow only for a real non-null heading, never transmitted/stored server-side (NFR-3).
+- **2.3 (Should):** mark a stop Visited/Completed - a separate, context-gated action from opening content (AD-2), stored under the Engagement State schema (AD-6) in its own localStorage key.
+- **2.4 (Should):** muted background amenities at high zoom (FR-23, UX-DR19) - GeoJSON circle layer (AD-1), display-only.
+- **2.5 (Could, depends on 2.2):** automatic arrival notification (FR-15) - subtle, dismissible, never simulated without live position actually active.
+
+</frozen-after-approval>
+
+## Design decisions made during this build (genuinely open per the stories themselves)
+
+- **Story 2.2's "explicit, revocable prompt - never automatic or silent":** interpreted as satisfied by using the real Geolocation API correctly (which is inherently never silent/automatic in any modern browser), not as requiring an extra in-app button before the first `watchPosition()` call. `watchPosition()` fires automatically on entering the walking screen; the browser's own native permission UI is the "explicit, revocable prompt" the AC describes.
+- **Story 2.4's data source (PRD Open Question 17, explicitly left open):** reuses `loadPlaces()`'s already-fetched `/api/places` catalogue rather than a live Overpass call. No runtime amenity-fetch integration exists anywhere in this codebase (`import_places.py`'s Overpass logic is a one-time offline script); introducing one would add a new network dependency with its own latency/failure modes during a live walk. This also matches an existing code comment at `loadPlaces()` that had already reserved this exact data for this exact purpose. These are the project's curated heritage/architecture/history points, not a generic cafe/toilet amenity feed - documented as a deliberate scope decision, not an oversight.
+- **Story 2.4's "simple generic glyphs":** implemented as plain muted circles (5px, 0.7 opacity, `--ink-soft` tone), not per-category icons - no icon asset set for generic amenities exists in this project, and inventing one for a Should-tier display-only layer was judged out of scope.
+- **Story 2.5's arrival radius:** 40 meters, not specified in the story. A reasonable "you're right next to it" distance for a walking pace; not derived from any cited source.
+- **Story 2.5 (not explicitly required but a reasonable inference):** an already-visited stop is excluded from arrival notifications, and each stop notifies at most once per walk (in-memory `Set`, naturally reset by a fresh page load). Neither is explicitly stated in the AC, but notifying about a stop the user already visited, or repeatedly while lingering nearby, would contradict "subtle, non-intrusive."
+- **Story 2.3's Visited control, once marked, is disabled** (cannot be un-marked). Not explicitly specified either way; no AC describes undo behavior, and inventing one risked scope creep.
+- **Story 2.1's hamburger drawer two reserved Post-V1 rows** (weather-rerouting, mid-walk re-route) are not rendered at all - the epics.md note that they "must stay explicitly empty" was read as "build no UI for them yet," not "render empty/disabled placeholder rows."
+
+## Implementation Notes
+
+**Files touched:** `templates/index.html`, `static/style.css`, `static/app.js`, `tests/frontend-recovery.test.cjs`. No backend files - this entire epic is client-only (map rendering, geolocation, localStorage), consistent with AD-2's stateless-backend rule.
+
+**Story 2.1:** `#screen-walking-stub` removed entirely (markup, every JS reference). New `#screen-walking` reuses the existing `.start-panel.review-panel` bottom-panel pattern and the existing route/stop-circle GeoJSON layers (`updateRouteLayers()`/`refreshMapRouteLayers()`, now also called for `phase === "walking"`, not just `"reviewing"`). The existing stop-list sheet and stop-content overlay are reused unchanged (`openStopListSheet()`, `openStopOverlay()`) - `setReviewSheetInert()` generalized to inert whichever of `screenReviewing`/`screenWalking` is actually visible. Hamburger reuses the existing `.back-btn` class (same top-left icon-button role/size, 44x44). New `#walking-drawer-wrap` drawer (UX-DR15, `.walking-drawer` CSS, 78vw/max 340px from the left) holds only "End Jaunt" - the two Post-V1 rows are genuinely unbuilt per the design decision above. End Jaunt (`endJauntBtn`) implements AD-2's minimal "end trip" exit: clears only the `jaunt_active_trip` key, builds a fresh `defaultTrip()`, returns to `starting_point` - `jaunt_visit_history` (AD-6) is untouched.
+
+**Story 2.2:** `places` was promoted from a variable local to `loadPlaces()` to module scope (needed by Story 2.4's `refreshAmenityLayer()` too). New `buildLiveMarkerElement()` reuses `.start-marker-ring`/`.jaunty-head-marker` verbatim (the same real crop already used for the starting-point marker) plus a new `.live-position-heading-arrow` triangle, rotated via inline `transform: rotate(Ndeg)` only when `coords.heading` is a real finite number. `startLiveLocationWatch()`/`stopLiveLocationWatch()` follow the same generation-counter/secure-context/feature-detect conventions as the existing `currentLocationBtn` `getCurrentPosition` code (Story 1.10), adapted for `watchPosition`'s long-lived callback: every exit from the walking screen (centralized in `showStep()`, not just End Jaunt) calls `stopLiveLocationWatch()`, which bumps the generation (invalidating any in-flight callback) and calls `navigator.geolocation.clearWatch()`.
+
+**Story 2.3:** new `jaunt_visit_history` localStorage key (AD-6), a list of `{id, state, favourited, rejected}` entries - only `state: "visited_completed"` is ever written by this story; the `proposed`/`opened_engaged` transitions and the `favourited`/`rejected` fields AD-6 also describes are left for Epic 3's own stories to use when built, not invented ahead of need. New `#stop-overlay-visited-btn` badge (bordered checkbox shape + "Visited" text, UX-DR16/UX-DR24) is wired entirely inside `openStopOverlay()`: hidden/no-op outside `trip.phase === "walking"`, shown and bound fresh to the current stop's id on every open otherwise (the same `.onclick =` rebind-per-open pattern already used by the stop-photo `onload`/`onerror` handlers elsewhere in this file).
+
+**Story 2.4:** `setupRouteLayers()` gains a new `background-amenities`/`background-amenities-circle` GeoJSON source + circle layer (`minzoom: 16`, 5px radius, 0.7 opacity, `#5C6D64`/`--ink-soft`). `refreshAmenityLayer()` rewrites it from the already-fetched `places` array, excluding whatever is already a numbered Stop on the current route, and is called from three places to cover every possible load ordering: `loadPlaces()` finishing, the map style finishing loading, and `showStep("walking")` itself.
+
+**Story 2.5:** `checkArrivalProximity()` runs on every `updateLiveMarker()` call (i.e., only when live position is genuinely active), using a small client-side haversine helper (`haversineMetersClient` - JS has no access to `import_places.py`'s Python equivalent). A new `#arrival-pill` (text + "Open" + dismiss-X) shows once per stop per walk.
+
+## Real bugs found and fixed during this build (before any user review)
+
+1. **`.arrival-pill`/`.visited-badge` ignored their own `hidden` attribute.** Both set `display: flex` at the same CSS specificity as the browser's default `[hidden] { display: none }` rule - whichever rule is later in source order wins, and mine was later. Caught live (the arrival pill rendered on the walking screen despite never having been shown), root-caused via `getComputedStyle().display` vs the `.hidden` DOM property disagreeing, and fixed by adding explicit `.arrival-pill[hidden]`/`.visited-badge[hidden] { display: none; }` rules - the exact same fix this codebase had already applied once before for `.sheet-wrap[hidden]`.
+
+## Verification
+
+Added 17 new node:test cases to `tests/frontend-recovery.test.cjs` covering: Story 2.1 (real screen replaces the stub, reload resumes it directly, stop overlay reuse, drawer open/close, End Jaunt's exact scope), Story 2.3 (badge hidden pre-walk/shown+actionable during a walk, opening content never marks visited, marking disables further taps, survives a reload via a new `visitHistorySeed` harness parameter), Story 2.2 (watch starts on entry with the pill shown first, a granted position shows the marker, heading arrow shown only for a real value, denied/lost-signal degrades to the same pill with the marker removed, leaving the screen calls `clearWatch`), Story 2.5 (an in-range unvisited stop notifies, an already-visited one or no live position at all never does). Required two harness extensions: `watchPosition`/`clearWatch` stubs (mirroring the existing `getCurrentPosition` stub) and a `localStorage.removeItem` stub (missing entirely before this). All 96 frontend tests pass (79 pre-existing + 17 new), full Python suite unaffected (311/311, no backend files touched).
+
+Story 2.4's map-layer behavior (`map.addSource`/`getSource`) is not covered by this harness - its `maplibregl.Map` stub has no source/layer methods and nothing ever fires a real `map.on("load")` callback, a pre-existing gap shared by every other map-layer feature in this project (route line, stop circles). Verified live instead (see below).
+
+Live-verified end to end via Playwright against a running local server, including a real approved route through to the walking screen: the real screen (not the stub) renders with the map, route, and stop summary; a stop marker/row opens the same content overlay used pre-walk; the hamburger drawer opens/closes with correct focus handling; End Jaunt clears the active trip and returns to a fresh setup while leaving a separately-set Visited entry in place; the Visited badge is hidden during a pre-walk preview of the same stop and shown/actionable during the walk, persists correctly across a real reload, and disables after one tap; a simulated granted position shows the live marker and hides the "Location off" pill, a real non-null heading shows the directional arrow at the correct rotation and a null heading hides it again, and a simulated permission-denial removes the marker and restores the pill; leaving the walking screen (via `showStep`) bumps the generation counter and removes the marker; the amenity source populated with the real local catalogue (159 places) correctly excluded the route's own stop (158 shown); the arrival pill fired for a position exactly at an unvisited stop's coordinates and was correctly suppressed once that stop was marked visited. Also checked at a 375px phone viewport: no horizontal overflow on any new element, the hamburger button measures exactly 44x44px, the drawer measures exactly 78.0% of the viewport width (matching UX-DR15's own "~78%" spec), and the End Jaunt row and Visited badge both measure a full 44px touch target.
+
+Not yet done: Story 2.6 (the actual outdoor walk and tester sessions) - explicitly out of this pass's scope, a human task for the user. Also not attempted: a real end-to-end run through the actual `/api/plan` pipeline into the walking screen (all verification above seeds trip state directly, as this project's established pattern already does for backend-correctness-already-proven UI testing) - approving a route through the real UI click was verified, but the stops shown in that one live pass were seeded test data, not a fresh AI-selected route, to avoid spending additional provider credits beyond what this session's debugging already used.

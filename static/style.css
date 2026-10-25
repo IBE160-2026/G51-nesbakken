@@ -1437,3 +1437,181 @@ input:focus-visible,
 }
 .stop-list-row button:disabled { cursor: default; }
 .review-panel button:disabled { opacity: 0.5; cursor: default; }
+
+/* ===================== ACTIVE WALKING SCREEN (Story 2.1) ===================== */
+
+/* UX-DR14: calm, never an error treatment - same ink/surface tokens as
+   every other status text in this file, no alert color. */
+.location-status-pill {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(22, 48, 42, 0.15);
+  white-space: nowrap;
+}
+
+/* Story 2.5 (Could) - subtle, dismissible, never a modal. */
+.arrival-pill {
+  position: absolute;
+  top: 60px;
+  left: 15px;
+  right: 15px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  padding: 8px 10px 8px 16px;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(22, 48, 42, 0.15);
+}
+/* [hidden] vs an explicit display:flex are equal specificity - source
+   order alone decides, and this rule must win. Same fix already applied
+   to .sheet-wrap[hidden] elsewhere in this file. */
+.arrival-pill[hidden] {
+  display: none;
+}
+.arrival-pill span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.arrival-pill .btn-pill {
+  margin: 0;
+  padding: 8px 14px;
+  min-height: 36px;
+  flex-shrink: 0;
+}
+.arrival-pill .close-x {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  font-size: 13px;
+}
+
+/* ===================== WALKING MENU DRAWER (Story 2.1, UX-DR15) =====================
+   Full-height panel from the left (~78% width), reusing the generic
+   .dim-overlay/.sheet-wrap shell every other overlay already uses. */
+.walking-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 78vw;
+  max-width: 340px;
+  background: var(--surface);
+  box-shadow: 4px 0 24px rgba(22, 48, 42, 0.25);
+  z-index: 41;
+  padding: 14px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+.drawer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.drawer-row {
+  min-height: 44px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--surface-muted);
+  padding: 12px 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* ===================== VISITED BADGE (Story 2.3, UX-DR16, UX-DR24) =====================
+   Bordered checkbox shape + the word "Visited" - state is never signaled
+   by color alone. Floating top-right, visually separate from the content
+   below; opening/reading the story never toggles this. */
+.visited-badge {
+  position: absolute;
+  top: 60px;
+  right: 18px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--sheet-handle);
+  border-radius: 20px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+/* Same [hidden]-vs-display:flex fix as .arrival-pill above. */
+.visited-badge[hidden] {
+  display: none;
+}
+.visited-badge-box {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 2px solid var(--ink-soft);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.visited-badge.visited {
+  border-color: var(--forest);
+  color: var(--forest);
+}
+.visited-badge.visited .visited-badge-box {
+  border-color: var(--forest);
+  background: var(--forest);
+}
+.visited-badge.visited .visited-badge-box::after {
+  content: "";
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid var(--cream);
+  border-bottom: 2px solid var(--cream);
+  transform: rotate(-45deg) translateY(-1px);
+}
+.visited-badge:disabled {
+  cursor: default;
+}
+
+/* ===================== LIVE POSITION MARKER (Story 2.2, UX-DR14) =====================
+   .start-marker-ring/.jaunty-head-marker are the same real crop already
+   used for the starting-point marker (style.css line ~345) - reused
+   verbatim, not re-derived, per the user's explicit 2026-10-21 choice. */
+.live-position-ring {
+  position: relative;
+}
+.live-position-heading-arrow {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid var(--forest);
+  transform-origin: 50% 20px;
+  margin-left: -5px;
+}

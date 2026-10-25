@@ -89,6 +89,160 @@ function placeStartMarker(lat, lng) {
   }
 }
 
+// =====================================================================
+// LIVE POSITION (Story 2.2, FR-14, UX-DR14, NFR-3) - never transmitted to
+// or stored on a server; drives only the client's own map display. Follows
+// the same generation-guard/secure-context/feature-detect conventions as
+// currentLocationBtn's getCurrentPosition use above, adapted for
+// watchPosition's long-lived callback (which needs an explicit clearWatch
+// on cleanup, unlike getCurrentPosition's self-terminating one).
+// =====================================================================
+
+let liveMarker = null;
+let liveArrowEl = null;
+let liveWatchId = null;
+let liveLocationGeneration = 0;
+
+function buildLiveMarkerElement() {
+  const ring = document.createElement("div");
+  ring.className = "start-marker-ring live-position-ring";
+  const head = document.createElement("div");
+  head.className = "jaunty jaunty-head-marker";
+  ring.appendChild(head);
+  const arrow = document.createElement("div");
+  arrow.className = "live-position-heading-arrow";
+  arrow.hidden = true;
+  ring.appendChild(arrow);
+  liveArrowEl = arrow;
+  return ring;
+}
+
+function showLocationOffPill() {
+  locationOffPillEl.hidden = false;
+}
+
+function hideLocationOffPill() {
+  locationOffPillEl.hidden = true;
+}
+
+function removeLiveMarker() {
+  if (liveMarker) {
+    liveMarker.remove();
+    liveMarker = null;
+    liveArrowEl = null;
+  }
+}
+
+// GeolocationCoordinates.heading is null/NaN whenever the device is
+// stationary (the common case while reading a stop's content) or heading
+// can't be determined - the documented, spec-correct behavior of the API,
+// not an edge case. The arrow only ever shows for a real, non-null value.
+function updateLiveMarker(position) {
+  const { latitude, longitude, heading } = position.coords;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+  hideLocationOffPill();
+  if (!liveMarker) {
+    liveMarker = new maplibregl.Marker({ element: buildLiveMarkerElement() })
+      .setLngLat([longitude, latitude])
+      .addTo(map);
+  } else {
+    liveMarker.setLngLat([longitude, latitude]);
+  }
+  const hasHeading = Number.isFinite(heading);
+  if (liveArrowEl) {
+    liveArrowEl.hidden = !hasHeading;
+    if (hasHeading) liveArrowEl.style.transform = `rotate(${heading}deg)`;
+  }
+  checkArrivalProximity(latitude, longitude);
+}
+
+// Invalidates any in-flight watchPosition callback and releases the native
+// watch - called on every exit from the walking screen (showStep above),
+// not only End Jaunt, so nothing keeps running in the background.
+function stopLiveLocationWatch() {
+  liveLocationGeneration += 1;
+  if (liveWatchId !== null && typeof navigator !== "undefined" && navigator.geolocation?.clearWatch) {
+    navigator.geolocation.clearWatch(liveWatchId);
+  }
+  liveWatchId = null;
+  removeLiveMarker();
+}
+
+// UX-DR14: permission denied/deferred/unavailable, or the signal lost
+// mid-walk, all degrade to the exact same calm "Location off" pill - never
+// an error screen, never a dead end. The rest of the walking screen keeps
+// working identically either way.
+function startLiveLocationWatch() {
+  stopLiveLocationWatch();
+  const generation = liveLocationGeneration;
+  showLocationOffPill();
+
+  if (typeof window !== "undefined" && window.isSecureContext === false) return;
+  const geolocation = typeof navigator !== "undefined" ? navigator.geolocation : null;
+  if (!geolocation || typeof geolocation.watchPosition !== "function") return;
+
+  try {
+    liveWatchId = geolocation.watchPosition(
+      (position) => {
+        if (generation !== liveLocationGeneration || trip.phase !== "walking") return;
+        updateLiveMarker(position);
+      },
+      () => {
+        if (generation !== liveLocationGeneration) return;
+        removeLiveMarker();
+        showLocationOffPill();
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+  } catch {
+    showLocationOffPill();
+  }
+}
+
+// =====================================================================
+// AUTOMATIC ARRIVAL NOTIFICATION (Story 2.5, Could-tier, FR-15) - depends
+// entirely on live position already being active; never simulated from a
+// non-GPS signal. A subtle, dismissible pill, never sound/vibration/a
+// modal. Fires once per stop per walk (in-memory only - a fresh page load
+// is a fresh walk).
+// =====================================================================
+
+const ARRIVAL_RADIUS_METERS = 40;
+const notifiedStopIds = new Set();
+
+function haversineMetersClient(lat1, lon1, lat2, lon2) {
+  const earthRadiusMeters = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(a));
+}
+
+function showArrivalNotification(stop) {
+  arrivalPillTextEl.textContent = `You're near ${stop.name}`;
+  arrivalPillEl.hidden = false;
+  arrivalPillOpenBtn.onclick = () => {
+    arrivalPillEl.hidden = true;
+    openStopOverlay(stop, arrivalPillOpenBtn);
+  };
+}
+
+function checkArrivalProximity(lat, lon) {
+  if (!Array.isArray(trip.stops)) return;
+  for (const stop of trip.stops) {
+    if (notifiedStopIds.has(stop.id) || isStopVisited(stop.id)) continue;
+    if (!Number.isFinite(stop.latitude) || !Number.isFinite(stop.longitude)) continue;
+    const distance = haversineMetersClient(lat, lon, stop.latitude, stop.longitude);
+    if (distance <= ARRIVAL_RADIUS_METERS) {
+      notifiedStopIds.add(stop.id);
+      showArrivalNotification(stop);
+      break;
+    }
+  }
+}
+
 // Builds popup content via DOM APIs rather than interpolating catalogue
 // strings into an HTML string, so a place name or topic can never be
 // interpreted as markup.
@@ -135,11 +289,13 @@ function hideCatalogueMarkers() {
 
 // Current optional presentation data is independent of a saved route snapshot.
 let cataloguePhotosById = null;
+// Story 2.4 needs this outside loadPlaces() too (refreshAmenityLayer()) -
+// hoisted to module scope; still only ever assigned by loadPlaces() itself.
+let places = [];
 
 async function loadPlaces() {
   statusEl.textContent = "Loading places…";
 
-  let places;
   try {
     const response = await fetch("/api/places");
     if (!response.ok) {
@@ -161,6 +317,7 @@ async function loadPlaces() {
   cataloguePhotosById = new Map(places.filter(place => place && typeof place.id === "string")
     .map(place => [place.id, place.photo]));
   if (openPhotoStop && !stopOverlayWrapEl.hidden) renderStopPhoto(openPhotoStop, { skipIfUnchanged: true });
+  refreshAmenityLayer();
 
   places.forEach((place) => {
     const popup = new maplibregl.Popup(POPUP_OPTIONS).setDOMContent(
@@ -185,6 +342,19 @@ async function loadPlaces() {
 
 const ROUTE_LINE_SOURCE_ID = "route-line";
 const ROUTE_STOPS_SOURCE_ID = "route-stops";
+const AMENITY_SOURCE_ID = "background-amenities";
+const AMENITY_LAYER_ID = "background-amenities-circle";
+// Story 2.4 (FR-23, UX-DR19): the data source decision, made explicit per
+// the story's own requirement rather than assumed. No live amenity feed
+// (e.g. a runtime Overpass call) exists anywhere in this codebase -
+// import_places.py's Overpass integration is a one-time offline script, not
+// called by the running app. Reusing loadPlaces()'s already-fetched
+// catalogue (places) avoids a new network dependency with its own latency/
+// failure modes during a live walk - this was the already-reserved purpose
+// of that fetch per the comment at loadPlaces() below. These are the
+// project's curated points of interest (heritage/architecture/history),
+// not a generic cafe/toilet amenity feed - a deliberate scope decision, not
+// an oversight, given no such feed exists in this project.
 let mapStyleLoaded = false;
 
 function emptyFeatureCollection() {
@@ -440,6 +610,25 @@ function setupRouteLayers() {
   } catch (err) {
     console.error("Could not add stop-topic-icon layer:", err);
   }
+
+  // Story 2.4 (FR-23, UX-DR19): many-of-a-kind, data-driven points - a
+  // GeoJSON source + circle paint layer (AD-1), never individual DOM
+  // markers. minzoom keeps this a walking-pace detail, not visible at the
+  // route-overview zoom. Always visually subordinate to the route/stops:
+  // small (5px), low-opacity (0.7), the muted ink-soft tone rather than the
+  // route's own forest green.
+  map.addSource(AMENITY_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
+  map.addLayer({
+    id: AMENITY_LAYER_ID,
+    type: "circle",
+    source: AMENITY_SOURCE_ID,
+    minzoom: 16,
+    paint: {
+      "circle-radius": 5,
+      "circle-color": "#5C6D64",
+      "circle-opacity": 0.7,
+    },
+  });
 }
 
 // Rewrites both route sources from the current trip's stops/geometry.
@@ -521,6 +710,26 @@ function refreshMapRouteLayers() {
   updateRouteLayers();
 }
 
+// Story 2.4: rewrites the amenity source from the already-fetched catalogue
+// (places, populated by loadPlaces() below), excluding whatever is already
+// a numbered Stop in the current route - display-only, never fed into the
+// Planner or AI selection (FR-23). Safe to call before either places or the
+// map style has loaded; both callers (loadPlaces() finishing, and
+// setupRouteLayers()/showStep("walking") running) may happen in either order.
+function refreshAmenityLayer() {
+  if (!mapStyleLoaded || !Array.isArray(places)) return;
+  const stopIds = new Set((trip.stops || []).map((stop) => stop.id));
+  const features = places
+    .filter((place) => place && !stopIds.has(place.id)
+      && Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
+    .map((place) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [place.longitude, place.latitude] },
+      properties: { id: place.id },
+    }));
+  map.getSource(AMENITY_SOURCE_ID).setData({ type: "FeatureCollection", features });
+}
+
 map.on("load", () => {
   loadPlaces();
   // Icons must exist before setupRouteLayers() adds the symbol layer that
@@ -528,7 +737,8 @@ map.on("load", () => {
   loadTopicIcons().then(() => {
     setupRouteLayers();
     mapStyleLoaded = true;
-    if (trip.phase === "reviewing") updateRouteLayers();
+    if (trip.phase === "reviewing" || trip.phase === "walking") updateRouteLayers();
+    refreshAmenityLayer();
   });
 });
 
@@ -802,6 +1012,50 @@ function saveActiveTrip(tripState) {
 let trip = loadActiveTrip();
 
 // =====================================================================
+// VISIT HISTORY (architecture AD-6) - a separate localStorage key from the
+// active trip (AD-2), never cleared by "end trip". Story 2.3 only ever
+// writes state: "visited_completed" here; the proposed/opened_engaged
+// transitions and the favourited/rejected fields AD-6 also describes are
+// for Epic 3's own stories to read/write when they're actually built -
+// not invented here ahead of need.
+// =====================================================================
+
+const VISIT_HISTORY_KEY = "jaunt_visit_history";
+
+function loadVisitHistory() {
+  try {
+    const raw = localStorage.getItem(VISIT_HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveVisitHistory(entries) {
+  try {
+    localStorage.setItem(VISIT_HISTORY_KEY, JSON.stringify(entries));
+  } catch (err) {
+    console.error("Could not persist visit history; continuing in-memory only:", err);
+  }
+}
+
+function isStopVisited(stopId) {
+  return loadVisitHistory().some((entry) => entry && entry.id === stopId && entry.state === "visited_completed");
+}
+
+function markStopVisited(stopId) {
+  const entries = loadVisitHistory();
+  const existing = entries.find((entry) => entry && entry.id === stopId);
+  if (existing) {
+    existing.state = "visited_completed";
+  } else {
+    entries.push({ id: stopId, state: "visited_completed", favourited: false, rejected: false });
+  }
+  saveVisitHistory(entries);
+}
+
+// =====================================================================
 // TRIP SETUP - screen-state machine
 // =====================================================================
 
@@ -813,7 +1067,7 @@ const screenLoading = document.getElementById("screen-loading");
 const screenReviewing = document.getElementById("screen-reviewing");
 const screenHonestFallback = document.getElementById("screen-honest-fallback");
 const screenTechnicalFailure = document.getElementById("screen-technical-failure");
-const screenWalkingStub = document.getElementById("screen-walking-stub");
+const screenWalking = document.getElementById("screen-walking");
 
 const startingPointTitleEl = document.getElementById("starting-point-title");
 const startChipEls = Array.from(document.querySelectorAll(".start-chip"));
@@ -895,9 +1149,23 @@ const technicalFailureHeadingEl = document.getElementById("technical-failure-hea
 const technicalFailureRetryBtn = document.getElementById("technical-failure-retry-btn");
 const technicalFailureBackBtn = document.getElementById("technical-failure-back-btn");
 
-const walkingStubHeadingEl = document.getElementById("walking-stub-heading");
-const walkingStubDetailEl = document.getElementById("walking-stub-detail");
-const walkingStubBackBtn = document.getElementById("walking-stub-back-btn");
+const walkingTitleEl = document.getElementById("walking-title");
+const walkingSummaryEl = document.getElementById("walking-summary");
+const walkingMenuBtn = document.getElementById("walking-menu-btn");
+const walkingOpenStopListBtn = document.getElementById("walking-open-stop-list-btn");
+const locationOffPillEl = document.getElementById("location-off-pill");
+const arrivalPillEl = document.getElementById("arrival-pill");
+const arrivalPillTextEl = document.getElementById("arrival-pill-text");
+const arrivalPillOpenBtn = document.getElementById("arrival-pill-open-btn");
+const arrivalPillCloseBtn = document.getElementById("arrival-pill-close-btn");
+
+const walkingDrawerWrapEl = document.getElementById("walking-drawer-wrap");
+const walkingDrawerEl = document.getElementById("walking-drawer");
+const walkingDrawerScrimEl = document.getElementById("walking-drawer-scrim");
+const walkingDrawerCloseBtn = document.getElementById("walking-drawer-close-btn");
+const endJauntBtn = document.getElementById("end-jaunt-btn");
+
+const stopOverlayVisitedBtn = document.getElementById("stop-overlay-visited-btn");
 
 let stopOverlayTriggerEl = null;
 
@@ -1047,7 +1315,9 @@ function hideAllScreens() {
   screenReviewing.hidden = true;
   screenHonestFallback.hidden = true;
   screenTechnicalFailure.hidden = true;
-  screenWalkingStub.hidden = true;
+  screenWalking.hidden = true;
+  walkingDrawerWrapEl.hidden = true;
+  arrivalPillEl.hidden = true;
 }
 
 // Shows one of the 4 real setup screens (the confirm sheet is a separate
@@ -1058,6 +1328,10 @@ function hideAllScreens() {
 // trigger).
 function showStep(step, { focusDefault = true } = {}) {
   if (step !== "starting_point") invalidateLocationRequest();
+  // Centralized here (not just in End Jaunt) so every path that leaves the
+  // walking screen - setup reset, a future error path, anything - reliably
+  // clears the native watch rather than leaving it running in the background.
+  if (step !== "walking") stopLiveLocationWatch();
   hideAllScreens();
 
   // Only a real Trip Setup step is persisted as setup_step - "reviewing"/
@@ -1076,7 +1350,7 @@ function showStep(step, { focusDefault = true } = {}) {
     clearRouteLayers();
   }
 
-  mapStageEl.hidden = step !== "starting_point" && step !== "reviewing";
+  mapStageEl.hidden = step !== "starting_point" && step !== "reviewing" && step !== "walking";
   // User feedback 2026-10-21 ("still does not automatically zoom in"):
   // reproduced directly - MapLibre's canvas was stuck at its stale 800x600
   // default instead of the real ~1200x639 container, because nothing
@@ -1127,15 +1401,19 @@ function showStep(step, { focusDefault = true } = {}) {
     refreshMapRouteLayers();
     if (focusDefault) reviewingTitleEl.focus();
   } else if (step === "walking") {
-    screenWalkingStub.hidden = false;
-    const stopCount = Array.isArray(trip.stops) ? trip.stops.length : 0;
-    // bmad-code-review 2026-10-21: this screen is reachable by any real
-    // user who approves a route, not just during development - the old
-    // copy named an internal epic number, which a grading examiner could
-    // plausibly land on.
-    walkingStubDetailEl.textContent =
-      `${stopCount} stop${stopCount === 1 ? "" : "s"} planned - the walking experience isn't built yet.`;
-    if (focusDefault) walkingStubHeadingEl.focus();
+    screenWalking.hidden = false;
+    walkingSummaryEl.textContent = buildReviewSummary();
+    // Same resume-after-reload gap Story 1.5 already hit for "reviewing":
+    // a page reload that lands straight on "walking" never ran the
+    // starting-point screen's own branch, so the start pin needs placing
+    // here too.
+    if (trip.starting_point) {
+      placeStartMarker(trip.starting_point.lat, trip.starting_point.lng);
+    }
+    refreshMapRouteLayers();
+    refreshAmenityLayer();
+    startLiveLocationWatch();
+    if (focusDefault) walkingTitleEl.focus();
   }
 }
 
@@ -1574,6 +1852,10 @@ function renderStopList() {
 // would otherwise stay tabbable behind the dim overlay.
 function setReviewSheetInert(isInert) {
   if ("inert" in screenReviewing) screenReviewing.inert = isInert;
+  // Story 2.1: the stop-list/stop-overlay/credits sheets are shared with
+  // the walking screen too - only one of the two is ever visible at once,
+  // so inerting both unconditionally is harmless.
+  if ("inert" in screenWalking) screenWalking.inert = isInert;
   if ("inert" in mapStageEl) mapStageEl.inert = isInert;
 }
 
@@ -1652,6 +1934,27 @@ function openStopOverlay(stop, triggerEl) {
   setReviewSheetInert(true);
 
   stopOverlayHeadingEl.textContent = stop.name || "Stop";
+
+  // Story 2.3, AD-2: the same overlay is shown pre-walk (Story 1.5's
+  // preview) and during an active walk - the Visited control is only ever
+  // actionable in the latter. Opening/reading content never toggles this
+  // (handled entirely by the separate click below).
+  if (trip.phase === "walking") {
+    stopOverlayVisitedBtn.hidden = false;
+    const visited = isStopVisited(stop.id);
+    stopOverlayVisitedBtn.setAttribute("aria-pressed", String(visited));
+    stopOverlayVisitedBtn.classList.toggle("visited", visited);
+    stopOverlayVisitedBtn.disabled = visited;
+    stopOverlayVisitedBtn.onclick = () => {
+      markStopVisited(stop.id);
+      stopOverlayVisitedBtn.setAttribute("aria-pressed", "true");
+      stopOverlayVisitedBtn.classList.toggle("visited", true);
+      stopOverlayVisitedBtn.disabled = true;
+    };
+  } else {
+    stopOverlayVisitedBtn.hidden = true;
+    stopOverlayVisitedBtn.onclick = null;
+  }
 
   openPhotoStop = stop;
   renderStopPhoto(stop);
@@ -1805,10 +2108,10 @@ reJauntBtn.addEventListener("click", () => {
 });
 
 // Codex review 2026-10-21: a successful review previously had no decline/
-// change-inputs path at all - same phase-reset reasoning as
-// walkingStubBackBtn below (trip.phase must go back to "setting_up" before
-// showStep(originStep) persists a setup_step, or isValidTrip() would
-// reject the stored trip on the next reload).
+// change-inputs path at all - same phase-reset reasoning as End Jaunt
+// (trip.phase must go back to "setting_up" before showStep(originStep)
+// persists a setup_step, or isValidTrip() would reject the stored trip on
+// the next reload).
 changeJauntBtn.addEventListener("click", () => {
   if (replacementBusy) return;
   prepareSetupState();
@@ -1860,14 +2163,39 @@ technicalFailureRetryBtn.addEventListener("click", () => {
   startRoutePlanning();
 });
 
-// Approve set trip.phase to "walking" -
-// it must be put back before showStep(originStep) persists a setup_step,
-// or the stored trip would carry phase:"walking" with a non-null
-// setup_step, which isValidTrip() itself would reject on the next reload.
-walkingStubBackBtn.addEventListener("click", () => {
-  const originStep = trip.topic === "surprise_me" ? "topic_at_rest" : "choose_topic";
-  trip.phase = "setting_up";
-  showStep(originStep);
+// =====================================================================
+// ACTIVE WALKING SCREEN (Story 2.1)
+// =====================================================================
+
+walkingOpenStopListBtn.addEventListener("click", openStopListSheet);
+
+function openWalkingDrawer() {
+  setReviewSheetInert(true);
+  walkingDrawerWrapEl.hidden = false;
+  walkingDrawerEl.focus();
+}
+function closeWalkingDrawer({ restoreFocus = true } = {}) {
+  walkingDrawerWrapEl.hidden = true;
+  setReviewSheetInert(false);
+  if (restoreFocus) walkingMenuBtn.focus();
+}
+walkingMenuBtn.addEventListener("click", openWalkingDrawer);
+walkingDrawerCloseBtn.addEventListener("click", () => closeWalkingDrawer());
+walkingDrawerScrimEl.addEventListener("click", () => closeWalkingDrawer());
+
+// AD-2's minimal "end trip" exit: must work standalone, without Epic 3's
+// catch-up/summary flow built yet. Clears only the active-trip key - visit
+// history (AD-6, the separate jaunt_visit_history key) is untouched.
+endJauntBtn.addEventListener("click", () => {
+  closeWalkingDrawer({ restoreFocus: false });
+  localStorage.removeItem(STORAGE_KEY);
+  trip = defaultTrip();
+  notifiedStopIds.clear();
+  showStep("starting_point");
+});
+
+arrivalPillCloseBtn.addEventListener("click", () => {
+  arrivalPillEl.hidden = true;
 });
 
 // =====================================================================

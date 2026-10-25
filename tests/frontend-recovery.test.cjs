@@ -18,7 +18,7 @@ const storageKey = 'jaunt_active_trip';
 // resolves immediately with that catalogue, and a function is called for
 // its result/throw - letting a test defer resolution until after it opens
 // a stop overlay, to probe the late-arriving-catalogue path.
-function browser(storedTrip, location = {}, placesSeed) {
+function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
   const elements = new Map();
   function element() {
     const listeners = new Map();
@@ -30,7 +30,12 @@ function browser(storedTrip, location = {}, placesSeed) {
       set innerHTML(value) { this._innerHTML = value; this.children = []; },
       classList: { toggle() {} },
       addEventListener(name, fn) { listeners.set(name, fn); },
-      click() { if (!this.disabled) listeners.get('click')?.({ type: 'click', target: this }); },
+      click() {
+        if (this.disabled) return;
+        const event = { type: 'click', target: this };
+        listeners.get('click')?.(event);
+        this.onclick?.(event); // real DOM fires both a listener and .onclick
+      },
       input(value) { this.value = String(value); listeners.get('input')?.(); },
       appendChild(child) { this.children.push(child); },
       setAttribute(name, value) { this[name] = value; },
@@ -49,6 +54,9 @@ function browser(storedTrip, location = {}, placesSeed) {
     const chip = element(); chip.dataset.startId = startId; return chip;
   });
   const locationRequests = [];
+  const watchRequests = [];
+  const clearedWatchIds = new Set();
+  let nextWatchId = 0;
   const mapEvents = new Map();
   const windowEvents = new Map();
   let startPanelHeight = 220;
@@ -60,7 +68,10 @@ function browser(storedTrip, location = {}, placesSeed) {
   const timers = new Map();
   let nextTimer = 0;
   elements.get('screen-splash').hidden = false;
-  const storage = new Map(storedTrip ? [[storageKey, JSON.stringify(storedTrip)]] : []);
+  const storage = new Map([
+    ...(storedTrip ? [[storageKey, JSON.stringify(storedTrip)]] : []),
+    ...(visitHistorySeed ? [['jaunt_visit_history', JSON.stringify(visitHistorySeed)]] : []),
+  ]);
   const requests = [];
   const responses = [];
   class Marker {
@@ -82,6 +93,13 @@ function browser(storedTrip, location = {}, placesSeed) {
         if (location.throws) throw new Error('Location failed');
         locationRequests.push({ success, failure, options });
       },
+      watchPosition(success, failure, options) {
+        if (location.throws) throw new Error('Location failed');
+        const id = ++nextWatchId;
+        watchRequests.push({ id, success, failure, options });
+        return id;
+      },
+      clearWatch(id) { clearedWatchIds.add(id); },
     } },
     document: {
       getElementById(id) {
@@ -104,7 +122,8 @@ function browser(storedTrip, location = {}, placesSeed) {
       NavigationControl: class {}, Marker, Popup: class { setText() { return this; } setDOMContent() { return this; } },
     },
     localStorage: { getItem: key => storage.get(key) ?? null,
-      setItem: (key, value) => storage.set(key, value) },
+      setItem: (key, value) => storage.set(key, value),
+      removeItem: key => storage.delete(key) },
     console: { error() {} },
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; },
     clearTimeout(id) { timers.delete(id); },
@@ -125,7 +144,7 @@ function browser(storedTrip, location = {}, placesSeed) {
   const evaluate = code => vm.runInContext(code, context);
   evaluate('dismissSplash()');
   return {
-    requests, elements, evaluate, locationRequests, markerPositions, cameraPositions, cameraOptions, timers, startChips,
+    requests, elements, evaluate, locationRequests, watchRequests, clearedWatchIds, markerPositions, cameraPositions, cameraOptions, timers, startChips,
     fireTimer(id) { const timer = timers.get(id); timers.delete(id); timer.callback(); },
     mapClick(lat, lng) { mapEvents.get('click')({ lngLat: { lat, lng } }); },
     fireResize() { windowEvents.get('resize')?.(); },
@@ -1176,3 +1195,169 @@ test('resize does nothing once there is no pending pin or the step has moved on'
   app.fireResize();
   assert.equal(JSON.stringify(app.cameraPositions), camerasAfterConfirm);
 });
+
+// =====================================================================
+// EPIC 2: WALK IT
+// =====================================================================
+
+test('Story 2.1: approving a route shows the real walking screen, not the old stub, and reuses the map', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  assert.equal(app.saved().phase, 'walking');
+  assert.equal(app.elements.get('screen-walking').hidden, false);
+  assert.equal(app.elements.get('screen-walking-stub'), undefined);
+  assert.equal(app.elements.get('walking-summary').textContent, '2 stops - 40 min walk - 20 min to spare');
+  assert.equal(app.requests.length, 0); // no new fetch (FR-6)
+});
+
+test('Story 2.1: reloading mid-walk resumes the real walking screen directly', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  const reload = browser(app.saved());
+  assert.equal(reload.elements.get('screen-walking').hidden, false);
+  assert.equal(reload.requests.length, 0);
+});
+
+test('Story 2.1: tapping a stop marker or row opens the same content overlay used pre-walk', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.click('walking-open-stop-list-btn');
+  assert.equal(app.elements.get('stop-list-sheet-wrap').hidden, false);
+  app.evaluate("openStopOverlay(trip.stops[0])");
+  assert.equal(app.elements.get('stop-overlay-body').textContent, 'Grounded text');
+});
+
+test('Story 2.1: the hamburger drawer opens/closes and restores focus to the menu button', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.click('walking-menu-btn');
+  assert.equal(app.elements.get('walking-drawer-wrap').hidden, false);
+  app.click('walking-drawer-close-btn');
+  assert.equal(app.elements.get('walking-drawer-wrap').hidden, true);
+});
+
+test('Story 2.1: End Jaunt clears the active trip only, leaving visit history untouched, and returns to a fresh setup', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("markStopVisited('a')");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  const saved = app.saved();
+  assert.equal(saved.phase, 'setting_up');
+  assert.equal(saved.setup_step, 'starting_point');
+  assert.equal(saved.starting_point, null);
+  assert.equal(app.elements.get('screen-starting-point').hidden, false);
+  assert.equal(app.elements.get('walking-drawer-wrap').hidden, true);
+  assert.equal(app.evaluate("isStopVisited('a')"), true);
+});
+
+test('Story 2.3: the Visited badge is hidden before a walk starts and shown, actionable, during one', () => {
+  const app = browser(route(['a', 'b']));
+  app.evaluate("openStopOverlay(trip.stops[0])"); // still phase: reviewing
+  assert.equal(app.elements.get('stop-overlay-visited-btn').hidden, true);
+  app.click('approve-route-btn');
+  app.evaluate("openStopOverlay(trip.stops[0])");
+  const badge = app.elements.get('stop-overlay-visited-btn');
+  assert.equal(badge.hidden, false);
+  assert.equal(badge['aria-pressed'], 'false');
+});
+
+test('Story 2.3: tapping Visited records it separately from opening content, and disables further taps', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("openStopOverlay(trip.stops[0])");
+  assert.equal(app.evaluate("isStopVisited('a')"), false); // merely opening never marks it
+  app.click('stop-overlay-visited-btn');
+  assert.equal(app.evaluate("isStopVisited('a')"), true);
+  const badge = app.elements.get('stop-overlay-visited-btn');
+  assert.equal(badge['aria-pressed'], 'true');
+  assert.equal(badge.disabled, true);
+});
+
+test('Story 2.3: a stop marked Visited survives a reload, stored under a separate localStorage key from the active trip', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("markStopVisited('a')");
+  assert.equal(app.saved().stops.some((s) => 'state' in s), false); // never written onto the trip object itself
+  const visitHistory = JSON.parse(app.evaluate("localStorage.getItem('jaunt_visit_history')"));
+  const reload = browser(app.saved(), {}, undefined, visitHistory);
+  reload.evaluate("openStopOverlay(trip.stops[0])");
+  assert.equal(reload.elements.get('stop-overlay-visited-btn')['aria-pressed'], 'true');
+});
+
+test("Story 2.2: entering the walking screen starts watching position and shows the calm 'Location off' baseline first", () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  assert.equal(app.watchRequests.length, 1);
+  assert.equal(app.elements.get('location-off-pill').hidden, false);
+});
+
+test('Story 2.2: a granted position shows the live marker and hides the pill - never an error screen', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
+  assert.equal(app.elements.get('location-off-pill').hidden, true);
+  assert.equal(app.evaluate('!!liveMarker'), true);
+});
+
+test('Story 2.2: a real, non-null heading shows the directional arrow; a null/NaN heading does not', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: 45 } });
+  assert.equal(app.evaluate('liveArrowEl.hidden'), false);
+  assert.equal(app.evaluate('liveArrowEl.style.transform'), 'rotate(45deg)');
+  app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
+  assert.equal(app.evaluate('liveArrowEl.hidden'), true);
+});
+
+test('Story 2.2: permission denied, or losing signal mid-walk, degrades to the same calm pill - marker removed, no error', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
+  assert.equal(app.evaluate('!!liveMarker'), true);
+  app.watchRequests[0].failure({ code: 1 });
+  assert.equal(app.evaluate('!!liveMarker'), false);
+  assert.equal(app.elements.get('location-off-pill').hidden, false);
+});
+
+test('Story 2.2: leaving the walking screen releases the native watch (clearWatch) and removes the marker', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  const watchId = app.watchRequests[0].id;
+  app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  assert.equal(app.clearedWatchIds.has(watchId), true);
+  assert.equal(app.evaluate('!!liveMarker'), false);
+});
+
+test('Story 2.5: a position within range of an unvisited stop shows a subtle arrival nudge, never a modal', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
+  assert.equal(app.elements.get('arrival-pill').hidden, false);
+  assert.equal(app.elements.get('arrival-pill-text').textContent, "You're near Stop a");
+});
+
+test('Story 2.5: an already-visited stop never triggers the arrival nudge, and it is never simulated without live position', () => {
+  // A single-stop route - route(['a','b']) would put a second, still-
+  // unvisited stop at the exact same coordinates, confounding this check.
+  const app = browser(route(['a']));
+  app.click('approve-route-btn');
+  app.evaluate("markStopVisited('a')");
+  app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
+  assert.equal(app.elements.get('arrival-pill').hidden, true);
+  // Without ever granting position (no success callback fired at all):
+  const app2 = browser(route(['a']));
+  app2.click('approve-route-btn');
+  assert.equal(app2.elements.get('arrival-pill').hidden, true);
+});
+
+// Story 2.4's refreshAmenityLayer() calls map.addSource/getSource, which
+// this harness's Map stub doesn't implement (it never fires a real "load"
+// event either - the same pre-existing gap every other map-layer feature
+// in this project has, e.g. updateRouteLayers()). Not automated here;
+// verified live instead (see spec's Verification section): a real route's
+// own stop was confirmed excluded from the amenity source's feature set
+// (158 of 159 catalogue places rendered, the 159th being the route's own
+// stop), and a genuinely different place was confirmed included.
