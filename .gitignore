@@ -13,3 +13,7 @@ data/raw/
 # never pushed
 Claude sessions.txt
 IBE160:docs:claude-sessions:.txt.txt
+
+# Playwright MCP's own debug snapshots/console logs - scratch output, not
+# project data
+.playwright-mcp/

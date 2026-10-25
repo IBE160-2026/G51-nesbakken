@@ -133,6 +133,9 @@ function hideCatalogueMarkers() {
   });
 }
 
+// Current optional presentation data is independent of a saved route snapshot.
+let cataloguePhotosById = null;
+
 async function loadPlaces() {
   statusEl.textContent = "Loading places…";
 
@@ -143,6 +146,7 @@ async function loadPlaces() {
       throw new Error(`request failed with status ${response.status}`);
     }
     places = await response.json();
+    if (!Array.isArray(places)) throw new Error("invalid place catalogue");
   } catch (err) {
     statusEl.textContent = "Couldn't load places. Please try again.";
     return;
@@ -153,6 +157,10 @@ async function loadPlaces() {
   } else {
     statusEl.textContent = "";
   }
+
+  cataloguePhotosById = new Map(places.filter(place => place && typeof place.id === "string")
+    .map(place => [place.id, place.photo]));
+  if (openPhotoStop && !stopOverlayWrapEl.hidden) renderStopPhoto(openPhotoStop);
 
   places.forEach((place) => {
     const popup = new maplibregl.Popup(POPUP_OPTIONS).setDOMContent(
@@ -869,6 +877,7 @@ const stopOverlayHeadingEl = document.getElementById("stop-overlay-heading");
 const stopOverlayFigureEl = document.getElementById("stop-overlay-figure");
 const stopOverlayCreditEl = document.getElementById("stop-overlay-credit");
 let stopPhotoGeneration = 0;
+let openPhotoStop = null;
 const stopOverlayPhotoEl = document.getElementById("stop-overlay-photo");
 const stopOverlayBodyEl = document.getElementById("stop-overlay-body");
 const stopOverlayAttributionEl = document.getElementById("stop-overlay-attribution");
@@ -1282,6 +1291,7 @@ function finishReplacementLoading() {
   // The user may have closed progress and opened credits while waiting.
   // Dismiss review overlays before showing the result or a failure screen.
   creditsSheetWrapEl.hidden = true;
+  openPhotoStop = null;
   resetStopPhoto();
   stopOverlayWrapEl.hidden = true;
   stopOverlayTriggerEl = null;
@@ -1592,15 +1602,11 @@ function resetStopPhoto() {
   stopOverlayCreditEl.textContent = "";
 }
 
-function openStopOverlay(stop, triggerEl) {
-  stopOverlayTriggerEl = triggerEl || null;
-  setReviewSheetInert(true);
-
-  stopOverlayHeadingEl.textContent = stop.name || "Stop";
-
+// Updating optional photos must not reopen the sheet, move focus or rewrite stories.
+function renderStopPhoto(stop) {
   resetStopPhoto();
-  if (isValidPhoto(stop.photo)) {
-    const photo = stop.photo;
+  const photo = cataloguePhotosById?.has(stop.id) ? cataloguePhotosById.get(stop.id) : stop.photo;
+  if (isValidPhoto(photo)) {
     const generation = stopPhotoGeneration;
     stopOverlayPhotoEl.onload = () => {
       if (generation !== stopPhotoGeneration) return;
@@ -1624,6 +1630,17 @@ function openStopOverlay(stop, triggerEl) {
     stopOverlayPhotoEl.alt = photo.alt;
     stopOverlayPhotoEl.src = photo.url;
   }
+
+}
+
+function openStopOverlay(stop, triggerEl) {
+  stopOverlayTriggerEl = triggerEl || null;
+  setReviewSheetInert(true);
+
+  stopOverlayHeadingEl.textContent = stop.name || "Stop";
+
+  openPhotoStop = stop;
+  renderStopPhoto(stop);
 
   stopOverlayBodyEl.textContent = stop.content || "";
 
@@ -1650,6 +1667,7 @@ function openStopOverlay(stop, triggerEl) {
 }
 
 function closeStopOverlay() {
+  openPhotoStop = null;
   resetStopPhoto();
   stopOverlayWrapEl.hidden = true;
   setReviewSheetInert(false);
@@ -1661,6 +1679,7 @@ function closeStopOverlay() {
 // a real "back to list" affordance reopens it directly, rather than
 // requiring "close, then tap View stops again."
 function backToStopListFromOverlay() {
+  openPhotoStop = null;
   resetStopPhoto();
   stopOverlayWrapEl.hidden = true;
   stopOverlayTriggerEl = null;

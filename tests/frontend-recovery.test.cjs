@@ -12,7 +12,13 @@ const source = fs.readFileSync(path.join(root, 'static/app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'templates/index.html'), 'utf8');
 const storageKey = 'jaunt_active_trip';
 
-function browser(storedTrip, location = {}) {
+// placesSeed controls the one-time, construction-time GET /api/places call
+// that loadPlaces() fires on script load: omitted means it never resolves
+// (existing tests that don't care about the catalogue), an array means it
+// resolves immediately with that catalogue, and a function is called for
+// its result/throw - letting a test defer resolution until after it opens
+// a stop overlay, to probe the late-arriving-catalogue path.
+function browser(storedTrip, location = {}, placesSeed) {
   const elements = new Map();
   function element() {
     const listeners = new Map();
@@ -57,6 +63,7 @@ function browser(storedTrip, location = {}) {
     setPopup() { return this; }
     addTo() { return this; }
     remove() {}
+    getElement() { return { style: {} }; }
   }
   const context = vm.createContext({
     URL,
@@ -85,7 +92,7 @@ function browser(storedTrip, location = {}) {
         easeTo(options) { cameraPositions.push(options.center); cameraOptions.push(options); }
         on(name, callback) { mapEvents.set(name, callback); } addControl() {} resize() {}
       },
-      NavigationControl: class {}, Marker, Popup: class { setText() { return this; } },
+      NavigationControl: class {}, Marker, Popup: class { setText() { return this; } setDOMContent() { return this; } },
     },
     localStorage: { getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value) },
@@ -94,6 +101,11 @@ function browser(storedTrip, location = {}) {
     clearTimeout(id) { timers.delete(id); },
     AbortSignal: { timeout: () => undefined },
     fetch: async (url, options) => {
+      if (url === '/api/places') {
+        if (placesSeed === undefined) return new Promise(() => {});
+        if (typeof placesSeed === 'function') return placesSeed();
+        return { ok: true, json: async () => JSON.parse(JSON.stringify(placesSeed)) };
+      }
       assert.equal(url, '/api/plan');
       requests.push(JSON.parse(options.body));
       assert(responses.length, 'Unexpected planning request');
@@ -694,8 +706,16 @@ test('location failure recovers through map pin confirmation and preserves other
   assert(app.valid());
 });
 
-const curatedPhoto = JSON.parse(fs.readFileSync(path.join(root, 'data/place_photos.json'), 'utf8'))['heritage/2420855'];
+const placePhotos = JSON.parse(fs.readFileSync(path.join(root, 'data/place_photos.json'), 'utf8'));
+const curatedPhoto = placePhotos['heritage/2420855'];
 const publicPhoto = Object.fromEntries(Object.entries(curatedPhoto).filter(([key]) => key !== 'reviewed'));
+// A second, genuinely different valid photo - used to prove the overlay
+// shows the catalogue's current photo rather than a stale saved one.
+const catalogueCurrentPhoto = Object.fromEntries(
+  Object.entries(placePhotos['heritage/2030116']).filter(([key]) => key !== 'reviewed'));
+function catalogueEntry(id, photo) {
+  return { id, name: 'Catalogue place', latitude: -33.9, longitude: 151.18, topics: ['history'], source_type: 'test', photo };
+}
 
 test('photo lifecycle reveals complete credit only after load and resets on errors, switching and close', () => {
   const app = browser();
@@ -802,6 +822,100 @@ test('malformed optional photos preserve saved review and planned response text'
     assert.equal(planned.elements.get('stop-overlay-figure').hidden, true);
     assert.equal(planned.elements.get('stop-overlay-photo').src, undefined);
   }
+});
+
+
+// loadPlaces() is normally only reached via the real map's "load" event,
+// which this harness never fires (mapEvents.set('load', ...) just records
+// it) - these tests call it directly, exactly as app.js's own map.on("load")
+// handler would.
+
+test('old saved route with no saved photo shows the catalogue\'s current photo for that stop id', async () => {
+  const trip = route(['enmore']); // no .photo on the saved stop - as if saved before this one existed
+  const app = browser(trip, {}, [catalogueEntry('enmore', catalogueCurrentPhoto)]);
+  await app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  const image = app.elements.get('stop-overlay-photo');
+  assert.equal(image.src, catalogueCurrentPhoto.url);
+  assert.equal(image.alt, catalogueCurrentPhoto.alt);
+});
+
+test('a current catalogue photo is shown in place of a different, stale saved photo', async () => {
+  const trip = route(['enmore']); trip.stops[0].photo = publicPhoto; // stale saved photo
+  const app = browser(trip, {}, [catalogueEntry('enmore', catalogueCurrentPhoto)]); // catalogue has a different one now
+  await app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  const image = app.elements.get('stop-overlay-photo');
+  assert.equal(image.src, catalogueCurrentPhoto.url);
+  assert.notEqual(catalogueCurrentPhoto.url, publicPhoto.url);
+});
+
+test('a catalogue entry that currently has no qualifying photo does not revive a stale saved one', async () => {
+  const trip = route(['enmore']); trip.stops[0].photo = publicPhoto; // stale saved photo
+  const app = browser(trip, {}, [catalogueEntry('enmore', undefined)]); // place still exists, photo removed/invalid
+  await app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  assert.equal(app.elements.get('stop-overlay-figure').hidden, true);
+  assert.equal(app.elements.get('stop-overlay-photo').src, undefined);
+});
+
+test('a catalogue fetch failure preserves stop text and falls back to a valid saved photo', async () => {
+  const trip = route(['enmore']); trip.stops[0].photo = publicPhoto;
+  const app = browser(trip, {}, () => { throw new Error('Network failed'); });
+  await app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  const image = app.elements.get('stop-overlay-photo');
+  assert.equal(image.src, publicPhoto.url);
+  assert.equal(app.elements.get('stop-overlay-body').textContent, trip.stops[0].content);
+});
+
+test('a catalogue that finishes loading after its stop overlay is already open fills in the photo in place', async () => {
+  const trip = route(['enmore']);
+  let finishPlaces;
+  const placesPromise = new Promise((resolve) => { finishPlaces = resolve; });
+  const app = browser(trip, {}, () => placesPromise);
+  app.evaluate('loadPlaces()'); // in flight, pending on placesPromise
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  const heading = app.elements.get('stop-overlay-heading');
+  const image = app.elements.get('stop-overlay-photo');
+  assert.equal(image.src, undefined);
+  assert.equal(heading.textContent, trip.stops[0].name);
+  finishPlaces({ ok: true, json: async () => [catalogueEntry('enmore', catalogueCurrentPhoto)] });
+  await app.settle();
+  assert.equal(image.src, catalogueCurrentPhoto.url);
+  // Filling the photo in must not have rebuilt or reopened the overlay.
+  assert.equal(heading.textContent, trip.stops[0].name);
+});
+
+test('a catalogue that arrives after switching stops renders onto the stop now open, not the one first opened', async () => {
+  const trip = route(['enmore', 'other']);
+  let finishPlaces;
+  const placesPromise = new Promise((resolve) => { finishPlaces = resolve; });
+  const app = browser(trip, {}, () => placesPromise);
+  app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  app.evaluate('openStopOverlay(trip.stops[1])');
+  finishPlaces({ ok: true, json: async () => [
+    catalogueEntry('enmore', catalogueCurrentPhoto),
+    catalogueEntry('other', publicPhoto),
+  ] });
+  await app.settle();
+  assert.equal(app.elements.get('stop-overlay-heading').textContent, trip.stops[1].name);
+  assert.equal(app.elements.get('stop-overlay-photo').src, publicPhoto.url);
+});
+
+test('a catalogue that arrives after the overlay was closed does not reopen it or render a photo', async () => {
+  const trip = route(['enmore']);
+  let finishPlaces;
+  const placesPromise = new Promise((resolve) => { finishPlaces = resolve; });
+  const app = browser(trip, {}, () => placesPromise);
+  app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  app.evaluate('closeStopOverlay()');
+  finishPlaces({ ok: true, json: async () => [catalogueEntry('enmore', catalogueCurrentPhoto)] });
+  await app.settle();
+  assert.equal(app.elements.get('stop-overlay-wrap').hidden, true);
+  assert.equal(app.elements.get('stop-overlay-photo').src, undefined);
 });
 
 
