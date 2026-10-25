@@ -34,6 +34,7 @@ function browser(storedTrip, location = {}, placesSeed) {
       input(value) { this.value = String(value); listeners.get('input')?.(); },
       appendChild(child) { this.children.push(child); },
       setAttribute(name, value) { this[name] = value; },
+      getAttribute(name) { return this[name] ?? null; },
       removeAttribute(name) { delete this[name]; }, focus() {}, scrollTo() {},
       getBoundingClientRect() { return { height: 220 }; },
     };
@@ -895,6 +896,28 @@ test('a catalogue that finishes loading after its stop overlay is already open f
   assert.equal(image.src, catalogueCurrentPhoto.url);
   // Filling the photo in must not have rebuilt or reopened the overlay.
   assert.equal(heading.textContent, trip.stops[0].name);
+});
+
+test('a catalogue resolving to the exact photo already showing does not reset or reload it', async () => {
+  // Regression: the catalogue arriving late and re-resolving to the same
+  // photo a fresh /api/plan response already attached was resetting and
+  // reassigning src unconditionally, hiding an already-correct photo
+  // (briefly on a fast connection, long enough to look "gone" on a slow one).
+  const trip = route(['enmore']); trip.stops[0].photo = publicPhoto;
+  let finishPlaces;
+  const placesPromise = new Promise((resolve) => { finishPlaces = resolve; });
+  const app = browser(trip, {}, () => placesPromise);
+  app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  const figure = app.elements.get('stop-overlay-figure');
+  const image = app.elements.get('stop-overlay-photo');
+  image.onload(); // the photo already attached to the fresh stop finishes loading normally
+  assert.equal(figure.hidden, false);
+  finishPlaces({ ok: true, json: async () => [catalogueEntry('enmore', publicPhoto)] }); // catalogue agrees - same photo
+  await app.settle();
+  // Must still be showing without a second onload - a real reset/reload would have hidden it again.
+  assert.equal(figure.hidden, false);
+  assert.equal(image.src, publicPhoto.url);
 });
 
 test('a catalogue that arrives after switching stops renders onto the stop now open, not the one first opened', async () => {

@@ -160,7 +160,7 @@ async function loadPlaces() {
 
   cataloguePhotosById = new Map(places.filter(place => place && typeof place.id === "string")
     .map(place => [place.id, place.photo]));
-  if (openPhotoStop && !stopOverlayWrapEl.hidden) renderStopPhoto(openPhotoStop);
+  if (openPhotoStop && !stopOverlayWrapEl.hidden) renderStopPhoto(openPhotoStop, { skipIfUnchanged: true });
 
   places.forEach((place) => {
     const popup = new maplibregl.Popup(POPUP_OPTIONS).setDOMContent(
@@ -1603,9 +1603,18 @@ function resetStopPhoto() {
 }
 
 // Updating optional photos must not reopen the sheet, move focus or rewrite stories.
-function renderStopPhoto(stop) {
-  resetStopPhoto();
+// skipIfUnchanged is for the catalogue's own late-arrival re-render only
+// (loadPlaces() below): opening a stop overlay must always do a full,
+// predictable reset, but the catalogue finishing to load often re-resolves
+// to the exact photo already showing - resetting and reassigning src in
+// that case forces a real reload even from cache, hiding an already-correct
+// photo for a beat (far worse than a beat on a slow connection).
+function renderStopPhoto(stop, { skipIfUnchanged = false } = {}) {
   const photo = cataloguePhotosById?.has(stop.id) ? cataloguePhotosById.get(stop.id) : stop.photo;
+  if (skipIfUnchanged && isValidPhoto(photo) && photo.url === stopOverlayPhotoEl.getAttribute("src") && !stopOverlayFigureEl.hidden) {
+    return;
+  }
+  resetStopPhoto();
   if (isValidPhoto(photo)) {
     const generation = stopPhotoGeneration;
     stopOverlayPhotoEl.onload = () => {
