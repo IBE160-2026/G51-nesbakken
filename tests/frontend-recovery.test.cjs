@@ -920,6 +920,31 @@ test('a catalogue resolving to the exact photo already showing does not reset or
   assert.equal(image.src, publicPhoto.url);
 });
 
+test('a catalogue agreeing with a still-loading photo does not abort/restart it', async () => {
+  // Regression (phone report, slow connection): the first fix only skipped
+  // the reset when the figure was already visible - on a slow connection
+  // the catalogue can instead land while the photo is still mid-load
+  // (figure still hidden, onload pending), and resetting there aborts and
+  // restarts the in-flight request, which may never recover.
+  const trip = route(['enmore']); trip.stops[0].photo = publicPhoto;
+  let finishPlaces;
+  const placesPromise = new Promise((resolve) => { finishPlaces = resolve; });
+  const app = browser(trip, {}, () => placesPromise);
+  app.evaluate('loadPlaces()');
+  app.evaluate('openStopOverlay(trip.stops[0])');
+  const figure = app.elements.get('stop-overlay-figure');
+  const image = app.elements.get('stop-overlay-photo');
+  const originalOnload = image.onload; // captured before the photo has finished loading
+  assert.equal(figure.hidden, true); // still loading - onload has not fired yet
+  finishPlaces({ ok: true, json: async () => [catalogueEntry('enmore', publicPhoto)] }); // catalogue agrees mid-load
+  await app.settle();
+  // The in-flight request must be untouched: same onload, still pending.
+  assert.equal(image.onload, originalOnload);
+  assert.equal(figure.hidden, true);
+  originalOnload(); // the original (never-aborted) request now finishes
+  assert.equal(figure.hidden, false);
+});
+
 test('a catalogue that arrives after switching stops renders onto the stop now open, not the one first opened', async () => {
   const trip = route(['enmore', 'other']);
   let finishPlaces;

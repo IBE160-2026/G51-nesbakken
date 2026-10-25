@@ -1607,11 +1607,16 @@ function resetStopPhoto() {
 // (loadPlaces() below): opening a stop overlay must always do a full,
 // predictable reset, but the catalogue finishing to load often re-resolves
 // to the exact photo already showing - resetting and reassigning src in
-// that case forces a real reload even from cache, hiding an already-correct
-// photo for a beat (far worse than a beat on a slow connection).
+// that case forces a real reload even from cache/network. On a fast
+// connection that's a near-invisible flicker; on a slow one it can land
+// mid-load (figure still hidden, pending onload) and abort/restart the
+// in-flight request - which may never recover on an unreliable connection.
+// Checking the src alone (not also requiring the figure to be visible)
+// covers both: a finished photo is left alone, and one still loading is
+// left to finish on its own rather than restarted.
 function renderStopPhoto(stop, { skipIfUnchanged = false } = {}) {
   const photo = cataloguePhotosById?.has(stop.id) ? cataloguePhotosById.get(stop.id) : stop.photo;
-  if (skipIfUnchanged && isValidPhoto(photo) && photo.url === stopOverlayPhotoEl.getAttribute("src") && !stopOverlayFigureEl.hidden) {
+  if (skipIfUnchanged && isValidPhoto(photo) && photo.url === stopOverlayPhotoEl.getAttribute("src")) {
     return;
   }
   resetStopPhoto();
