@@ -377,6 +377,98 @@ class TestApiPlanValidation(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             mock_plan.assert_not_called()
 
+    def test_visit_history_omitted_defaults_to_empty_list(self):
+        # Story 3.4: absent entirely (every request before any history
+        # exists) must behave exactly as it does today.
+        with patch("app.planner.plan_route", return_value=INFEASIBLE_RESULT) as mock_plan:
+            response = self.client.post("/api/plan", json=VALID_PLAN_BODY)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_plan.call_args.kwargs.get("visit_history"), [])
+
+    def test_valid_visit_history_accepted_and_threaded_through_stripped_of_extra_fields(self):
+        history = [
+            {"id": "node/1", "state": "visited_completed", "favourited": False, "rejected": True},
+            {"id": "node/2", "state": "proposed", "favourited": True},
+        ]
+        body = dict(VALID_PLAN_BODY, visit_history=history)
+        with patch("app.planner.plan_route", return_value=INFEASIBLE_RESULT) as mock_plan:
+            response = self.client.post("/api/plan", json=body)
+        self.assertEqual(response.status_code, 200)
+        # "rejected" is dropped - that signal reaches the backend through
+        # excluded_ids instead (the frontend's job), never read here.
+        self.assertEqual(mock_plan.call_args.kwargs.get("visit_history"), [
+            {"id": "node/1", "state": "visited_completed", "favourited": False},
+            {"id": "node/2", "state": "proposed", "favourited": True},
+        ])
+
+    def test_malformed_visit_history_rejected(self):
+        bad_entries = (
+            "abc",
+            [1],
+            [{"id": "node/1", "state": "not_a_real_state", "favourited": False}],
+            [{"id": "node/1", "state": "proposed", "favourited": "yes"}],
+            [{"id": "", "state": "proposed", "favourited": False}],
+            [{"state": "proposed", "favourited": False}],
+            [{"id": 1, "state": "proposed", "favourited": False}],
+        )
+        for visit_history in bad_entries:
+            body = dict(VALID_PLAN_BODY, visit_history=visit_history)
+            response, mock_plan = self._post(body)
+            self.assertEqual(response.status_code, 400)
+            mock_plan.assert_not_called()
+
+
+class TestApiSummary(unittest.TestCase):
+    """Story 3.2 (FR-16): stateless, always 200 on well-formed input -
+    "feasible: false" is the honest no-summary outcome, never a non-2xx."""
+
+    def setUp(self):
+        self.client = app_module.app.test_client()
+        self.visited = [
+            {"name": "Newtown Station", "content": "A historic railway station building."},
+            {"name": "Mural Lane", "content": "A laneway covered in colourful street art."},
+        ]
+
+    def test_successful_summary_returned(self):
+        with patch("app.ai.generate_walk_summary", return_value="A lovely walk past history and art.") as mock_gen:
+            response = self.client.post("/api/summary", json={"visited_stops": self.visited})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"feasible": True, "summary": "A lovely walk past history and art."})
+        mock_gen.assert_called_once_with(self.visited)
+
+    def test_generation_failure_is_feasible_false_not_an_error(self):
+        with patch("app.ai.generate_walk_summary", return_value=None):
+            response = self.client.post("/api/summary", json={"visited_stops": self.visited})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"feasible": False})
+
+    def test_empty_visited_stops_rejected_before_any_ai_call(self):
+        with patch("app.ai.generate_walk_summary") as mock_gen:
+            response = self.client.post("/api/summary", json={"visited_stops": []})
+        self.assertEqual(response.status_code, 400)
+        mock_gen.assert_not_called()
+
+    def test_malformed_visited_stops_rejected(self):
+        bad_bodies = (
+            {"visited_stops": "abc"},
+            {"visited_stops": [{"name": "A"}]},  # missing content
+            {"visited_stops": [{"content": "text"}]},  # missing name
+            {"visited_stops": [{"name": "", "content": "text"}]},
+            {"visited_stops": [{"name": "A", "content": "x" * 4001}]},
+            {"visited_stops": [{"name": 1, "content": "text"}]},
+            {},
+            {"visited_stops": [dict(name="Stop", content="text")] * 21},
+        )
+        for body in bad_bodies:
+            with self.subTest(body=body), patch("app.ai.generate_walk_summary") as mock_gen:
+                response = self.client.post("/api/summary", json=body)
+                self.assertEqual(response.status_code, 400)
+                mock_gen.assert_not_called()
+
+    def test_non_json_body_rejected(self):
+        response = self.client.post("/api/summary", data="not json", content_type="text/plain")
+        self.assertEqual(response.status_code, 400)
+
 
 class TestApiPlanOutcomes(unittest.TestCase):
     def setUp(self):
@@ -527,7 +619,7 @@ class TestReplacementValidation(unittest.TestCase):
         with patch('planner.plan_route', return_value={'feasible': False, 'reason': 'none'}) as plan:
             response = self.client.post('/api/plan', json={**self.base, 'retained_ids': [], 'excluded_ids': ['old']})
             self.assertEqual(response.status_code, 200)
-        self.assertEqual(plan.call_args.kwargs, dict(excluded_ids=['old'], retained_ids=[], replacement_mode=True, preference=0.5))
+        self.assertEqual(plan.call_args.kwargs, dict(excluded_ids=['old'], retained_ids=[], replacement_mode=True, preference=0.5, visit_history=[]))
 
     def test_retained_only_response_is_explicit_with_canonical_geometry(self):
         result = dict(feasible=True, shortlist=[FIXTURE_RECORDS[0]], order=[1], total_minutes=7, unused_minutes=53, replacement_outcome='retained_only')

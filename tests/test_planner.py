@@ -429,6 +429,18 @@ class TestPlanRoute(unittest.TestCase):
             self.assertEqual(len(selection.call_args.args[0]), 1)
             self.assertEqual(selection.call_args.kwargs["preference"], preference)
 
+    def test_visit_history_threads_through_to_select_stops(self):
+        history = [{"id": "a", "state": "visited_completed", "favourited": False}]
+        with patch("ai.select_stops", return_value=_selection("option_1")) as mock_select:
+            result = plan_route(START_LAT, START_LON, "public_art", 60, visit_history=history)
+        self.assertTrue(result["feasible"])
+        self.assertEqual(mock_select.call_args.kwargs["visit_history"], history)
+
+    def test_visit_history_none_normalizes_to_empty_list(self):
+        with patch("ai.select_stops", return_value=_selection("option_1")) as mock_select:
+            plan_route(START_LAT, START_LON, "public_art", 60, visit_history=None)
+        self.assertEqual(mock_select.call_args.kwargs["visit_history"], [])
+
     def test_every_offered_option_key_yields_a_feasible_result(self):
         # Directly demonstrates the fix: no matter which offered option AI
         # picks, the result is always feasible - AI can no longer produce

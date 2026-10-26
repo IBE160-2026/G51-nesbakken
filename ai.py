@@ -173,7 +173,7 @@ def get_model():
     return model
 
 
-def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.5):
+def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.5, visit_history=None):
     """Builds the user-message text sent to AI: the request details and the
     pre-validated option menu planner.py computed. No raw duration matrix is
     sent - AI is not asked to do any routing arithmetic in this design.
@@ -182,6 +182,14 @@ def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.
     attempt (a failed request, or an option_key that wasn't offered), so a
     retry can ask AI to correct the specific problem rather than guess again
     from scratch.
+
+    visit_history (Story 3.4, architecture AD-6): optional list of
+    {"id", "state", "favourited"} for places this user has engaged with
+    before, sent as a transient soft signal with each request - never
+    persisted server-side. Already-rejected places never reach here at all
+    (app.py/planner.py hard-filter them the same way excluded_ids works,
+    before AI ever sees them) - only proposed/opened_engaged/
+    visited_completed history, which is soft guidance, is passed through.
     """
     request_details = {
         "topic": topic,
@@ -189,6 +197,8 @@ def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.
         "preference": preference,
         "options": options,
     }
+    if visit_history:
+        request_details["visit_history"] = visit_history
 
     prompt = "Choose one option_key for this walk.\n\n" + json.dumps(
         request_details, indent=2
@@ -208,6 +218,22 @@ def build_prompt(options, topic, requested_minutes, feedback=None, preference=0.
         "preference alone must not require rejecting an otherwise suitable offered walk, "
         "even when only one kind of suitable stop is available."
     )
+
+    if visit_history:
+        prompt += (
+            "\n\nvisit_history lists place ids this same user has engaged with before, "
+            "each with a state (proposed, opened_engaged, or visited_completed, in "
+            "increasing order of real engagement) and a favourited flag. Favour variety: "
+            "an option containing a visited_completed place should generally be "
+            "deprioritized more than one containing only opened_engaged or merely-"
+            "proposed places, and a place with no prior history at all is generally "
+            "preferred over one that's only resurfacing because it's favourited, all "
+            "else equal. A favourited place is never excluded for its history alone - "
+            "it can always resurface - but 'never excluded' is not the same as "
+            "preferred. This is a soft signal alongside relevance, interest and "
+            "preference above, never a hard filter: do not reject an otherwise "
+            "suitable offered walk purely because every option touches some history."
+        )
 
     if feedback:
         prompt += f"\n\nYour last response could not be used: {feedback}"
@@ -256,7 +282,7 @@ def _call_openai(prompt, schema=None, system_prompt=None):
         raise AiSelectionError(f"unexpected OpenAI response shape: {exc}") from exc
 
 
-def select_stops(options, topic, requested_minutes, feedback=None, preference=0.5):
+def select_stops(options, topic, requested_minutes, feedback=None, preference=0.5, visit_history=None):
     """Asks AI to choose one option_key from the pre-validated options list
     planner.py computed (each already confirmed feasible) - or the literal
     string NONE_SUITABLE if none are genuinely relevant (AD-7). Returns
@@ -268,7 +294,9 @@ def select_stops(options, topic, requested_minutes, feedback=None, preference=0.
     Raises AiSelectionError if the request fails or the response isn't
     valid JSON in the expected shape.
     """
-    prompt = build_prompt(options, topic, requested_minutes, feedback, preference=preference)
+    prompt = build_prompt(
+        options, topic, requested_minutes, feedback, preference=preference, visit_history=visit_history
+    )
     raw_content = _call_openai(prompt)
 
     try:
@@ -932,3 +960,127 @@ def generate_stop_content(stops, topic):
     order = {stop["id"]: i for i, stop in enumerate(stops)}
     results.sort(key=lambda r: order[r["id"]])
     return results
+
+
+# =====================================================================
+# WALK SUMMARY (Story 3.2, FR-16) - a short recap of the stops a user
+# actually confirmed Visited/Completed, grounded only in that content.
+# =====================================================================
+
+WALK_SUMMARY_SYSTEM_PROMPT = (
+    "You write a short, warm recap of a walk someone just completed on a "
+    "walking tour app called Jaunt. You will be given the stops they "
+    "actually confirmed visiting, each with its own name and its own "
+    "content.\n\n"
+    "Ground the recap ONLY in the supplied content. Never invent a name, "
+    "date, number or fact that isn't in it, and never describe visiting "
+    "anywhere not in the list.\n\n"
+    "Write 2-4 warm, plain sentences reflecting on the walk as a whole - "
+    "not a mechanical stop-by-stop list, but also not vague filler that "
+    "could describe any walk; it should clearly reflect what was actually "
+    "visited.\n\n"
+    "Respond using only the required JSON schema - no extra commentary."
+)
+
+WALK_SUMMARY_SCHEMA = {
+    "name": "walk_summary",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string"},
+        },
+        "required": ["summary"],
+        "additionalProperties": False,
+    },
+}
+
+
+def _call_walk_summary(visited_stops):
+    """One OpenAI call producing a single short recap of the whole walk,
+    grounded only in the supplied stops' own content - not a batch (there's
+    exactly one summary, not one per stop). Raises AiSelectionError/
+    AiFatalError the same way every other call in this module does;
+    generate_walk_summary() below decides the fallback.
+    """
+    request_details = {
+        "stops": [
+            {"name": stop.get("name"), "content": stop.get("content")}
+            for stop in visited_stops
+        ],
+    }
+    prompt = (
+        "Write a short recap of this walk, grounded only in the stops below.\n\n"
+        + json.dumps(request_details, indent=2)
+    )
+
+    try:
+        response = requests.post(
+            CHAT_COMPLETIONS_URL,
+            headers={
+                "Authorization": f"Bearer {get_api_key()}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": get_model(),
+                "messages": [
+                    {"role": "system", "content": WALK_SUMMARY_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": WALK_SUMMARY_SCHEMA,
+                },
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        detail, error_type = _extract_error_detail(exc)
+        if _is_non_retryable(status_code, error_type):
+            raise AiFatalError(f"OpenAI request failed: {detail}") from exc
+        raise AiSelectionError(f"OpenAI request failed: {detail}") from exc
+    except requests.RequestException as exc:
+        raise AiSelectionError(f"OpenAI request failed: {exc}") from exc
+
+    try:
+        body = response.json()
+        raw_content = body["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        raise AiSelectionError(f"unexpected OpenAI response shape: {exc}") from exc
+
+    try:
+        parsed = json.loads(raw_content)
+        summary = parsed["summary"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise AiSelectionError(f"AI response was not the expected JSON shape: {exc}") from exc
+    if not isinstance(summary, str) or not summary.strip():
+        raise AiSelectionError(f"AI response 'summary' was empty or not a string: {summary!r}")
+    return summary
+
+
+def generate_walk_summary(visited_stops):
+    """The real entry point Story 3.2 calls: one short AI recap of the
+    walk, grounded strictly in the stops the caller passes - the caller
+    (app.py) is responsible for only ever passing stops actually marked
+    Visited/Completed, never one merely Proposed or Opened/Engaged (FR-16),
+    the same division of responsibility generate_stop_content() already
+    has with ITS caller.
+
+    Returns None on any failure - a technical error, a malformed response,
+    or a real grounding-check rejection - never a technical error shown as
+    if it were content, and never an unverified claim. The caller falls
+    back to a plain list of the visited stops' own names, so favouriting
+    never depends on AI succeeding (FR-16, revised 2026-10-18).
+    """
+    if not visited_stops:
+        return None
+    try:
+        summary = _call_walk_summary(visited_stops)
+    except AiSelectionError:
+        return None
+    source_texts = [stop.get("content") for stop in visited_stops if stop.get("content")]
+    if not check_grounding_semantic(summary, source_texts):
+        return None
+    return summary

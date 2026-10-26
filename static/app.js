@@ -1007,10 +1007,13 @@ function isValidSettingUpShape(candidate) {
   return true;
 }
 
-// Shared by "reviewing" and "walking" (Story 1.5 Implementation Notes: the
-// "walking" phase's real shape is Epic 2's job - reusing this shape
-// verbatim is the minimal thing that lets Approve do something real and
-// keeps safe-reset working, pending that later story).
+// Shared by "reviewing", "walking" and "wrapping_up" (Story 1.5
+// Implementation Notes: the "walking" phase's real shape is Epic 2's job -
+// reusing this shape verbatim is the minimal thing that lets Approve do
+// something real and keeps safe-reset working, pending that later story;
+// Story 3.1 later reused it again for "wrapping_up" rather than inventing
+// a new shape - catch-up/summary need exactly the same stops/geometry/
+// totals the walk itself did).
 function isValidReviewingShape(candidate) {
   if (candidate.setup_step !== null) return false;
   if (candidate.starting_point === null) return false;
@@ -1037,7 +1040,7 @@ function isValidTrip(candidate) {
   if (candidate.phase === "setting_up") {
     return isValidSettingUpShape(candidate);
   }
-  if (candidate.phase === "reviewing" || candidate.phase === "walking") {
+  if (candidate.phase === "reviewing" || candidate.phase === "walking" || candidate.phase === "wrapping_up") {
     return isValidReviewingShape(candidate);
   }
   return false;
@@ -1085,11 +1088,16 @@ let trip = loadActiveTrip();
 
 // =====================================================================
 // VISIT HISTORY (architecture AD-6) - a separate localStorage key from the
-// active trip (AD-2), never cleared by "end trip". Story 2.3 only ever
-// writes state: "visited_completed" here; the proposed/opened_engaged
-// transitions and the favourited/rejected fields AD-6 also describes are
-// for Epic 3's own stories to read/write when they're actually built -
-// not invented here ahead of need.
+// active trip (AD-2), never cleared by "end trip". Story 2.3 only wrote
+// state: "visited_completed" here; Story 3.3 adds the proposed/
+// opened_engaged auto-recording and the favourited/rejected fields AD-6
+// also describes.
+//
+// Retention (PRD Open Question 7, Story 3.3's own explicit decision to
+// make): visit history never expires, and no user-facing clear/reset
+// control is built in V1 - a deliberate scope decision (nothing in any
+// story's AC asks for one), not an oversight. `rejected` in particular
+// never expires either, per AD-6's own text.
 // =====================================================================
 
 const VISIT_HISTORY_KEY = "jaunt_visit_history";
@@ -1131,6 +1139,74 @@ function setStopVisited(stopId, visited) {
     entries.push({ id: stopId, state, favourited: false, rejected: false });
   }
   saveVisitHistory(entries);
+}
+
+// Story 3.3: the three ordinal Engagement States, used to never let a
+// passive "this was shown"/"this was opened" observation downgrade an
+// existing stronger state (e.g. a stop already Visited, later merely
+// re-proposed in a fresh route, must stay Visited).
+const ENGAGEMENT_RANK = { proposed: 0, opened_engaged: 1, visited_completed: 2 };
+
+// Passive, upgrade-only recording - distinct from setStopVisited()'s
+// explicit, user-initiated, both-directions toggle above. Called whenever
+// a stop is merely shown in a route (minState "proposed") or its content
+// is opened (minState "opened_engaged"), live as those screens are used,
+// not batched to end-of-walk.
+function recordEngagement(stopId, minState) {
+  const entries = loadVisitHistory();
+  const existing = entries.find((entry) => entry && entry.id === stopId);
+  if (existing) {
+    if (ENGAGEMENT_RANK[minState] > ENGAGEMENT_RANK[existing.state]) {
+      existing.state = minState;
+    }
+  } else {
+    entries.push({ id: stopId, state: minState, favourited: false, rejected: false });
+  }
+  saveVisitHistory(entries);
+}
+
+function isStopFavourited(stopId) {
+  const entry = loadVisitHistory().find((e) => e && e.id === stopId);
+  return !!(entry && entry.favourited);
+}
+
+function setStopFavourited(stopId, favourited) {
+  const entries = loadVisitHistory();
+  const existing = entries.find((entry) => entry && entry.id === stopId);
+  if (existing) {
+    existing.favourited = favourited;
+  } else {
+    entries.push({ id: stopId, state: "proposed", favourited, rejected: false });
+  }
+  saveVisitHistory(entries);
+}
+
+function isStopRejected(stopId) {
+  const entry = loadVisitHistory().find((e) => e && e.id === stopId);
+  return !!(entry && entry.rejected);
+}
+
+// Story 3.3 (user's explicit instruction, AD-6): a hard, permanent
+// exclusion, distinct from Visited/Favourited - the exact UI affordance
+// was this story's own decision (see openStopOverlay()'s own comment on
+// where it's placed). A toggle, not one-way, matching the user's own
+// stated preference for undoable controls (Story 2.3's own fix).
+function setStopRejected(stopId, rejected) {
+  const entries = loadVisitHistory();
+  const existing = entries.find((entry) => entry && entry.id === stopId);
+  if (existing) {
+    existing.rejected = rejected;
+  } else {
+    entries.push({ id: stopId, state: "proposed", favourited: false, rejected });
+  }
+  saveVisitHistory(entries);
+}
+
+// All ids with rejected:true - merged into excluded_ids on every planning
+// request (startRoutePlanning() below), the same hard-filter mechanism as
+// Re-Jaunt's own exclusion list (AD-5/AD-6).
+function rejectedStopIds() {
+  return loadVisitHistory().filter((entry) => entry && entry.rejected).map((entry) => entry.id);
 }
 
 // =====================================================================
@@ -1245,6 +1321,20 @@ const walkingDrawerCloseBtn = document.getElementById("walking-drawer-close-btn"
 const endJauntBtn = document.getElementById("end-jaunt-btn");
 
 const stopOverlayVisitedBtn = document.getElementById("stop-overlay-visited-btn");
+const stopOverlayRejectBtn = document.getElementById("stop-overlay-reject-btn");
+
+const catchupSheetWrapEl = document.getElementById("catchup-sheet-wrap");
+const catchupSheetEl = document.getElementById("catchup-sheet");
+const catchupCloseBtn = document.getElementById("catchup-close-btn");
+const catchupListEl = document.getElementById("catchup-list");
+const catchupSummaryBtn = document.getElementById("catchup-summary-btn");
+const catchupNoSummaryBtn = document.getElementById("catchup-no-summary-btn");
+
+const screenWalkComplete = document.getElementById("screen-walk-complete");
+const walkCompleteHeadingEl = document.getElementById("walk-complete-heading");
+const walkCompleteMessageEl = document.getElementById("walk-complete-message");
+const walkCompleteStopListEl = document.getElementById("walk-complete-stop-list");
+const walkCompleteBackBtn = document.getElementById("walk-complete-back-btn");
 
 let stopOverlayTriggerEl = null;
 
@@ -1397,6 +1487,8 @@ function hideAllScreens() {
   screenWalking.hidden = true;
   walkingDrawerWrapEl.hidden = true;
   arrivalPillEl.hidden = true;
+  catchupSheetWrapEl.hidden = true;
+  screenWalkComplete.hidden = true;
 }
 
 // Shows one of the 4 real setup screens (the confirm sheet is a separate
@@ -1708,8 +1800,18 @@ async function startRoutePlanning() {
     requested_minutes: trip.available_minutes,
     preference: trip.preference,
     // Story 1.7: the full accumulated exclusion list, resent every time -
-    // the backend is stateless (AD-2/AD-5), never a delta.
-    excluded_ids: trip.excluded_ids,
+    // the backend is stateless (AD-2/AD-5), never a delta. Story 3.3:
+    // permanently-rejected places (AD-6) are merged into this same hard-
+    // filter list - from the backend's side there's no distinction, it's
+    // just "exclude these ids"; the two lists just accumulate differently
+    // (per-trip vs permanent) on this side.
+    excluded_ids: Array.from(new Set(trip.excluded_ids.concat(rejectedStopIds()))),
+    // Story 3.4 (AD-6): a transient soft signal, read fresh from the
+    // separate visit-history key (not from trip) every time, same as
+    // rejectedStopIds() above.
+    visit_history: loadVisitHistory()
+      .filter((entry) => entry && !entry.rejected)
+      .map((entry) => ({ id: entry.id, state: entry.state, favourited: entry.favourited })),
     ...(trip.replacement ? { replacement_mode: true, retained_ids: trip.replacement.retained_stops.map(stop => stop.id) } : {}),
   };
 
@@ -1800,6 +1902,11 @@ async function startRoutePlanning() {
   trip.geometry = data.geometry ?? null;
   trip.total_minutes = data.total_minutes;
   trip.unused_minutes = data.unused_minutes;
+  // Story 3.3 (AD-6): every stop shown in a proposed Route is recorded, at
+  // least as "proposed", live as this screen is reached - not only
+  // retroactively at end-of-walk. Never downgrades a stop already more
+  // strongly engaged (recordEngagement()'s own upgrade-only rule).
+  trip.stops.forEach((stop) => recordEngagement(stop.id, "proposed"));
   saveActiveTrip(trip);
   showStep("reviewing");
   replacementPreviewStops = null;
@@ -2014,6 +2121,11 @@ function openStopOverlay(stop, triggerEl) {
   stopOverlayTriggerEl = triggerEl || null;
   setReviewSheetInert(true);
 
+  // Story 3.3 (AD-6): opening content upgrades engagement to at least
+  // opened_engaged, pre-walk or during the walk, never downgrading an
+  // existing stronger state - live as this screen is used, not batched.
+  recordEngagement(stop.id, "opened_engaged");
+
   stopOverlayHeadingEl.textContent = stop.name || "Stop";
 
   // Story 2.3, AD-2: the same overlay is shown pre-walk (Story 1.5's
@@ -2036,6 +2148,22 @@ function openStopOverlay(stop, triggerEl) {
     stopOverlayVisitedBtn.hidden = true;
     stopOverlayVisitedBtn.onclick = null;
   }
+
+  // Story 3.3: available in every context this overlay is shown, unlike
+  // Visited above - a toggle, so an accidental tap is undoable the same
+  // way Story 2.3's Visited control already is.
+  const applyRejectedState = (rejected) => {
+    stopOverlayRejectBtn.setAttribute("aria-pressed", String(rejected));
+    stopOverlayRejectBtn.textContent = rejected
+      ? "Won't be suggested again - tap to undo"
+      : "Not interested in this place";
+  };
+  applyRejectedState(isStopRejected(stop.id));
+  stopOverlayRejectBtn.onclick = () => {
+    const nowRejected = stopOverlayRejectBtn.getAttribute("aria-pressed") !== "true";
+    setStopRejected(stop.id, nowRejected);
+    applyRejectedState(nowRejected);
+  };
 
   openPhotoStop = stop;
   renderStopPhoto(stop);
@@ -2264,19 +2392,193 @@ walkingMenuBtn.addEventListener("click", openWalkingDrawer);
 walkingDrawerCloseBtn.addEventListener("click", () => closeWalkingDrawer());
 walkingDrawerScrimEl.addEventListener("click", () => closeWalkingDrawer());
 
-// AD-2's minimal "end trip" exit: must work standalone, without Epic 3's
-// catch-up/summary flow built yet. Clears only the active-trip key - visit
-// history (AD-6, the separate jaunt_visit_history key) is untouched.
+// End Jaunt opens the catch-up sheet (Story 3.1) rather than clearing
+// state immediately - AD-2: "end trip" fires at wrap-up completion, not
+// the hamburger tap. trip.phase stays "walking" the whole time catch-up
+// is open (it's a pure modal, same as every other sheet here); only
+// actually proceeding past it (either button) moves wrap-up forward.
 endJauntBtn.addEventListener("click", () => {
   closeWalkingDrawer({ restoreFocus: false });
-  localStorage.removeItem(STORAGE_KEY);
-  trip = defaultTrip();
-  notifiedStopIds.clear();
-  showStep("starting_point");
+  openCatchupSheet();
 });
 
 arrivalPillCloseBtn.addEventListener("click", () => {
   arrivalPillEl.hidden = true;
+});
+
+// =====================================================================
+// CATCH-UP SHEET (Story 3.1, UX-DR17)
+// =====================================================================
+
+function renderCatchupList() {
+  catchupListEl.innerHTML = "";
+  (trip.stops || []).forEach((stop) => {
+    const li = document.createElement("li");
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "catchup-row";
+    const visited = isStopVisited(stop.id);
+    const check = document.createElement("span");
+    check.className = `catchup-check ${visited ? "checked" : "unchecked"}`;
+    check.setAttribute("aria-hidden", "true");
+    const name = document.createElement("span");
+    name.className = "catchup-name";
+    name.textContent = stop.name || "Stop";
+    row.appendChild(check);
+    row.appendChild(name);
+    if (!visited) {
+      const hint = document.createElement("span");
+      hint.className = "catchup-hint";
+      hint.textContent = "forgot?";
+      row.appendChild(hint);
+    }
+    row.setAttribute("aria-pressed", String(visited));
+    // A retroactive tap is still an explicit Visited/Completed action,
+    // never inferred (UX-DR17) - and, matching Story 2.3's own fix, a
+    // toggle, so an accidental tap here is undoable too.
+    row.onclick = () => {
+      setStopVisited(stop.id, !isStopVisited(stop.id));
+      renderCatchupList();
+    };
+    li.appendChild(row);
+    catchupListEl.appendChild(li);
+  });
+}
+
+function openCatchupSheet() {
+  renderCatchupList();
+  setReviewSheetInert(true);
+  catchupSheetWrapEl.hidden = false;
+  catchupSheetEl.focus();
+}
+
+function closeCatchupSheet({ restoreFocus = true } = {}) {
+  catchupSheetWrapEl.hidden = true;
+  setReviewSheetInert(false);
+  if (restoreFocus) walkingMenuBtn.focus();
+}
+
+catchupCloseBtn.addEventListener("click", () => closeCatchupSheet());
+
+// =====================================================================
+// WALK COMPLETE / SUMMARY (Story 3.2, FR-16)
+// =====================================================================
+
+// Ported from the approved mockup - the only difference between states is
+// the path's own fill (none vs forest), never a re-derived icon.
+function heartSvgMarkup(favourited) {
+  return '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">'
+    + `<path d="M12 21s-7.5-4.6-10-9.3C.4 8.2 2.3 4.5 6 4c2-.3 3.8.7 6 3 2.2-2.3 4-3.3 6-3 3.7.5 5.6 4.2 4 7.7C19.5 16.4 12 21 12 21z" fill="${favourited ? "#1E4A3A" : "none"}" stroke="#1E4A3A" stroke-width="1.6"/>`
+    + "</svg>";
+}
+
+function buildHeartButton(stop) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "heart-btn";
+  const favourited = isStopFavourited(stop.id);
+  btn.setAttribute("aria-pressed", String(favourited));
+  btn.setAttribute("aria-label", `Favourite ${stop.name || "this stop"}`);
+  btn.innerHTML = heartSvgMarkup(favourited);
+  btn.onclick = () => {
+    const nowFavourited = btn.getAttribute("aria-pressed") !== "true";
+    setStopFavourited(stop.id, nowFavourited);
+    btn.setAttribute("aria-pressed", String(nowFavourited));
+    btn.innerHTML = heartSvgMarkup(nowFavourited);
+  };
+  return btn;
+}
+
+function renderWalkCompleteStopList(stops) {
+  walkCompleteStopListEl.innerHTML = "";
+  walkCompleteStopListEl.hidden = stops.length === 0;
+  stops.forEach((stop) => {
+    const li = document.createElement("li");
+    li.className = "walk-summary-stop";
+    const name = document.createElement("span");
+    name.className = "walk-summary-stop-name";
+    name.textContent = stop.name || "Stop";
+    li.appendChild(name);
+    li.appendChild(buildHeartButton(stop));
+    walkCompleteStopListEl.appendChild(li);
+  });
+}
+
+// outcome: "ai" (a real AI summary), "plain" (generation failed or wasn't
+// attempted, but >=1 stop was Visited - a plain list, each still carrying
+// its own favourite-heart target so favouriting never depends on AI
+// succeeding), or "empty" (zero stops Visited - the one honest ending,
+// whether reached via "end without a summary" or a failed/skipped
+// generation with nothing confirmed).
+function showWalkComplete(outcome, { summary = null, visitedStops = [] } = {}) {
+  hideAllScreens();
+  mapStageEl.hidden = true;
+  if (outcome === "empty") {
+    walkCompleteMessageEl.textContent = "Nothing was marked Visited this time - no summary to show.";
+    renderWalkCompleteStopList([]);
+  } else if (outcome === "ai") {
+    walkCompleteMessageEl.textContent = summary;
+    renderWalkCompleteStopList(visitedStops);
+  } else {
+    walkCompleteMessageEl.textContent = "Here's what you visited on this Jaunt:";
+    renderWalkCompleteStopList(visitedStops);
+  }
+  screenWalkComplete.hidden = false;
+  walkCompleteHeadingEl.focus();
+}
+
+// Both catch-up actions move wrap-up forward the same way (AD-2: phase
+// moves to "wrapping_up", live position stops - the walk itself is ending
+// either way); they only differ in whether an AI summary is attempted.
+async function finishWrapUp(attemptSummary) {
+  closeCatchupSheet({ restoreFocus: false });
+  trip.phase = "wrapping_up";
+  saveActiveTrip(trip);
+  stopLiveLocationWatch();
+
+  const visitedStops = (trip.stops || []).filter((stop) => isStopVisited(stop.id));
+  if (visitedStops.length === 0) {
+    showWalkComplete("empty");
+    return;
+  }
+  if (!attemptSummary) {
+    showWalkComplete("plain", { visitedStops });
+    return;
+  }
+
+  showLoadingScreen();
+  let data = null;
+  try {
+    const response = await fetch("/api/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        visited_stops: visitedStops.map((stop) => ({ name: stop.name, content: stop.content })),
+      }),
+      signal: AbortSignal.timeout(PLANNING_REQUEST_TIMEOUT_MS),
+    });
+    data = await response.json();
+  } catch (err) {
+    console.error("Summary request failed:", err);
+  }
+  if (data && data.feasible && typeof data.summary === "string") {
+    showWalkComplete("ai", { summary: data.summary, visitedStops });
+  } else {
+    showWalkComplete("plain", { visitedStops });
+  }
+}
+
+catchupSummaryBtn.addEventListener("click", () => finishWrapUp(true));
+catchupNoSummaryBtn.addEventListener("click", () => finishWrapUp(false));
+
+// The real AD-2 "end trip" moment - state clears here, not at the
+// hamburger tap or either catch-up choice above. Visit history (the
+// separate jaunt_visit_history key) is untouched.
+walkCompleteBackBtn.addEventListener("click", () => {
+  localStorage.removeItem(STORAGE_KEY);
+  trip = defaultTrip();
+  notifiedStopIds.clear();
+  showStep("starting_point");
 });
 
 // =====================================================================
@@ -2484,6 +2786,14 @@ startJauntBtn.addEventListener("click", () => {
 // =====================================================================
 
 function initTripSetup() {
+  // Story 3.1/3.2: a reload mid-wrap-up (the brief window between tapping
+  // End Jaunt's catch-up actions and reaching the walk-complete screen)
+  // resumes to the walking screen rather than the exact catch-up/summary
+  // sub-step - a deliberate scope simplification (this window is normally
+  // seconds long - one quick AI call), not a full snapshot of which
+  // sub-screen was showing. AD-2's actual concern (state must not clear
+  // prematurely) still holds either way: the full trip is untouched.
+  if (trip.phase === "wrapping_up") trip.phase = "walking";
   if (trip.phase === "reviewing" || trip.phase === "walking") {
     showStep(trip.phase, { focusDefault: false });
     return;

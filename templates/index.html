@@ -307,6 +307,15 @@
       </figure>
       <p class="stop-overlay-body" id="stop-overlay-body"></p>
       <ul class="stop-attribution-list" id="stop-overlay-attribution"></ul>
+      <!-- Story 3.3 (AD-6, user's explicit instruction): a dedicated,
+           distinct action from Visited/Favourited - "not merely visited".
+           A quiet text-link, not a prominent button, since it's a strong
+           and permanent (never-expiring) exclusion - deliberately placed
+           at the end of the content, not near Visited, so it's reachable
+           but never an accidental tap alongside it. Available in every
+           context this overlay is shown (pre-walk preview or during a
+           walk), unlike the Visited control above. -->
+      <button type="button" class="text-link not-interested-link" id="stop-overlay-reject-btn" aria-pressed="false">Not interested in this place</button>
     </div>
   </div>
 
@@ -330,6 +339,44 @@
       </ul>
     </div>
   </div>
+
+  <!-- ============== CATCH-UP SHEET (Story 3.1, UX-DR17) - opened from End
+       Jaunt, before any state clears (AD-2: "end trip" fires at wrap-up
+       completion, not the hamburger tap). A pure modal like every other
+       sheet here - closing it just dismisses it, trip.phase stays
+       "walking" and the walk itself is unaffected; only proceeding past it
+       (either button) actually moves wrap-up forward. ============== -->
+  <div id="catchup-sheet-wrap" class="sheet-wrap" hidden>
+    <div class="dim-overlay"></div>
+    <div class="confirm-sheet sheet-scroll" id="catchup-sheet" role="dialog" aria-modal="true" aria-labelledby="catchup-heading" tabindex="-1">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="sheet-header-row">
+        <h2 id="catchup-heading">Before you go</h2>
+        <button type="button" class="close-x" id="catchup-close-btn" aria-label="Close">&#10005;</button>
+      </div>
+      <ul class="catchup-list" id="catchup-list"></ul>
+      <button type="button" class="btn-pill" id="catchup-summary-btn">Create summary of visited stops</button>
+      <button type="button" class="dismiss-link" id="catchup-no-summary-btn">End without a summary</button>
+    </div>
+  </div>
+
+  <!-- ============== WALK COMPLETE / SUMMARY (Story 3.2, FR-16) - the one
+       screen for every ending: a real AI summary, a plain fallback list
+       (generation failed but >=1 stop was Visited), or the honest "nothing
+       confirmed" message (zero Visited, or "end without a summary" was
+       chosen directly) - content switches, the shell doesn't. "Back to
+       start" is the real AD-2 "end trip" moment - state clears here, not
+       at the hamburger tap. UX-DR4/UX-DR5: this button has made the
+       full-width-vs-pill mistake once before elsewhere in this project -
+       .btn-pill here is deliberate, never .btn-full. ============== -->
+  <section id="screen-walk-complete" class="setup-screen setup-screen--full" hidden>
+    <div class="content">
+      <h2 id="walk-complete-heading" tabindex="-1">Jaunt complete</h2>
+      <p id="walk-complete-message"></p>
+      <ul class="walk-summary-stop-list" id="walk-complete-stop-list"></ul>
+      <button type="button" class="btn-pill" id="walk-complete-back-btn" aria-label="Back to start">Back to start</button>
+    </div>
+  </section>
 
   <!-- ============== HONEST FALLBACK (Story 1.6): shown for both
        feasible:false sub-cases (zero-feasible combinations and the AI's

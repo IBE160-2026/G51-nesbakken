@@ -31,10 +31,15 @@ DATA_PATH = os.path.join(BASE_DIR, "data", "sydney_places.json")
 app = Flask(__name__)
 # Codex review 2026-10-21 (follow-up): the spec promised oversized-body
 # rejection, but nothing actually enforced a limit - a real request body
-# here is 4 small fields (two floats, a short string, an int), so this is
-# generous, not tight. Flask/Werkzeug reject anything over this before the
-# body is even fully read into memory.
-app.config["MAX_CONTENT_LENGTH"] = 4096
+# here was originally 4 small fields (two floats, a short string, an int),
+# so 4096 was generous, not tight. Raised for Story 3.4's visit_history
+# field (up to 500 {id, state, favourited} entries - realistically at
+# most this catalogue's ~226 places' worth, but bounded generously rather
+# than tightly) and Story 3.2's new /api/summary endpoint (up to 20
+# visited stops' own content, already-generated text the frontend already
+# has, not new AI input). Flask/Werkzeug reject anything over this before
+# the body is even fully read into memory.
+app.config["MAX_CONTENT_LENGTH"] = 65536
 
 
 @app.errorhandler(413)
@@ -147,9 +152,13 @@ class PlanRequestError(Exception):
     is made (Story 1.4's own explicit requirement)."""
 
 
+VALID_ENGAGEMENT_STATES = ("proposed", "opened_engaged", "visited_completed")
+
+
 def _validate_plan_request(data):
     """Returns (start_lat, start_lon, topic, requested_minutes,
-    excluded_ids, retained_ids, replacement_mode, preference) if data is a well-formed plan request, else raises
+    excluded_ids, retained_ids, replacement_mode, preference,
+    visit_history) if data is a well-formed plan request, else raises
     PlanRequestError with a human-readable reason. isinstance(x, bool) is
     excluded everywhere a number is expected - bool is a subclass of int
     in Python, so JSON `true`/`false` would otherwise silently pass as
@@ -233,7 +242,33 @@ def _validate_plan_request(data):
         if not set(retained_ids).issubset(ready_ids):
             raise PlanRequestError("retained_ids must identify ready catalogue places")
 
-    return start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode, preference
+    # Story 3.4 (AD-6): transient, this-request-only soft weighting signal -
+    # never persisted server-side. Already-rejected places are the
+    # frontend's job to merge into excluded_ids instead (the hard-filter
+    # path above), so rejected is deliberately not a field read here.
+    visit_history = data.get("visit_history", [])
+    if (
+        not isinstance(visit_history, list)
+        or len(visit_history) > 500
+        or not all(
+            isinstance(entry, dict)
+            and isinstance(entry.get("id"), str) and 0 < len(entry["id"]) <= 200
+            and entry.get("state") in VALID_ENGAGEMENT_STATES
+            and isinstance(entry.get("favourited"), bool)
+            for entry in visit_history
+        )
+    ):
+        raise PlanRequestError(
+            "visit_history must be a list of at most 500 {id, state, favourited} entries, "
+            f"state one of: {', '.join(VALID_ENGAGEMENT_STATES)}"
+        )
+    visit_history = [
+        {"id": entry["id"], "state": entry["state"], "favourited": entry["favourited"]}
+        for entry in visit_history
+    ]
+
+    return (start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids,
+            replacement_mode, preference, visit_history)
 
 
 @app.route("/api/plan", methods=["POST"])
@@ -252,7 +287,8 @@ def api_plan():
       failure: a real non-2xx, never the {"feasible": false} shape.
     """
     try:
-        start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids, replacement_mode, preference = _validate_plan_request(
+        (start_lat, start_lon, topic, requested_minutes, excluded_ids, retained_ids,
+         replacement_mode, preference, visit_history) = _validate_plan_request(
             request.get_json(silent=True)
         )
     except PlanRequestError as exc:
@@ -261,7 +297,7 @@ def api_plan():
         return jsonify({"error": str(exc)}), 503
 
     try:
-        options = {"excluded_ids": excluded_ids, "preference": preference}
+        options = {"excluded_ids": excluded_ids, "preference": preference, "visit_history": visit_history}
         if replacement_mode:
             options.update(retained_ids=retained_ids, replacement_mode=True)
         result = planner.plan_route(
@@ -352,6 +388,74 @@ def api_plan():
         "geometry": geometry,
         "stops": stops_response,
     })
+
+
+MAX_SUMMARY_STOPS = 20
+MAX_SUMMARY_FIELD_LENGTH = 4000
+
+
+def _validate_summary_request(data):
+    """Returns a list of {"name", "content"} dicts if data is a well-formed
+    summary request, else raises PlanRequestError. Reuses PlanRequestError
+    rather than a new exception class - same "malformed input, 400 before
+    any AI call" contract /api/plan already has.
+
+    The frontend sends the stops it already has locally (from the original
+    /api/plan response) - this endpoint is stateless like every other one
+    here (AD-2), it never looks anything up by id."""
+    if not isinstance(data, dict):
+        raise PlanRequestError("request body must be a JSON object")
+    visited_stops = data.get("visited_stops")
+    if (
+        not isinstance(visited_stops, list)
+        or not visited_stops
+        or len(visited_stops) > MAX_SUMMARY_STOPS
+    ):
+        raise PlanRequestError(
+            f"visited_stops must be a non-empty list of at most {MAX_SUMMARY_STOPS} stops"
+        )
+    cleaned = []
+    for stop in visited_stops:
+        if not isinstance(stop, dict):
+            raise PlanRequestError("each visited stop must be an object")
+        name = stop.get("name")
+        content = stop.get("content")
+        if (
+            not isinstance(name, str) or not name.strip() or len(name) > 200
+            or not isinstance(content, str) or not content.strip()
+            or len(content) > MAX_SUMMARY_FIELD_LENGTH
+        ):
+            raise PlanRequestError(
+                f"each visited stop needs a non-empty name (<=200 chars) and "
+                f"content (<={MAX_SUMMARY_FIELD_LENGTH} chars)"
+            )
+        cleaned.append({"name": name, "content": content})
+    return cleaned
+
+
+@app.route("/api/summary", methods=["POST"])
+def api_summary():
+    """Story 3.2 (FR-16): a short AI recap of only the stops a user
+    confirmed Visited/Completed, grounded strictly in their own content -
+    the frontend is responsible for only ever sending Visited stops here
+    (never merely Proposed or Opened/Engaged). Stateless (AD-2): the
+    frontend sends the stop data it already has, nothing is looked up
+    server-side.
+
+    Always 200 on well-formed input - "feasible: false" (never a non-2xx)
+    is the honest "summary couldn't be generated" outcome, so the frontend
+    can fall back to a plain list of visited stops without treating a
+    grounding-check rejection as a service failure.
+    """
+    try:
+        visited_stops = _validate_summary_request(request.get_json(silent=True))
+    except PlanRequestError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    summary = ai.generate_walk_summary(visited_stops)
+    if summary is None:
+        return jsonify({"feasible": False})
+    return jsonify({"feasible": True, "summary": summary})
 
 
 if __name__ == "__main__":

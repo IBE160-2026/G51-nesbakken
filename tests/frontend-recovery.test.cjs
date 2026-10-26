@@ -74,6 +74,8 @@ function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
   ]);
   const requests = [];
   const responses = [];
+  const summaryResponses = [];
+  const summaryRequests = [];
   class Marker {
     setLngLat(point) { markerPositions.push(point); return this; }
     setPopup() { return this; }
@@ -134,6 +136,11 @@ function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
         if (typeof placesSeed === 'function') return placesSeed();
         return { ok: true, json: async () => JSON.parse(JSON.stringify(placesSeed)) };
       }
+      if (url === '/api/summary') {
+        summaryRequests.push(JSON.parse(options.body));
+        assert(summaryResponses.length, 'Unexpected summary request');
+        return summaryResponses.shift()();
+      }
       assert.equal(url, '/api/plan');
       requests.push(JSON.parse(options.body));
       assert(responses.length, 'Unexpected planning request');
@@ -157,6 +164,9 @@ function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
     networkError() { responses.push(() => { throw new Error('Network failed'); }); },
     parseError() { responses.push(() => ({ ok: true, json: async () => { throw new Error('Invalid JSON'); } })); },
     pending() { responses.push(() => new Promise(() => {})); },
+    summaryRequests,
+    respondSummary(data) { summaryResponses.push(() => ({ ok: true, status: 200, json: async () => data })); },
+    summaryNetworkError() { summaryResponses.push(() => { throw new Error('Network failed'); }); },
     deferred() {
       let finish;
       const promise = new Promise(resolve => { finish = resolve; });
@@ -1236,18 +1246,33 @@ test('Story 2.1: the hamburger drawer opens/closes and restores focus to the men
   assert.equal(app.elements.get('walking-drawer-wrap').hidden, true);
 });
 
-test('Story 2.1: End Jaunt clears the active trip only, leaving visit history untouched, and returns to a fresh setup', () => {
+test('Story 2.1/3.1: End Jaunt opens catch-up without clearing anything - AD-2, wrap-up fires at completion, not the hamburger tap', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  assert.equal(app.elements.get('catchup-sheet-wrap').hidden, false);
+  assert.equal(app.elements.get('walking-drawer-wrap').hidden, true);
+  // Nothing cleared yet - still mid-walk.
+  assert.equal(app.saved().phase, 'walking');
+  assert.equal(app.saved().starting_point.lat, -33.9);
+});
+
+test('Story 3.1/3.2: finishing wrap-up ("Back to start") clears the active trip only, leaving visit history untouched', async () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');
   app.evaluate("setStopVisited('a', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
+  app.click('catchup-no-summary-btn'); // skip AI entirely - straight to the plain list
+  assert.equal(app.elements.get('screen-walk-complete').hidden, false);
+  assert.equal(app.elements.get('walk-complete-stop-list').children.length, 1);
+  app.click('walk-complete-back-btn');
   const saved = app.saved();
   assert.equal(saved.phase, 'setting_up');
   assert.equal(saved.setup_step, 'starting_point');
   assert.equal(saved.starting_point, null);
   assert.equal(app.elements.get('screen-starting-point').hidden, false);
-  assert.equal(app.elements.get('walking-drawer-wrap').hidden, true);
   assert.equal(app.evaluate("isStopVisited('a')"), true);
 });
 
@@ -1323,13 +1348,17 @@ test('Story 2.2: permission denied, or losing signal mid-walk, degrades to the s
   assert.equal(app.elements.get('location-off-pill').hidden, false);
 });
 
-test('Story 2.2: leaving the walking screen releases the native watch (clearWatch) and removes the marker', () => {
+test('Story 2.2/3.1: finishing wrap-up (not just opening catch-up) releases the native watch and removes the marker', () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');
   const watchId = app.watchRequests[0].id;
   app.watchRequests[0].success({ coords: { latitude: -33.9, longitude: 151.18, heading: null } });
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
+  // Opening catch-up alone must not stop tracking - the walk isn't over yet.
+  assert.equal(app.clearedWatchIds.has(watchId), false);
+  assert.equal(app.evaluate('!!liveMarker'), true);
+  app.click('catchup-no-summary-btn');
   assert.equal(app.clearedWatchIds.has(watchId), true);
   assert.equal(app.evaluate('!!liveMarker'), false);
 });
@@ -1395,3 +1424,159 @@ test('distance from the starting point hides again once live position is lost, s
 // own stop was confirmed excluded from the amenity source's feature set
 // (158 of 159 catalogue places rendered, the 159th being the route's own
 // stop), and a genuinely different place was confirmed included.
+
+// =====================================================================
+// EPIC 3: REMEMBER AND VARY
+// =====================================================================
+
+test('Story 3.3: a successful plan records every stop as at least proposed, live, not only retroactively', async () => {
+  const app = browser();
+  app.seed({ ...route(), phase: 'setting_up', setup_step: 'confirm_sheet', stops: null,
+    geometry: null, total_minutes: null, unused_minutes: null });
+  app.respond(success(['a', 'b']));
+  await app.evaluate('startRoutePlanning()');
+  assert.equal(app.evaluate("isStopVisited('a')"), false);
+  const history = JSON.parse(app.evaluate('localStorage.getItem("jaunt_visit_history")'));
+  assert.deepEqual(history.map((e) => [e.id, e.state]).sort(), [['a', 'proposed'], ['b', 'proposed']]);
+});
+
+test('Story 3.3: a stop already Visited stays Visited when a fresh route merely re-proposes it', async () => {
+  const app = browser(route(['a', 'b']));
+  app.evaluate("setStopVisited('a', true)");
+  app.evaluate('trip.phase = "setting_up"; trip.setup_step = "confirm_sheet";');
+  app.respond(success(['a', 'c']));
+  await app.evaluate('startRoutePlanning()');
+  assert.equal(app.evaluate("isStopVisited('a')"), true); // never downgraded by the re-proposal
+});
+
+test('Story 3.3: opening a stop\'s content upgrades it to opened_engaged, pre-walk and during the walk, never downgrading Visited', () => {
+  const app = browser(route(['a', 'b']));
+  app.evaluate("openStopOverlay(trip.stops[0])"); // pre-walk preview, phase: reviewing
+  const historyAfterOpen = JSON.parse(app.evaluate('localStorage.getItem("jaunt_visit_history")'));
+  assert.equal(historyAfterOpen.find((e) => e.id === 'a').state, 'opened_engaged');
+  app.evaluate("setStopVisited('a', true)");
+  app.evaluate("openStopOverlay(trip.stops[0])"); // opening it again must not downgrade Visited
+  assert.equal(app.evaluate("isStopVisited('a')"), true);
+});
+
+test('Story 3.3: "Not interested" works identically pre-walk and during the walk (never phase-gated, unlike Visited), toggles, and an accidental tap is undoable', () => {
+  for (const phase of ['reviewing', 'walking']) {
+    const app = browser({ ...route(['a', 'b']), phase });
+    app.evaluate("openStopOverlay(trip.stops[0])");
+    const btn = app.elements.get('stop-overlay-reject-btn');
+    assert.equal(btn['aria-pressed'], 'false');
+    app.click('stop-overlay-reject-btn');
+    assert.equal(app.evaluate("isStopRejected('a')"), true);
+    assert.equal(btn['aria-pressed'], 'true');
+    app.click('stop-overlay-reject-btn');
+    assert.equal(app.evaluate("isStopRejected('a')"), false);
+    assert.equal(btn['aria-pressed'], 'false');
+  }
+});
+
+test('Story 3.3/3.4: a rejected stop is merged into excluded_ids and dropped from visit_history on the next planning request', async () => {
+  const app = browser(route(['a', 'b']));
+  app.evaluate("trip.phase = 'setting_up'; trip.setup_step = 'confirm_sheet';");
+  app.evaluate("setStopRejected('rejected-place', true)");
+  app.evaluate("setStopVisited('a', true)"); // ordinary history - should still be sent
+  app.respond(success(['b', 'c']));
+  await app.evaluate('startRoutePlanning()');
+  assert.equal(app.requests[0].excluded_ids.includes('rejected-place'), true);
+  const sentHistory = app.requests[0].visit_history;
+  assert.equal(sentHistory.some((e) => e.id === 'rejected-place'), false); // never sent - redundant, already excluded
+  const sentA = sentHistory.find((e) => e.id === 'a');
+  assert.deepEqual(sentA, { id: 'a', state: 'visited_completed', favourited: false });
+});
+
+test('Story 3.1: a catch-up row is a real toggle - tap to mark Visited retroactively, tap again to undo', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  const list = app.elements.get('catchup-list');
+  assert.equal(list.children.length, 2);
+  const firstRow = list.children[0].children[0]; // li > button.catchup-row
+  assert.equal(firstRow['aria-pressed'], 'false');
+  firstRow.click();
+  assert.equal(app.evaluate("isStopVisited('a')"), true);
+  const rerenderedRow = app.elements.get('catchup-list').children[0].children[0];
+  assert.equal(rerenderedRow['aria-pressed'], 'true');
+  rerenderedRow.click();
+  assert.equal(app.evaluate("isStopVisited('a')"), false);
+});
+
+test('Story 3.2: a successful AI summary shows the real text and each visited stop with its own favourite-heart', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  await app.evaluate('finishWrapUp(true)');
+  assert.equal(app.elements.get('screen-walk-complete').hidden, false);
+  assert.equal(app.elements.get('walk-complete-message').textContent, 'A lovely afternoon walk.');
+  assert.equal(app.elements.get('walk-complete-stop-list').children.length, 1);
+  // FR-16: grounded strictly in Visited stops - only 'a' was sent, not 'b'.
+  assert.deepEqual(app.summaryRequests[0].visited_stops.map((s) => s.name), ['Stop a']);
+});
+
+test('Story 3.2: generation failure (feasible:false) falls back to the plain list, never an error screen', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ feasible: false });
+  await app.evaluate('finishWrapUp(true)');
+  assert.equal(app.elements.get('screen-walk-complete').hidden, false);
+  assert.equal(app.elements.get('walk-complete-stop-list').children.length, 1);
+  assert.equal(app.elements.get('screen-technical-failure').hidden, true);
+});
+
+test('Story 3.2: a network failure on the summary request also falls back to the plain list, not a technical-failure screen', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.summaryNetworkError();
+  await app.evaluate('finishWrapUp(true)');
+  assert.equal(app.elements.get('screen-walk-complete').hidden, false);
+  assert.equal(app.elements.get('walk-complete-stop-list').children.length, 1);
+});
+
+test('Story 3.2: zero Visited stops never calls the summary endpoint at all - the honest empty ending applies directly', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  await app.evaluate('finishWrapUp(true)'); // "Create summary" tapped, but nothing was ever marked Visited
+  assert.equal(app.summaryRequests.length, 0);
+  assert.equal(app.elements.get('screen-walk-complete').hidden, false);
+  assert.equal(app.elements.get('walk-complete-message').textContent, "Nothing was marked Visited this time - no summary to show.");
+  assert.equal(app.elements.get('walk-complete-stop-list').hidden, true);
+});
+
+test('Story 3.3/3.4: favouriting a stop on the walk-complete screen persists and is reflected in the next planning request', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.click('catchup-no-summary-btn');
+  const heart = app.elements.get('walk-complete-stop-list').children[0].children[1]; // li > [name, heart]
+  assert.equal(heart['aria-pressed'], 'false');
+  heart.click();
+  assert.equal(app.evaluate("isStopFavourited('a')"), true);
+  assert.equal(heart['aria-pressed'], 'true');
+});
+
+test('UX-DR4/UX-DR5 regression check: "Back to start" is the compact pill, never the full-width primary button', () => {
+  // Same pattern as the project's own precedent for this exact regression
+  // (the confirm-sheet slider test above) - a raw source-text check, since
+  // this harness's generic element stubs don't track real class attributes.
+  const screen = html.split('id="screen-walk-complete"')[1].split('</section>')[0];
+  const button = screen.split('id="walk-complete-back-btn"')[0].split('<button').pop();
+  assert(button.includes('btn-pill'));
+  assert(!button.includes('btn-full'));
+});

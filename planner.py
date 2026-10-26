@@ -382,6 +382,7 @@ def plan_route(
     retained_ids=None,
     replacement_mode=False,
     preference=0.5,
+    visit_history=None,
 ):
     """Sprint 4: shortlist real candidates, fetch a real duration matrix,
     deterministically enumerate every feasible stop combination (2 up to
@@ -408,9 +409,17 @@ def plan_route(
     excluded_ids (Story 1.7): passed straight through to
     shortlist_candidates() as the hard Re-Jaunt filter (AD-5). Normalized
     to [] here so callers/tests may pass either None or a list.
+
+    visit_history (Story 3.4, AD-6): a soft AI-guidance signal, passed
+    straight through to ai.select_stops() the same way preference is -
+    never a filter, unlike excluded_ids/rejected ids (callers already
+    merge rejected ids into excluded_ids before calling this). Normalized
+    to [] here for the same reason excluded_ids is.
     """
     if excluded_ids is None:
         excluded_ids = []
+    if visit_history is None:
+        visit_history = []
     retained_ids = retained_ids or []
     shortlist_args = {"excluded_ids": excluded_ids}
     if replacement_mode:
@@ -433,13 +442,14 @@ def plan_route(
     result = _plan_shortlist(
         shortlist, start_lat, start_lon, topic, requested_minutes,
         dwell_minutes_per_stop, retained_ids, replacement_mode, preference,
-        prefer_prefixes=needs_discovery,
+        visit_history=visit_history, prefer_prefixes=needs_discovery,
     )
     if ((not result["feasible"] or result.get("replacement_outcome") == "retained_only")
             and {p["id"] for p in shortlist} != {p["id"] for p in nearest}):
         recovery = _plan_shortlist(
             nearest, start_lat, start_lon, topic, requested_minutes,
             dwell_minutes_per_stop, retained_ids, replacement_mode, preference,
+            visit_history=visit_history,
         )
         recovery["attempts"] += result["attempts"]
         recovery["attempts_log"] = [
@@ -453,7 +463,7 @@ def plan_route(
 
 def _plan_shortlist(shortlist, start_lat, start_lon, topic, requested_minutes,
                     dwell_minutes_per_stop, retained_ids, replacement_mode, preference,
-                    prefer_prefixes=False):
+                    visit_history=None, prefer_prefixes=False):
     """One bounded matrix/feasibility/selection attempt; technical errors propagate."""
     if replacement_mode and not set(retained_ids).issubset({p["id"] for p in shortlist}):
         raise requests.RequestException("retained catalogue places are no longer available for routing")
@@ -510,7 +520,8 @@ def _plan_shortlist(shortlist, start_lat, start_lon, topic, requested_minutes,
         attempts_used += 1
         try:
             selection = ai.select_stops(
-                ai_options, topic, requested_minutes, feedback=feedback, preference=preference
+                ai_options, topic, requested_minutes, feedback=feedback,
+                preference=preference, visit_history=visit_history,
             )
         except ai.AiFatalError:
             # Invalid credentials, permission errors, or exhausted quota -

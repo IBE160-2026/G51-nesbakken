@@ -1644,3 +1644,119 @@ input:focus-visible,
   height: 100%;
   display: block;
 }
+
+/* ===================== NOT INTERESTED (Story 3.3, AD-6) =====================
+   A quiet text-link, same treatment as .dismiss-link/.text-link above -
+   deliberately unobtrusive for a strong, permanent exclusion. */
+.not-interested-link {
+  display: block;
+  margin-top: 16px;
+  text-align: left;
+}
+.not-interested-link[aria-pressed="true"] {
+  color: var(--forest);
+  font-weight: 700;
+}
+
+/* ===================== CATCH-UP SHEET (Story 3.1, UX-DR17) =====================
+   Ported from the approved mockup (flow-03-walk.html) - same shape/colors,
+   not re-derived. A checkbox-style tap target, min 44x44 (UX-DR22). */
+.catchup-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  width: 100%;
+}
+.catchup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--surface-muted);
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  cursor: pointer;
+  text-align: left;
+}
+.catchup-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.catchup-check.unchecked {
+  background: var(--surface);
+  border: 1.5px solid var(--sage);
+}
+.catchup-check.checked {
+  background: var(--forest);
+}
+.catchup-check.checked::after {
+  content: "";
+  width: 9px;
+  height: 6px;
+  border-left: 2px solid var(--cream);
+  border-bottom: 2px solid var(--cream);
+  transform: rotate(-45deg) translateY(-1px);
+}
+.catchup-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.catchup-hint {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  text-transform: lowercase;
+  flex-shrink: 0;
+}
+
+/* ===================== WALK COMPLETE / SUMMARY (Story 3.2, FR-16) =====================
+   Reuses .content/.setup-screen--full verbatim (same shell as the honest-
+   fallback/technical-failure screens) - only this list/heart treatment is new. */
+.walk-summary-stop-list {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+}
+.walk-summary-stop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface-muted);
+}
+.walk-summary-stop-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* Ported from the approved mockup (flow-03-walk.html) - the only
+   difference between favourited/unfavourited is the path's own fill
+   (none vs forest), never a re-derived icon. */
+.heart-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
