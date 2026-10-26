@@ -168,6 +168,7 @@ function buildLiveMarkerElement() {
 
 function showLocationOffPill() {
   locationOffPillEl.hidden = false;
+  startDistancePillEl.hidden = true; // nothing to measure from without a live position
 }
 
 function hideLocationOffPill() {
@@ -203,6 +204,7 @@ function updateLiveMarker(position) {
     if (hasHeading) liveArrowEl.style.transform = `rotate(${heading}deg)`;
   }
   checkArrivalProximity(latitude, longitude);
+  updateStartDistance(latitude, longitude);
 }
 
 // Invalidates any in-flight watchPosition callback and releases the native
@@ -267,6 +269,27 @@ function haversineMetersClient(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat / 2) ** 2
     + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return 2 * earthRadiusMeters * Math.asin(Math.sqrt(a));
+}
+
+function formatDistanceMeters(meters) {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+// User feedback 2026-10-26: not a Story 2.5 feature, but shares its
+// haversine helper above - how far the user currently is from the route's
+// starting point, shown only when that start wasn't their current location
+// (the distance would be ~0 and uninteresting) and only while live
+// position is actually active (nothing to measure from otherwise).
+function updateStartDistance(lat, lon) {
+  const start = trip.starting_point;
+  if (!start || start.label === "Current location") {
+    startDistancePillEl.hidden = true;
+    return;
+  }
+  const distance = haversineMetersClient(lat, lon, start.lat, start.lng);
+  startDistancePillEl.textContent = `${formatDistanceMeters(distance)} from your starting point`;
+  startDistancePillEl.hidden = false;
 }
 
 function showArrivalNotification(stop) {
@@ -1209,6 +1232,7 @@ const walkingSummaryEl = document.getElementById("walking-summary");
 const walkingMenuBtn = document.getElementById("walking-menu-btn");
 const walkingOpenStopListBtn = document.getElementById("walking-open-stop-list-btn");
 const locationOffPillEl = document.getElementById("location-off-pill");
+const startDistancePillEl = document.getElementById("start-distance-pill");
 const arrivalPillEl = document.getElementById("arrival-pill");
 const arrivalPillTextEl = document.getElementById("arrival-pill-text");
 const arrivalPillOpenBtn = document.getElementById("arrival-pill-open-btn");

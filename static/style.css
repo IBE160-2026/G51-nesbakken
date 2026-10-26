@@ -1533,6 +1533,11 @@ input:focus-visible,
   padding: 0;
   display: flex;
   flex-direction: column;
+  /* User feedback 2026-10-26: End Jaunt should sit at the bottom of the
+     drawer, not directly under the header - pushes the list down within
+     the drawer's flex column, leaving room above for the two reserved
+     Post-V1 rows once they're actually built. */
+  margin-top: auto;
 }
 .drawer-row {
   min-height: 44px;

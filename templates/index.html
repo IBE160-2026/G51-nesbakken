@@ -388,6 +388,13 @@
          shown as a failure, and otherwise identical to a GPS-on walk. -->
     <div class="location-status-pill" id="location-off-pill" hidden>Location off</div>
 
+    <!-- User feedback 2026-10-26: when the walk starts somewhere other than
+         the user's actual current location, show how far they are from
+         that starting point while live position is active. Hidden whenever
+         the start *is* "Current location" (the distance would be ~0 and
+         not useful) or live position isn't active (nothing to measure from). -->
+    <div class="location-status-pill" id="start-distance-pill" hidden></div>
+
     <!-- Story 2.5 (Could, depends on 2.2): a subtle, dismissible nudge near
          an unvisited stop - never sound/vibration/a modal, and only ever
          shown while live position is genuinely active. -->

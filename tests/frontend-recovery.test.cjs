@@ -1356,6 +1356,37 @@ test('Story 2.5: an already-visited stop never triggers the arrival nudge, and i
   assert.equal(app2.elements.get('arrival-pill').hidden, true);
 });
 
+test('distance from the starting point shows while live position is active, formatted in m/km', () => {
+  const app = browser(route(['a', 'b'])); // default label 'Test start', not 'Current location'
+  app.click('approve-route-btn');
+  // ~1.11km north of the -33.9/151.18 starting point (1 degree lat ~111km).
+  app.watchRequests[0].success({ coords: { latitude: -33.89, longitude: 151.18, heading: null } });
+  const pill = app.elements.get('start-distance-pill');
+  assert.equal(pill.hidden, false);
+  assert.equal(pill.textContent, '1.1 km from your starting point');
+  // A close position formats in meters, not a fraction of a km.
+  app.watchRequests[0].success({ coords: { latitude: -33.9003, longitude: 151.18, heading: null } });
+  assert.equal(pill.textContent, '33 m from your starting point');
+});
+
+test('distance from the starting point never shows when the walk started from Current location', () => {
+  const trip = route(['a', 'b']);
+  trip.starting_point.label = 'Current location';
+  const app = browser(trip);
+  app.click('approve-route-btn');
+  app.watchRequests[0].success({ coords: { latitude: -33.89, longitude: 151.18, heading: null } });
+  assert.equal(app.elements.get('start-distance-pill').hidden, true);
+});
+
+test('distance from the starting point hides again once live position is lost, same as the marker', () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.watchRequests[0].success({ coords: { latitude: -33.89, longitude: 151.18, heading: null } });
+  assert.equal(app.elements.get('start-distance-pill').hidden, false);
+  app.watchRequests[0].failure({ code: 1 });
+  assert.equal(app.elements.get('start-distance-pill').hidden, true);
+});
+
 // Story 2.4's refreshAmenityLayer() calls map.addSource/getSource, which
 // this harness's Map stub doesn't implement (it never fires a real "load"
 // event either - the same pre-existing gap every other map-layer feature
