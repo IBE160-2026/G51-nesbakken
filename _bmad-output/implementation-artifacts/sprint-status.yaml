@@ -58,11 +58,11 @@ development_status:
   2-6-real-world-validation-tester-sessions-and-an-outdoor-walk-mu: backlog
   epic-2-retrospective: optional
 
-  epic-3: in-progress
-  3-1-catch-up-before-summarizing-should: review
-  3-2-ai-generated-walk-summary-should: review
-  3-3-local-visit-history-and-favourites-should: review
-  3-4-repeat-use-route-variety-should: review
+  epic-3: done
+  3-1-catch-up-before-summarizing-should: done
+  3-2-ai-generated-walk-summary-should: done
+  3-3-local-visit-history-and-favourites-should: done
+  3-4-repeat-use-route-variety-should: done
   epic-3-retrospective: optional
 
   epic-4: in-progress
