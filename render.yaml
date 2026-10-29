@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: jaunt
+    runtime: python
+    plan: free
+    branch: codex/temporary-development-2026-10-22
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
