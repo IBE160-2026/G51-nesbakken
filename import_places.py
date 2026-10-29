@@ -18,8 +18,10 @@ import urllib.parse
 
 import requests
 
+from pilot_config import LANGUAGE, PILOT_BBOX
+
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-WIKIPEDIA_SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
+WIKIPEDIA_SUMMARY_URL = "https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}"
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
 USER_AGENT = "Jaunt-Student-Project/0.1 (IBE160 coursework)"
 
@@ -28,11 +30,6 @@ USER_AGENT = "Jaunt-Student-Project/0.1 (IBE160 coursework)"
 OSM_DESCRIPTIVE_KEYS = ("inscription", "subject", "artist_name", "start_date")
 
 OUTPUT_PATH = os.path.join("data", "sydney_places.json")
-
-# Newtown pilot area bounding box: south, west, north, east.
-# This is just a config value - the same code can later be pointed at the
-# full inner-Sydney boundary by changing this tuple.
-PILOT_BBOX = (-33.910, 151.165, -33.892, 151.185)
 
 # Records with the same name within this distance are treated as the same
 # physical place (e.g. a monument's node and the way around its base) and
@@ -104,11 +101,12 @@ def assign_topics(tags):
 
 def parse_wikipedia_tag(wikipedia_tag):
     """Returns (language, title). OSM's wikipedia tag is usually
-    'en:Some Title', occasionally just 'Some Title' (assumed English)."""
+    'en:Some Title', occasionally just 'Some Title' (assumed to be in the
+    pilot area's configured LANGUAGE)."""
     if ":" in wikipedia_tag:
         lang, title = wikipedia_tag.split(":", 1)
         return lang.strip().lower(), title.strip()
-    return "en", wikipedia_tag.strip()
+    return LANGUAGE, wikipedia_tag.strip()
 
 
 def truncate_excerpt(text, max_length=500):
@@ -124,7 +122,7 @@ def truncate_excerpt(text, max_length=500):
 
 
 def fetch_wikipedia_summary(title):
-    url = WIKIPEDIA_SUMMARY_URL.format(title=urllib.parse.quote(title))
+    url = WIKIPEDIA_SUMMARY_URL.format(lang=LANGUAGE, title=urllib.parse.quote(title))
     response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
     if response.status_code != 200:
         return None
@@ -141,13 +139,14 @@ def fetch_wikipedia_summary(title):
 
 
 def fetch_wikidata_description(qid):
-    """Wikidata's own short English description - broader coverage than
-    Wikipedia's notability bar, still a real, citable source."""
+    """Wikidata's own short description in the pilot area's configured
+    LANGUAGE - broader coverage than Wikipedia's notability bar, still a
+    real, citable source."""
     params = {
         "action": "wbgetentities",
         "ids": qid,
         "props": "labels|descriptions",
-        "languages": "en",
+        "languages": LANGUAGE,
         "format": "json",
     }
     response = requests.get(
@@ -158,10 +157,10 @@ def fetch_wikidata_description(qid):
     entity = response.json().get("entities", {}).get(qid)
     if not entity:
         return None
-    description = entity.get("descriptions", {}).get("en", {}).get("value")
+    description = entity.get("descriptions", {}).get(LANGUAGE, {}).get("value")
     if not description:
         return None
-    label = entity.get("labels", {}).get("en", {}).get("value")
+    label = entity.get("labels", {}).get(LANGUAGE, {}).get("value")
     return {
         "source_type": "wikidata",
         "source_title": label or qid,
@@ -238,18 +237,19 @@ def build_record(element, existing):
     summary = None
     non_english_reason = None
 
-    # 1. Wikipedia (English only) - the richest source where it exists.
+    # 1. Wikipedia, in the pilot area's configured LANGUAGE only - the
+    # richest source where it exists.
     wikipedia_tag = tags.get("wikipedia")
     if wikipedia_tag:
         lang, title = parse_wikipedia_tag(wikipedia_tag)
-        if lang == "en":
+        if lang == LANGUAGE:
             try:
                 summary = fetch_wikipedia_summary(title)
             except requests.RequestException:
                 summary = None
             time.sleep(0.2)  # be polite to a free public API
         else:
-            non_english_reason = f"wikipedia tag is in '{lang}', only English is supported in V1"
+            non_english_reason = f"wikipedia tag is in '{lang}', only '{LANGUAGE}' is supported in V1"
 
     # 2. Wikidata's short description - broader coverage than Wikipedia's
     # notability bar, for records with a wikidata tag but no usable article.
