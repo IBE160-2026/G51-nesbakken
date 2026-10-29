@@ -11,3 +11,5 @@ services:
         sync: false
       - key: OPENAI_MODEL
         sync: false
+      - key: OPENROUTESERVICE_API_KEY
+        sync: false
