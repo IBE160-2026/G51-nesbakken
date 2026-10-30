@@ -500,12 +500,27 @@ const ICON_SVG = {
     '<circle cx="16" cy="9" r="4" fill="#A6C2C6"/>' +
     '<circle cx="12" cy="16" r="4" fill="#E3DED0"/>' +
     "</svg>",
+  sculpture:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect x="7" y="17" width="10" height="5" fill="#C7C4B6"/>' +
+    '<path d="M8,17 Q8,12 12,12 Q16,12 16,17 Z" fill="#1E4A3A"/>' +
+    '<circle cx="12" cy="9" r="3.5" fill="#1E4A3A"/>' +
+    "</svg>",
+  memorial:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect x="6" y="19" width="12" height="3" fill="#C7C4B6"/>' +
+    '<polygon points="10,19 14,19 12.8,4 11.2,4" fill="#1E4A3A"/>' +
+    '<polygon points="11.2,4 12.8,4 12,1.5" fill="#1E4A3A"/>' +
+    "</svg>",
 };
 const DEFAULT_ICON = "church";
 // Topic-level fallback when no name keyword matches (e.g. a heritage
 // listing with a generic name) - keeps every stop showing *something*
 // recognizable rather than only the keyword-matched ones having an icon.
-const TOPIC_FALLBACK_ICON = { architecture: "house", history: "church", public_art: "public_art" };
+const TOPIC_FALLBACK_ICON = {
+  architecture: "house", history: "church", public_art: "public_art",
+  sculpture: "sculpture", memorial: "memorial",
+};
 // Order matters: checked top to bottom, first match wins. Deliberately
 // narrow, real keywords from the actual catalogue - not a guess at every
 // possible OSM place type. "Place type, not topic" (user's own words,
@@ -827,8 +842,11 @@ const SETUP_STEPS = [
   "choose_topic",
   "confirm_sheet",
 ];
-const VALID_TOPICS = ["history", "architecture", "public_art", "surprise_me"];
-const TOPIC_LABELS = { history: "History", architecture: "Architecture", public_art: "Public Art" };
+const VALID_TOPICS = ["history", "architecture", "public_art", "sculpture", "memorial", "surprise_me"];
+const TOPIC_LABELS = {
+  history: "History", architecture: "Architecture", public_art: "Public Art",
+  sculpture: "Sculpture", memorial: "Memorials",
+};
 
 // Real coordinates for 2 of the 3 named-start chips (catalogue/geocode cache);
 // Camperdown Park has no catalogue entry, so its centroid is a looked-up

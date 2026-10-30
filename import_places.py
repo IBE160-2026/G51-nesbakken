@@ -85,16 +85,39 @@ def coordinates(element):
 
 
 def assign_topics(tags):
-    """Simple, documented OSM-tag rules - see docs/architecture-plan.md."""
+    """Simple, documented OSM-tag rules - see docs/architecture-plan.md.
+
+    memorial (added for Story 4.3, 2026-10-30) is additive with history - a
+    memorial stays history too, since a war memorial or a statue of a
+    historical figure genuinely is history, not a separate interest
+    (user's explicit call, checked against the 60% dilution this would
+    otherwise cause - see commit history).
+
+    sculpture is exclusive with public_art, not additive - checked
+    directly against the real catalogue: sculptures/statues were 39% of
+    all public_art results, which would bury anyone specifically looking
+    for murals/street art under landmark statues. "statue" is folded into
+    "sculpture" (a statue is a kind of sculpture in ordinary language).
+
+    Known, accepted limitation: this tag-based rule cannot tell an
+    "artsy" sculpture from a landmark/historical-figure statue - both are
+    just artwork_type=sculpture|statue in OSM with no further distinction
+    available (e.g. "Major General Lachlan Macquarie" and "Progress Pride
+    Beacon" are tagged identically). Not solved here - flagged, not
+    quietly ignored."""
     topics = set()
     if "historic" in tags or "heritage" in tags:
         topics.add("history")
+    if tags.get("historic") == "memorial":
+        topics.add("memorial")
     if tags.get("building") in ("church", "cathedral"):
         topics.add("architecture")
         topics.add("history")
     if "architect" in tags:
         topics.add("architecture")
-    if tags.get("tourism") == "artwork" or "artwork_type" in tags:
+    if tags.get("artwork_type") in ("sculpture", "statue"):
+        topics.add("sculpture")
+    elif tags.get("tourism") == "artwork" or "artwork_type" in tags:
         topics.add("public_art")
     return sorted(topics)
 

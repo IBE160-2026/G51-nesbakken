@@ -34,7 +34,7 @@ MAX_REQUESTED_MINUTES = 120
 # since shortlist_candidates()'s own topic semantics already live in this
 # module. "surprise_me" is the sentinel that skips topic filtering, not a
 # real catalogue topic.
-VALID_TOPICS = {"history", "architecture", "public_art", "surprise_me"}
+VALID_TOPICS = {"history", "architecture", "public_art", "sculpture", "memorial", "surprise_me"}
 
 # Revised 2026-10-18: the stop count no longer has one fixed ceiling - the
 # PRD (FR-5) wants it to depend on time, dwell, and real candidate
