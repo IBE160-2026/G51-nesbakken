@@ -9,6 +9,7 @@ from import_places import (
     mark_duplicates,
     parse_wikipedia_tag,
     truncate_excerpt,
+    wikidata_description_names_place,
 )
 
 
@@ -232,6 +233,34 @@ class TestDuplicateDetection(unittest.TestCase):
         statuses = {r["id"]: r["status"] for r in records}
         self.assertEqual(statuses["way/1"], "ready")
         self.assertEqual(statuses["node/2"], "limited")
+
+
+class TestWikidataDescriptionNamesPlace(unittest.TestCase):
+    def test_specific_word_match_passes(self):
+        self.assertTrue(
+            wikidata_description_names_place("church in Newtown, New South Wales", "Newtown Baptist Church")
+        )
+
+    def test_generic_category_only_fails(self):
+        self.assertFalse(
+            wikidata_description_names_place(
+                "historic national heritage site in Sydney NSW", "First Government House"
+            )
+        )
+
+    def test_shared_generic_words_dont_count_as_a_match(self):
+        """'war' and 'memorial' appear in both the name and the excerpt,
+        but neither is specific to this particular memorial."""
+        self.assertFalse(
+            wikidata_description_names_place(
+                "war memorial in Martin Place, Sydney", "The Cenotaph War Memorial"
+            )
+        )
+
+    def test_empty_excerpt_or_name_fails(self):
+        self.assertFalse(wikidata_description_names_place("", "Some Place"))
+        self.assertFalse(wikidata_description_names_place("a description", ""))
+        self.assertFalse(wikidata_description_names_place(None, "Some Place"))
 
 
 if __name__ == "__main__":

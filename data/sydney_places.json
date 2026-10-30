@@ -427,13 +427,13 @@
       "architecture",
       "history"
     ],
-    "source_type": "wikidata",
-    "source_title": "St Stephen's Anglican Church, Newtown",
-    "source_url": "https://www.wikidata.org/wiki/Q58202839",
-    "source_excerpt": "church building in New South Wales, Australia",
-    "status": "rejected",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-09-03T00:35:29Z",
-    "rejection_reason": "duplicate of heritage/5045479 (reviewed cross-source match)"
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "way/172735169",
@@ -5386,13 +5386,13 @@
       "history",
       "memorial"
     ],
-    "source_type": "wikidata",
-    "source_title": "Sydney Cenotaph",
-    "source_url": "https://www.wikidata.org/wiki/Q7659860",
-    "source_excerpt": "war memorial in Martin Place, Sydney",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-29T23:58:38Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "node/1613758353",
@@ -6148,13 +6148,13 @@
     "topics": [
       "sculpture"
     ],
-    "source_type": "wikidata",
-    "source_title": "The Offerings of Peace",
-    "source_url": "https://www.wikidata.org/wiki/Q24641121",
-    "source_excerpt": "sculpture by Gilbert Bayes",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-29T23:58:39Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "node/2877110071",
@@ -6176,13 +6176,13 @@
     "topics": [
       "sculpture"
     ],
-    "source_type": "wikidata",
-    "source_title": "The Offerings of War",
-    "source_url": "https://www.wikidata.org/wiki/Q24641140",
-    "source_excerpt": "sculpture by Gilbert Bayes",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-29T23:58:40Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "node/2877114614",
@@ -7296,13 +7296,13 @@
     "topics": [
       "sculpture"
     ],
-    "source_type": "wikidata",
-    "source_title": "Still Life with Stone and Car",
-    "source_url": "https://www.wikidata.org/wiki/Q28893166",
-    "source_excerpt": "roundabout artwork in Sydney",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-29T23:58:46Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "node/4608809216",
@@ -7721,13 +7721,13 @@
       "history",
       "memorial"
     ],
-    "source_type": "wikidata",
-    "source_title": "Regimental Square",
-    "source_url": "https://www.wikidata.org/wiki/Q7308405",
-    "source_excerpt": "war memorial in Sydney",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-29T23:58:47Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "node/5256761223",
@@ -23007,13 +23007,13 @@
     "topics": [
       "history"
     ],
-    "source_type": "wikidata",
-    "source_title": "First Government House, Sydney",
-    "source_url": "https://www.wikidata.org/wiki/Q19873401",
-    "source_excerpt": "historic national heritage site in Sydney NSW",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-29T23:59:00Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "node/12883105041",
@@ -28048,13 +28048,13 @@
       "architecture",
       "history"
     ],
-    "source_type": "wikidata",
-    "source_title": "Scots Church, Sydney",
-    "source_url": "https://www.wikidata.org/wiki/Q60746270",
-    "source_excerpt": "church in New South Wales, Australia",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-29T23:59:59Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "way/104948254",
@@ -28202,13 +28202,13 @@
       "architecture",
       "history"
     ],
-    "source_type": "wikidata",
-    "source_title": "Garrison Church",
-    "source_url": "https://www.wikidata.org/wiki/Q18165591",
-    "source_excerpt": "Anglican church in Dawes Point, Sydney, Australia",
-    "status": "ready",
+    "source_type": null,
+    "source_title": null,
+    "source_url": null,
+    "source_excerpt": null,
+    "status": "limited",
     "imported_at": "2026-10-30T00:00:03Z",
-    "rejection_reason": null
+    "rejection_reason": "Wikidata description was too generic to confirm it specifically describes this place"
   },
   {
     "id": "way/152423838",

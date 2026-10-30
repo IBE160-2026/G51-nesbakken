@@ -590,6 +590,34 @@ GROUNDING_CHECK_SYSTEM_PROMPT = (
     "Respond using only the required JSON schema - no extra commentary."
 )
 
+# A separate, deliberately less strict variant used only for the walk
+# summary (Story 3.2 follow-up, 2026-10-30): the strict prompt above treats
+# ANY connecting/thematic language ("tributes to character and leadership",
+# "from X to Y") as an invented relationship, which real-world testing
+# showed makes almost every genuine multi-stop narrative fail - the
+# connecting language itself was never a false FACT, just normal
+# summarizing. User's explicit choice: allow narrative framing, but still
+# verify every concrete, checkable fact against its own stop's evidence.
+WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT = (
+    "You are a fact-checker for a walk summary that narrates several stops "
+    "together as one story. You will be given a list of items, each with "
+    "its own content and its own evidence (an item's evidence may be "
+    "several separate pieces of text, one per stop the summary covers).\n\n"
+    "Thematic framing, transitions, and language that ties the stops "
+    "together into a narrative (e.g. 'tributes to...', 'from X to Y', "
+    "'along the way') is expected and fine, even when that exact wording "
+    "isn't in the evidence - that is normal summarizing, not invention.\n\n"
+    "Mark an item unsupported only if it states a concrete, checkable "
+    "fact - what something is, who did what, when, where, or why - that "
+    "is not directly stated or reasonably implied by its own evidence, or "
+    "that contradicts its evidence. General background not specific to "
+    "the item, presented as a specific fact about that item, is also "
+    "unsupported.\n\n"
+    "Judge each item only against its own evidence, never against another "
+    "item's evidence in this same list.\n\n"
+    "Respond using only the required JSON schema - no extra commentary."
+)
+
 GROUNDING_CHECK_SCHEMA = {
     "name": "grounding_check_batch",
     "strict": True,
@@ -615,7 +643,7 @@ GROUNDING_CHECK_SCHEMA = {
 }
 
 
-def _call_grounding_check_batch(items):
+def _call_grounding_check_batch(items, system_prompt=None):
     """One batched OpenAI call checking every (item_id, content,
     source_texts) tuple in items, each against only its OWN source_texts -
     the same per-item isolation discipline as content generation, for the
@@ -626,6 +654,11 @@ def _call_grounding_check_batch(items):
     that means (generate_stop_content() treats "no verdict" as
     unsupported, matching its "never show unless genuinely confirmed"
     policy).
+
+    system_prompt defaults to the strict GROUNDING_CHECK_SYSTEM_PROMPT;
+    generate_walk_summary() passes WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT
+    instead (2026-10-30) - same fact-verification guarantee, just not
+    treating narrative connecting language as an invented fact.
 
     Raises AiSelectionError/AiFatalError the same way _call_openai() and
     _call_content_generation() do.
@@ -651,7 +684,7 @@ def _call_grounding_check_batch(items):
             json={
                 "model": get_model(),
                 "messages": [
-                    {"role": "system", "content": GROUNDING_CHECK_SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt or GROUNDING_CHECK_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
                 "response_format": {
@@ -700,7 +733,7 @@ def _call_grounding_check_batch(items):
     return result
 
 
-def check_grounding_semantic(generated_text, source_texts):
+def check_grounding_semantic(generated_text, source_texts, system_prompt=None):
     """The real (LLM-based) grounding check, added after check_grounding()
     (the rule-based check) was proven insufficient (Codex review
     2026-10-20, confirmed with concrete counterexamples - see that
@@ -711,11 +744,15 @@ def check_grounding_semantic(generated_text, source_texts):
     own route-level use calls the batch primitive directly for real
     multi-stop efficiency (one call per route, not one per stop).
 
+    system_prompt defaults to the strict GROUNDING_CHECK_SYSTEM_PROMPT, as
+    it always has; generate_walk_summary() passes the relaxed
+    WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT instead (2026-10-30).
+
     Raises AiSelectionError/AiFatalError on a call failure - callers
     decide the fallback (generate_stop_content() falls back to the raw
     source excerpt, never showing content that couldn't be verified).
     """
-    results = _call_grounding_check_batch([("item", generated_text, source_texts)])
+    results = _call_grounding_check_batch([("item", generated_text, source_texts)], system_prompt=system_prompt)
     return results.get("item", False)
 
 
@@ -1081,6 +1118,6 @@ def generate_walk_summary(visited_stops):
     except AiSelectionError:
         return None
     source_texts = [stop.get("content") for stop in visited_stops if stop.get("content")]
-    if not check_grounding_semantic(summary, source_texts):
+    if not check_grounding_semantic(summary, source_texts, system_prompt=WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT):
         return None
     return summary

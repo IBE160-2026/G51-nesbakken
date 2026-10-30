@@ -192,6 +192,34 @@ def fetch_wikidata_description(qid):
     }
 
 
+# Words common enough to appear in a generic Wikidata category description
+# AND coincidentally in a place's own name - matching on these alone proves
+# nothing, so they're excluded from the "does it actually name this place"
+# check below (Story 4.3 follow-up, 2026-10-30: walk summaries were
+# silently failing grounding because a thin Wikidata description like
+# "historic national heritage site in Sydney NSW" never names the specific
+# place it's describing).
+WIKIDATA_GENERIC_WORDS = {
+    "church", "war", "memorial", "monument", "sculpture", "historic", "heritage",
+    "site", "national", "museum", "building", "structure", "artwork", "roundabout",
+    "nsw", "new", "south", "wales", "sydney", "australia", "cathedral", "chapel",
+    "house", "park", "hotel", "theatre", "school", "office", "regimental", "royal",
+}
+
+
+def wikidata_description_names_place(excerpt, name):
+    """True if excerpt contains at least one real, specific word from name -
+    not just a generic category word every similar place's description
+    would also contain. A category-only description ("war memorial in
+    Sydney") doesn't confirm which specific war memorial this is."""
+    if not excerpt or not name:
+        return False
+    words = [w.strip(".,").lower() for w in name.split() if len(w.strip(".,")) >= 4]
+    words = [w for w in words if w not in WIKIDATA_GENERIC_WORDS]
+    excerpt_lower = excerpt.lower()
+    return any(w in excerpt_lower for w in words)
+
+
 def build_osm_tag_excerpt(tags, record_id):
     """Composes a short factual excerpt directly from OSM's own descriptive
     tags - real, attributable data (an OSM contributor's entry, citable by
@@ -284,6 +312,12 @@ def build_record(element, existing):
             except requests.RequestException:
                 summary = None
             time.sleep(0.2)
+            # A generic category-only description ("church in New South
+            # Wales") doesn't actually confirm this record IS that specific
+            # place - not enough to call it ready, see
+            # wikidata_description_names_place()'s own docstring.
+            if summary and not wikidata_description_names_place(summary["source_excerpt"], name):
+                summary = None
 
     # 3. OSM's own descriptive tags - real, attributable facts an OSM
     # contributor entered directly, used only if nothing above worked.
