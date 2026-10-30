@@ -1,0 +1,107 @@
+{
+  "_instructions": "Bot-matched photos (published live, reviewed:true) pending your spot-check. For each 'matched' entry, open source_url and confirm it's actually a photo of this place and the license is correctly read. Tell me which ids to remove if wrong - I'll delete them from data/place_photos.json and the downloaded asset.",
+  "entries": [
+    {
+      "id": "node/9509587217",
+      "name": "Gurugal - Yagu – Barrabugu",
+      "status": "no_match",
+      "candidates_tried": []
+    },
+    {
+      "id": "node/12771471818",
+      "name": "Come Out to Play",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:BookOfNurseryRhymes p104.JPG: too small (469x658)",
+        "File:Girls and Boys, come out to play^ - geograph.org.uk - 8087924.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Baby-s-opera-1878-walter-crane-Girls-and-boys-sheet-music orig.jpg: neither title nor description names this specific place",
+        "File:ALPP - Girls and Boys come out to Play.png: too small (503x328)",
+        "File:The Baby's Opera A book of old Rhymes and The Music by the Earliest Masters Book Cover 03.png: neither title nor description names this specific place"
+      ]
+    },
+    {
+      "id": "node/13424720510",
+      "name": "Uplift",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:Iching-hexagram-46.svg: too small (70x70)",
+        "File:The Cadell uplift scarp at Mathoura.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Aerial photographs showing uplift by 2024 Noto earthquake around the coast of Kuroshimamachi, Wajima.gif: no Sydney/NSW/Australia signal in description or categories",
+        "File:The Uplift.png: no Sydney/NSW/Australia signal in description or categories",
+        "File:Marathon Uplift-Ouachita Orogen shaded relief.jpg: no Sydney/NSW/Australia signal in description or categories"
+      ]
+    },
+    {
+      "id": "node/13848938835",
+      "name": "Progress Pride Beacon",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:Highcross Beacons in St Peter's Square, Leicester - 31 August 2024.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:The Yates pride; a romance (IA yatesprideromanc00free).pdf: no Sydney/NSW/Australia signal in description or categories",
+        "File:Progress in art and architecture - with precedents for ornament (IA progressinartarc00sedd).pdf: no Sydney/NSW/Australia signal in description or categories",
+        "File:Highcross Beacons in St Peter's Square, Leicester - 31 August 2024 (cropped).jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Beacon lights of the race.djvu: no Sydney/NSW/Australia signal in description or categories"
+      ]
+    },
+    {
+      "id": "node/13876170704",
+      "name": "Block Party",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:Royal wedding street parties main 480 29april2011.jpg: too small (480x360)",
+        "File:Block party in Munich.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Hamburg, Speicherstadt, Block P -- 2016 -- 3330-6.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:2 Greenwich Village Block Party - Ethel H. Klinck Myers.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Greenville Block Party Antediluvian Carnival New Orleans 01.jpg: no Sydney/NSW/Australia signal in description or categories"
+      ]
+    },
+    {
+      "id": "way/1209015877",
+      "name": "Water Falls",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:Jala Tarangini water falls at Maredumilli.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:American and Bridal Veil Falls winter.jpg: request failed: 429 Too Many Requests",
+        "File:Kuang Si Falls with submerged tree in turquoise water near Luang Prabang Laos.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Kuang Si Falls and its emerald water pools in Luang Prabang province Laos.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Kuang Si Falls and a turquoise water pool in Luang Prabang province Laos.jpg: no Sydney/NSW/Australia signal in description or categories"
+      ]
+    },
+    {
+      "id": "perfect_match/4",
+      "name": "Queens Lane",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:Queens Lane - geograph.org.uk - 5466209.jpg: too small (640x426)",
+        "File:Queens' Lane - geograph.org.uk - 2210836.jpg: no Sydney/NSW/Australia signal in description or categories",
+        "File:Queens' Lane - geograph.org.uk - 4050962.jpg: too small (640x430)",
+        "File:Queens' Lane - geograph.org.uk - 4124608.jpg: too small (640x430)",
+        "File:Queens' College, visitors' entrance and Queens' Lane - geograph.org.uk - 3292697.jpg: no Sydney/NSW/Australia signal in description or categories"
+      ]
+    },
+    {
+      "id": "perfect_match/5",
+      "name": "It's like a Jungle Sometimes",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:It's like a jungle sometimes (14441906316).jpg: request failed: 429 Too Many Requests",
+        "File:The Jungle (1906).djvu: no Sydney/NSW/Australia signal in description or categories",
+        "File:Jungle trails and jungle people - travel, adventure and abservation in the Far East (1905) (14593430229).jpg: license not reusable with attribution: 'No restrictions'",
+        "File:Jungle trails and jungle people - travel, adventure and abservation in the Far East (1905) (14779969015).jpg: license not reusable with attribution: 'No restrictions'",
+        "File:The Jungle Book (1910).djvu: no Sydney/NSW/Australia signal in description or categories"
+      ]
+    },
+    {
+      "id": "perfect_match/6",
+      "name": "Descent of the Cosmic Serpent",
+      "status": "no_match",
+      "candidates_tried": [
+        "File:The cosmic comedy; or, The vital urge (IA cosmiccomedyorvi00stua).pdf: no Sydney/NSW/Australia signal in description or categories",
+        "File:The secret of the East; or, The origin of the Christian religion, and the significance of its rise and deline (IA secretofeastoror00oswa).pdf: neither title nor description names this specific place",
+        "File:Sacred philosophy of the seasons; illustratring the perfections of God in the phenomena of the year (IA sacredphilosophy03duncrich).pdf: neither title nor description names this specific place",
+        "File:Sacred philosophy of the seasons - illustrating the perfections of God in the phenomena of the year ... Summer (IA b29339923).pdf: neither title nor description names this specific place",
+        "File:The rise of Dennis Hathnaught; life of the common people across the ages as set down in the great books of the world (IA riseofdennishath00macc).pdf: neither title nor description names this specific place"
+      ]
+    }
+  ]
+}
