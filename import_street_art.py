@@ -359,7 +359,7 @@ def main():
     print(f"    of which missing/placeholder title: {no_title_count}")
     print(f"    of which a reviewed cross-source duplicate: {cross_source_duplicate_count}")
     print(f"    of which failed geocoding: {len(failed_geocodes)}")
-    print(f"  ready records inside the Newtown pilot bbox: {ready_in_bbox}")
+    print(f"  ready records inside the configured pilot bbox: {ready_in_bbox}")
     if failed_geocodes:
         print("\nFailed geocodes (address could not be resolved - not guessed):")
         for rid in failed_geocodes:

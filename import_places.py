@@ -38,7 +38,7 @@ OUTPUT_PATH = os.path.join("data", "sydney_places.json")
 DUPLICATE_DISTANCE_METERS = 75
 
 OVERPASS_QUERY_TEMPLATE = """
-[out:json][timeout:60];
+[out:json][timeout:180];
 (
   node["historic"]({bbox});
   way["historic"]({bbox});
@@ -64,7 +64,7 @@ def fetch_overpass_elements(bbox):
         OVERPASS_URL,
         data={"data": query},
         headers={"User-Agent": USER_AGENT},
-        timeout=90,
+        timeout=200,
     )
     response.raise_for_status()
     return response.json()["elements"]
