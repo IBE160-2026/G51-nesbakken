@@ -76,6 +76,8 @@ function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
   const responses = [];
   const summaryResponses = [];
   const summaryRequests = [];
+  const shareRequests = [];
+  const clipboardWrites = [];
   class Marker {
     setLngLat(point) { markerPositions.push(point); return this; }
     setPopup() { return this; }
@@ -102,7 +104,17 @@ function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
         return id;
       },
       clearWatch(id) { clearedWatchIds.add(id); },
-    } },
+    },
+    share: location.shareUnsupported ? undefined : async (data) => {
+      if (location.shareThrows) {
+        const err = new Error('cancelled');
+        err.name = 'AbortError';
+        throw err;
+      }
+      shareRequests.push(data);
+    },
+    clipboard: { writeText: async (text) => { clipboardWrites.push(text); } },
+    },
     document: {
       getElementById(id) {
         assert(elements.has(id), `Real template must contain #${id}`);
@@ -165,6 +177,8 @@ function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
     parseError() { responses.push(() => ({ ok: true, json: async () => { throw new Error('Invalid JSON'); } })); },
     pending() { responses.push(() => new Promise(() => {})); },
     summaryRequests,
+    shareRequests,
+    clipboardWrites,
     respondSummary(data) { summaryResponses.push(() => ({ ok: true, status: 200, json: async () => data })); },
     summaryNetworkError() { summaryResponses.push(() => { throw new Error('Network failed'); }); },
     deferred() {
@@ -1542,6 +1556,58 @@ test('Story 3.2 follow-up: a visited stop with an already rights-cleared photo s
   assert.equal(credit.textContent, `Photo by ${publicPhoto.creator}, ${publicPhoto.license}`);
   assert.equal(rows[1].children.length, 2);
   assert.equal(rows[1].children[0].className, 'walk-summary-stop-name');
+});
+
+test('Share summary: uses the native share sheet when available, includes the real summary and visited names', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  await app.evaluate('finishWrapUp(true)');
+  assert.equal(app.elements.get('walk-complete-share-btn').hidden, false);
+  await app.evaluate('document.getElementById("walk-complete-share-btn").click()');
+  await app.settle();
+  assert.equal(app.shareRequests.length, 1);
+  assert.equal(app.shareRequests[0].text, 'A lovely afternoon walk.\n\nVisited: Stop a');
+  assert.equal(app.clipboardWrites.length, 0);
+});
+
+test('Share summary: falls back to clipboard copy when the Web Share API is unsupported', async () => {
+  const app = browser(route(['a', 'b']), { shareUnsupported: true });
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  await app.evaluate('finishWrapUp(true)');
+  await app.evaluate('document.getElementById("walk-complete-share-btn").click()');
+  await app.settle();
+  assert.equal(app.clipboardWrites.length, 1);
+  assert.equal(app.clipboardWrites[0], 'A lovely afternoon walk.\n\nVisited: Stop a');
+});
+
+test('Share summary: a cancelled native share sheet (AbortError) never falls through to clipboard', async () => {
+  const app = browser(route(['a', 'b']), { shareThrows: true });
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  await app.evaluate('finishWrapUp(true)');
+  await app.evaluate('document.getElementById("walk-complete-share-btn").click()');
+  await app.settle();
+  assert.equal(app.clipboardWrites.length, 0);
+});
+
+test('Share summary: hidden on the honest empty ending - nothing was Visited, nothing to share', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  await app.evaluate('finishWrapUp(false)');
+  assert.equal(app.elements.get('walk-complete-share-btn').hidden, true);
 });
 
 test('Story 3.2: generation failure (feasible:false) falls back to the plain list, never an error screen', async () => {

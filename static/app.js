@@ -1353,6 +1353,7 @@ const walkCompleteHeadingEl = document.getElementById("walk-complete-heading");
 const walkCompleteMessageEl = document.getElementById("walk-complete-message");
 const walkCompleteStopListEl = document.getElementById("walk-complete-stop-list");
 const walkCompleteBackBtn = document.getElementById("walk-complete-back-btn");
+const walkCompleteShareBtn = document.getElementById("walk-complete-share-btn");
 
 let stopOverlayTriggerEl = null;
 
@@ -2553,6 +2554,14 @@ function renderWalkCompleteStopList(stops) {
 // succeeding), or "empty" (zero stops Visited - the one honest ending,
 // whether reached via "end without a summary" or a failed/skipped
 // generation with nothing confirmed).
+let walkCompleteShareText = "";
+
+function buildWalkCompleteShareText(outcome, summary, visitedStops) {
+  const names = visitedStops.map((stop) => stop.name || "Stop");
+  if (outcome === "ai") return `${summary}\n\nVisited: ${names.join(", ")}`;
+  return `Here's what I visited on my Jaunt: ${names.join(", ")}`;
+}
+
 function showWalkComplete(outcome, { summary = null, visitedStops = [] } = {}) {
   hideAllScreens();
   mapStageEl.hidden = true;
@@ -2566,6 +2575,9 @@ function showWalkComplete(outcome, { summary = null, visitedStops = [] } = {}) {
     walkCompleteMessageEl.textContent = "Here's what you visited on this Jaunt:";
     renderWalkCompleteStopList(visitedStops);
   }
+  // Nothing to share on the honest empty ending - no stops, no summary.
+  walkCompleteShareBtn.hidden = outcome === "empty";
+  walkCompleteShareText = outcome === "empty" ? "" : buildWalkCompleteShareText(outcome, summary, visitedStops);
   screenWalkComplete.hidden = false;
   walkCompleteHeadingEl.focus();
 }
@@ -2622,6 +2634,34 @@ walkCompleteBackBtn.addEventListener("click", () => {
   trip = defaultTrip();
   notifiedStopIds.clear();
   showStep("starting_point");
+});
+
+// Native share sheet where available (lets someone save, message, email,
+// etc. without this app needing its own mechanism for any of that);
+// clipboard copy is the fallback on browsers without the Web Share API.
+// Never silently fails - if neither works, the button's own label says so.
+walkCompleteShareBtn.addEventListener("click", async () => {
+  const originalLabel = walkCompleteShareBtn.textContent;
+  const flashLabel = (text) => {
+    walkCompleteShareBtn.textContent = text;
+    setTimeout(() => { walkCompleteShareBtn.textContent = originalLabel; }, 1500);
+  };
+  try {
+    if (navigator.share) {
+      await navigator.share({ text: walkCompleteShareText });
+      return;
+    }
+    throw new Error("Web Share API unavailable");
+  } catch (err) {
+    if (err && err.name === "AbortError") return; // user cancelled the share sheet
+    try {
+      await navigator.clipboard.writeText(walkCompleteShareText);
+      flashLabel("Copied!");
+    } catch (clipboardErr) {
+      console.error("Share and clipboard copy both failed:", err, clipboardErr);
+      flashLabel("Couldn't share");
+    }
+  }
 });
 
 // =====================================================================
