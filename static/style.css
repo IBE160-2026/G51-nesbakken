@@ -1734,6 +1734,7 @@ input:focus-visible,
 .walk-summary-stop {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   min-height: 44px;
   padding: 10px 0;
@@ -1745,6 +1746,23 @@ input:focus-visible,
   font-size: 14px;
   font-weight: 600;
   color: var(--ink);
+}
+.walk-summary-stop-photo-wrap {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.walk-summary-stop-photo {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.walk-summary-stop-credit {
+  font-size: 9px;
+  color: var(--ink-faint);
+  max-width: 48px;
+  line-height: 1.2;
 }
 /* Ported from the approved mockup (flow-03-walk.html) - the only
    difference between favourited/unfavourited is the path's own fill

@@ -1520,6 +1520,30 @@ test('Story 3.2: a successful AI summary shows the real text and each visited st
   assert.deepEqual(app.summaryRequests[0].visited_stops.map((s) => s.name), ['Stop a']);
 });
 
+test('Story 3.2 follow-up: a visited stop with an already rights-cleared photo shows it in the summary list; one without never gets an image', async () => {
+  const trip = route(['a', 'b']);
+  trip.stops[0].photo = publicPhoto; // only 'a' has a real, verified photo
+  const app = browser(trip);
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.evaluate("setStopVisited('b', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  await app.evaluate('finishWrapUp(true)');
+  const rows = app.elements.get('walk-complete-stop-list').children;
+  assert.equal(rows.length, 2);
+  // 'a' has a photo: [photo-wrap, name, heart] - 'b' has none: [name, heart].
+  assert.equal(rows[0].children.length, 3);
+  assert.equal(rows[0].children[0].className, 'walk-summary-stop-photo-wrap');
+  const [img, credit] = rows[0].children[0].children;
+  assert.equal(img.className, 'walk-summary-stop-photo');
+  assert.equal(img.src, publicPhoto.url);
+  assert.equal(credit.textContent, `Photo by ${publicPhoto.creator}, ${publicPhoto.license}`);
+  assert.equal(rows[1].children.length, 2);
+  assert.equal(rows[1].children[0].className, 'walk-summary-stop-name');
+});
+
 test('Story 3.2: generation failure (feasible:false) falls back to the plain list, never an error screen', async () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');

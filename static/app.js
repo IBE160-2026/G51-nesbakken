@@ -1767,9 +1767,12 @@ function finishReplacementLoading() {
   closeStopListSheet({ restoreFocus: false });
 }
 
-function showLoadingScreen() {
+const DEFAULT_LOADING_MESSAGE = "Concocting your jaunt…";
+
+function showLoadingScreen(message) {
   hideAllScreens();
   mapStageEl.hidden = true;
+  loadingHeadingEl.textContent = message || DEFAULT_LOADING_MESSAGE;
   screenLoading.hidden = false;
   loadingHeadingEl.focus();
 }
@@ -2507,12 +2510,34 @@ function buildHeartButton(stop) {
   return btn;
 }
 
+// Same already rights-cleared photo stop.photo carries everywhere else
+// (data/place_photos.json via to_public_place()) - never a new/unverified
+// one fetched just for this screen. Attribution stays visible, same
+// policy as the stop overlay, just more compact.
+function renderWalkCompleteStopPhoto(stop) {
+  if (!isValidPhoto(stop.photo)) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "walk-summary-stop-photo-wrap";
+  const img = document.createElement("img");
+  img.className = "walk-summary-stop-photo";
+  img.src = stop.photo.url;
+  img.alt = stop.photo.alt;
+  wrap.appendChild(img);
+  const credit = document.createElement("span");
+  credit.className = "walk-summary-stop-credit";
+  credit.textContent = `Photo by ${stop.photo.creator}, ${stop.photo.license}`;
+  wrap.appendChild(credit);
+  return wrap;
+}
+
 function renderWalkCompleteStopList(stops) {
   walkCompleteStopListEl.innerHTML = "";
   walkCompleteStopListEl.hidden = stops.length === 0;
   stops.forEach((stop) => {
     const li = document.createElement("li");
     li.className = "walk-summary-stop";
+    const photo = renderWalkCompleteStopPhoto(stop);
+    if (photo) li.appendChild(photo);
     const name = document.createElement("span");
     name.className = "walk-summary-stop-name";
     name.textContent = stop.name || "Stop";
@@ -2564,7 +2589,7 @@ async function finishWrapUp(attemptSummary) {
     return;
   }
 
-  showLoadingScreen();
+  showLoadingScreen("Composing your summary…");
   let data = null;
   try {
     const response = await fetch("/api/summary", {
