@@ -43,6 +43,16 @@ class TestTopicAssignment(unittest.TestCase):
     def test_no_matching_tags_gives_no_topics(self):
         self.assertEqual(assign_topics({"shop": "bakery"}), [])
 
+    def test_man_made_bridge_gives_history(self):
+        # Real-world gap (2026-11-17): Sydney Harbour Bridge and Anzac
+        # Bridge are tagged tourism=attraction + man_made=bridge, neither
+        # historic/heritage/architect - this is the only rule that gives
+        # them a topic at all.
+        self.assertEqual(assign_topics({"man_made": "bridge"}), ["history"])
+
+    def test_man_made_non_bridge_gives_no_topic(self):
+        self.assertEqual(assign_topics({"man_made": "pier"}), [])
+
 
 class TestCoordinates(unittest.TestCase):
     def test_node_uses_lat_lon_directly(self):

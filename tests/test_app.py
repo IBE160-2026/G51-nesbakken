@@ -419,28 +419,30 @@ class TestApiPlanValidation(unittest.TestCase):
 
 
 class TestApiSummary(unittest.TestCase):
-    """Story 3.2 (FR-16): stateless, always 200 on well-formed input -
-    "feasible: false" is the honest no-summary outcome, never a non-2xx."""
+    """Story 3.2 (FR-16, revised 2026-11-16): stateless, always 200 on
+    well-formed input - a stop_id simply absent from "summaries" is the
+    honest no-recap-for-this-one outcome, never a non-2xx."""
 
     def setUp(self):
         self.client = app_module.app.test_client()
         self.visited = [
-            {"name": "Newtown Station", "content": "A historic railway station building."},
-            {"name": "Mural Lane", "content": "A laneway covered in colourful street art."},
+            {"id": "node/1", "name": "Newtown Station", "content": "A historic railway station building."},
+            {"id": "node/2", "name": "Mural Lane", "content": "A laneway covered in colourful street art."},
         ]
 
-    def test_successful_summary_returned(self):
-        with patch("app.ai.generate_walk_summary", return_value="A lovely walk past history and art.") as mock_gen:
+    def test_successful_summaries_returned_per_stop(self):
+        summaries = {"node/1": "You stepped into a historic railway station."}
+        with patch("app.ai.generate_walk_summary", return_value=summaries) as mock_gen:
             response = self.client.post("/api/summary", json={"visited_stops": self.visited})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json, {"feasible": True, "summary": "A lovely walk past history and art."})
+        self.assertEqual(response.json, {"summaries": summaries})
         mock_gen.assert_called_once_with(self.visited)
 
-    def test_generation_failure_is_feasible_false_not_an_error(self):
-        with patch("app.ai.generate_walk_summary", return_value=None):
+    def test_no_stop_getting_a_recap_is_an_empty_map_not_an_error(self):
+        with patch("app.ai.generate_walk_summary", return_value={}):
             response = self.client.post("/api/summary", json={"visited_stops": self.visited})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json, {"feasible": False})
+        self.assertEqual(response.json, {"summaries": {}})
 
     def test_empty_visited_stops_rejected_before_any_ai_call(self):
         with patch("app.ai.generate_walk_summary") as mock_gen:
@@ -451,19 +453,35 @@ class TestApiSummary(unittest.TestCase):
     def test_malformed_visited_stops_rejected(self):
         bad_bodies = (
             {"visited_stops": "abc"},
-            {"visited_stops": [{"name": "A"}]},  # missing content
-            {"visited_stops": [{"content": "text"}]},  # missing name
-            {"visited_stops": [{"name": "", "content": "text"}]},
-            {"visited_stops": [{"name": "A", "content": "x" * 4001}]},
-            {"visited_stops": [{"name": 1, "content": "text"}]},
+            {"visited_stops": [{"id": "a", "name": "A"}]},  # missing content
+            {"visited_stops": [{"id": "a", "content": "text"}]},  # missing name
+            {"visited_stops": [{"name": "A", "content": "text"}]},  # missing id
+            {"visited_stops": [{"id": "", "name": "A", "content": "text"}]},
+            {"visited_stops": [{"id": "a", "name": "", "content": "text"}]},
+            {"visited_stops": [{"id": "a", "name": "A", "content": "x" * 4001}]},
+            {"visited_stops": [{"id": "a", "name": 1, "content": "text"}]},
             {},
-            {"visited_stops": [dict(name="Stop", content="text")] * 21},
+            {"visited_stops": [dict(id="s", name="Stop", content="text")] * 21},
         )
         for body in bad_bodies:
             with self.subTest(body=body), patch("app.ai.generate_walk_summary") as mock_gen:
                 response = self.client.post("/api/summary", json=body)
                 self.assertEqual(response.status_code, 400)
                 mock_gen.assert_not_called()
+
+    def test_duplicate_stop_ids_rejected(self):
+        # Codex review 2026-11-16: a duplicate id would silently overwrite
+        # one stop's evidence with another's in ai.generate_walk_summary()'s
+        # id-keyed lookups - rejected before any AI call, same as any
+        # other malformed input.
+        body = {"visited_stops": [
+            {"id": "a", "name": "Stop A", "content": "Content A."},
+            {"id": "a", "name": "Stop A Again", "content": "Content B."},
+        ]}
+        with patch("app.ai.generate_walk_summary") as mock_gen:
+            response = self.client.post("/api/summary", json=body)
+        self.assertEqual(response.status_code, 400)
+        mock_gen.assert_not_called()
 
     def test_non_json_body_rejected(self):
         response = self.client.post("/api/summary", data="not json", content_type="text/plain")

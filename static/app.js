@@ -506,12 +506,6 @@ const ICON_SVG = {
     '<path d="M8,17 Q8,12 12,12 Q16,12 16,17 Z" fill="#1E4A3A"/>' +
     '<circle cx="12" cy="9" r="3.5" fill="#1E4A3A"/>' +
     "</svg>",
-  memorial:
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
-    '<rect x="6" y="19" width="12" height="3" fill="#C7C4B6"/>' +
-    '<polygon points="10,19 14,19 12.8,4 11.2,4" fill="#1E4A3A"/>' +
-    '<polygon points="11.2,4 12.8,4 12,1.5" fill="#1E4A3A"/>' +
-    "</svg>",
 };
 const DEFAULT_ICON = "church";
 // Topic-level fallback when no name keyword matches (e.g. a heritage
@@ -519,7 +513,7 @@ const DEFAULT_ICON = "church";
 // recognizable rather than only the keyword-matched ones having an icon.
 const TOPIC_FALLBACK_ICON = {
   architecture: "house", history: "church", public_art: "public_art",
-  sculpture: "sculpture", memorial: "memorial",
+  sculpture: "sculpture",
 };
 // Order matters: checked top to bottom, first match wins. Deliberately
 // narrow, real keywords from the actual catalogue - not a guess at every
@@ -842,10 +836,10 @@ const SETUP_STEPS = [
   "choose_topic",
   "confirm_sheet",
 ];
-const VALID_TOPICS = ["history", "architecture", "public_art", "sculpture", "memorial", "surprise_me"];
+const VALID_TOPICS = ["history", "architecture", "public_art", "sculpture", "surprise_me"];
 const TOPIC_LABELS = {
   history: "History", architecture: "Architecture", public_art: "Public Art",
-  sculpture: "Sculpture", memorial: "Memorials",
+  sculpture: "Sculpture",
 };
 
 // Real coordinates for 2 of the 3 named-start chips (catalogue/geocode cache);
@@ -1354,6 +1348,11 @@ const walkCompleteMessageEl = document.getElementById("walk-complete-message");
 const walkCompleteStopListEl = document.getElementById("walk-complete-stop-list");
 const walkCompleteBackBtn = document.getElementById("walk-complete-back-btn");
 const walkCompleteShareBtn = document.getElementById("walk-complete-share-btn");
+const walkCompleteSourcesBtn = document.getElementById("walk-complete-sources-btn");
+const walkCompleteSourcesSheetWrapEl = document.getElementById("walk-complete-sources-sheet-wrap");
+const walkCompleteSourcesSheetEl = document.getElementById("walk-complete-sources-sheet");
+const walkCompleteSourcesCloseBtn = document.getElementById("walk-complete-sources-close-btn");
+const walkCompleteSourcesListEl = document.getElementById("walk-complete-sources-list");
 
 let stopOverlayTriggerEl = null;
 
@@ -1508,6 +1507,7 @@ function hideAllScreens() {
   arrivalPillEl.hidden = true;
   catchupSheetWrapEl.hidden = true;
   screenWalkComplete.hidden = true;
+  walkCompleteSourcesSheetWrapEl.hidden = true;
 }
 
 // Shows one of the 4 real setup screens (the confirm sheet is a separate
@@ -2299,6 +2299,7 @@ attachSwipeToDismiss(document.querySelector("#confirm-sheet .handle"), () => {
 attachSwipeToDismiss(document.querySelector("#stop-list-sheet .handle"), () => closeStopListSheet());
 attachSwipeToDismiss(document.querySelector("#stop-overlay-sheet .handle"), () => closeStopOverlay());
 attachSwipeToDismiss(document.querySelector("#credits-sheet .handle"), () => closeCreditsSheet());
+attachSwipeToDismiss(document.querySelector("#walk-complete-sources-sheet .handle"), () => closeWalkCompleteSourcesSheet());
 
 approveRouteBtn.addEventListener("click", () => {
   if (trip.phase !== "reviewing" || trip.replacement || !isValidReviewingShape(trip)) return;
@@ -2513,8 +2514,10 @@ function buildHeartButton(stop) {
 
 // Same already rights-cleared photo stop.photo carries everywhere else
 // (data/place_photos.json via to_public_place()) - never a new/unverified
-// one fetched just for this screen. Attribution stays visible, same
-// policy as the stop overlay, just more compact.
+// one fetched just for this screen. The real creator/license credit still
+// shows (CC BY/BY-SA require it) but behind the "Sources" button/sheet
+// below, not inline here - user's correction, 2026-11-16: the inline
+// credit line took up too much space on every photo.
 function renderWalkCompleteStopPhoto(stop) {
   if (!isValidPhoto(stop.photo)) return null;
   const wrap = document.createElement("div");
@@ -2524,13 +2527,67 @@ function renderWalkCompleteStopPhoto(stop) {
   img.src = stop.photo.url;
   img.alt = stop.photo.alt;
   wrap.appendChild(img);
-  const credit = document.createElement("span");
-  credit.className = "walk-summary-stop-credit";
-  credit.textContent = `Photo by ${stop.photo.creator}, ${stop.photo.license}`;
-  wrap.appendChild(credit);
   return wrap;
 }
 
+// The "Sources" sheet content: one entry per visited stop that actually
+// has a photo credit and/or a content source to show - a stop with
+// neither is simply skipped, never shown with nothing to say.
+function renderWalkCompleteSourcesList(stops) {
+  walkCompleteSourcesListEl.innerHTML = "";
+  let anySource = false;
+  stops.forEach((stop) => {
+    const photoLine = isValidPhoto(stop.photo)
+      ? `Photo: ${stop.photo.creator}, ${stop.photo.license}`
+      : null;
+    const infoLines = (stop.attribution || [])
+      .filter(isValidAttributionEntry)
+      .map((entry) => `Info: ${humanizeSourceType(entry.source_type)} - ${entry.source_title}`);
+    if (!photoLine && infoLines.length === 0) return;
+    anySource = true;
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "sources-stop-name";
+    name.textContent = stop.name || "Stop";
+    li.appendChild(name);
+    [photoLine, ...infoLines].filter(Boolean).forEach((text) => {
+      const line = document.createElement("span");
+      line.className = "sources-stop-line";
+      line.textContent = text;
+      li.appendChild(line);
+    });
+    walkCompleteSourcesListEl.appendChild(li);
+  });
+  return anySource;
+}
+
+function setWalkCompleteSheetInert(isInert) {
+  if ("inert" in screenWalkComplete) screenWalkComplete.inert = isInert;
+}
+
+function openWalkCompleteSourcesSheet() {
+  setWalkCompleteSheetInert(true);
+  walkCompleteSourcesSheetWrapEl.hidden = false;
+  walkCompleteSourcesSheetEl.focus();
+}
+
+function closeWalkCompleteSourcesSheet() {
+  walkCompleteSourcesSheetWrapEl.hidden = true;
+  setWalkCompleteSheetInert(false);
+  walkCompleteSourcesBtn.focus();
+}
+
+walkCompleteSourcesBtn.addEventListener("click", openWalkCompleteSourcesSheet);
+walkCompleteSourcesCloseBtn.addEventListener("click", closeWalkCompleteSourcesSheet);
+walkCompleteSourcesSheetEl.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeWalkCompleteSourcesSheet();
+});
+
+// stop.walkSummary (set by finishWrapUp from the /api/summary response,
+// one grounded recap per stop id) is shown right next to that stop - a
+// stop missing its own walkSummary just shows its name, photo and heart,
+// same as before (user's correction, 2026-11-16: the summary belongs
+// next to each stop and must describe that place, not just name it).
 function renderWalkCompleteStopList(stops) {
   walkCompleteStopListEl.innerHTML = "";
   walkCompleteStopListEl.hidden = stops.length === 0;
@@ -2543,41 +2600,48 @@ function renderWalkCompleteStopList(stops) {
     name.className = "walk-summary-stop-name";
     name.textContent = stop.name || "Stop";
     li.appendChild(name);
+    if (stop.walkSummary) {
+      const summary = document.createElement("p");
+      summary.className = "walk-summary-stop-summary";
+      summary.textContent = stop.walkSummary;
+      li.appendChild(summary);
+    }
     li.appendChild(buildHeartButton(stop));
     walkCompleteStopListEl.appendChild(li);
   });
 }
 
-// outcome: "ai" (a real AI summary), "plain" (generation failed or wasn't
-// attempted, but >=1 stop was Visited - a plain list, each still carrying
-// its own favourite-heart target so favouriting never depends on AI
-// succeeding), or "empty" (zero stops Visited - the one honest ending,
-// whether reached via "end without a summary" or a failed/skipped
-// generation with nothing confirmed).
+// outcome: "stops" (>=1 stop was Visited - each shows its own AI recap
+// when one was generated and grounding-checked, otherwise just its name;
+// every stop still carries its own favourite-heart target so favouriting
+// never depends on AI succeeding), or "empty" (zero stops Visited - the
+// one honest ending, whether reached via "end without a summary" or a
+// failed/skipped generation with nothing confirmed).
 let walkCompleteShareText = "";
 
-function buildWalkCompleteShareText(outcome, summary, visitedStops) {
-  const names = visitedStops.map((stop) => stop.name || "Stop");
-  if (outcome === "ai") return `${summary}\n\nVisited: ${names.join(", ")}`;
-  return `Here's what I visited on my Jaunt: ${names.join(", ")}`;
+function buildWalkCompleteShareText(visitedStops) {
+  const lines = visitedStops.map((stop) =>
+    stop.walkSummary ? `${stop.name}: ${stop.walkSummary}` : stop.name || "Stop"
+  );
+  return `Here's what I visited on my Jaunt:\n\n${lines.join("\n\n")}`;
 }
 
-function showWalkComplete(outcome, { summary = null, visitedStops = [] } = {}) {
+function showWalkComplete(outcome, { visitedStops = [] } = {}) {
   hideAllScreens();
   mapStageEl.hidden = true;
+  let anySource = false;
   if (outcome === "empty") {
     walkCompleteMessageEl.textContent = "Nothing was marked Visited this time - no summary to show.";
     renderWalkCompleteStopList([]);
-  } else if (outcome === "ai") {
-    walkCompleteMessageEl.textContent = summary;
-    renderWalkCompleteStopList(visitedStops);
   } else {
     walkCompleteMessageEl.textContent = "Here's what you visited on this Jaunt:";
     renderWalkCompleteStopList(visitedStops);
+    anySource = renderWalkCompleteSourcesList(visitedStops);
   }
-  // Nothing to share on the honest empty ending - no stops, no summary.
+  // Nothing to share, and nothing to credit, on the honest empty ending.
   walkCompleteShareBtn.hidden = outcome === "empty";
-  walkCompleteShareText = outcome === "empty" ? "" : buildWalkCompleteShareText(outcome, summary, visitedStops);
+  walkCompleteSourcesBtn.hidden = !anySource;
+  walkCompleteShareText = outcome === "empty" ? "" : buildWalkCompleteShareText(visitedStops);
   screenWalkComplete.hidden = false;
   walkCompleteHeadingEl.focus();
 }
@@ -2597,7 +2661,7 @@ async function finishWrapUp(attemptSummary) {
     return;
   }
   if (!attemptSummary) {
-    showWalkComplete("plain", { visitedStops });
+    showWalkComplete("stops", { visitedStops });
     return;
   }
 
@@ -2608,7 +2672,7 @@ async function finishWrapUp(attemptSummary) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        visited_stops: visitedStops.map((stop) => ({ name: stop.name, content: stop.content })),
+        visited_stops: visitedStops.map((stop) => ({ id: stop.id, name: stop.name, content: stop.content })),
       }),
       signal: AbortSignal.timeout(PLANNING_REQUEST_TIMEOUT_MS),
     });
@@ -2616,11 +2680,11 @@ async function finishWrapUp(attemptSummary) {
   } catch (err) {
     console.error("Summary request failed:", err);
   }
-  if (data && data.feasible && typeof data.summary === "string") {
-    showWalkComplete("ai", { summary: data.summary, visitedStops });
-  } else {
-    showWalkComplete("plain", { visitedStops });
-  }
+  const summaries = (data && data.summaries) || {};
+  visitedStops.forEach((stop) => {
+    if (typeof summaries[stop.id] === "string") stop.walkSummary = summaries[stop.id];
+  });
+  showWalkComplete("stops", { visitedStops });
 }
 
 catchupSummaryBtn.addEventListener("click", () => finishWrapUp(true));

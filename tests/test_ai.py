@@ -790,67 +790,114 @@ class TestBuildPromptVisitHistory(unittest.TestCase):
 
 class TestGenerateWalkSummary(unittest.TestCase):
     """Orchestration tests - patch the call primitive and the grounding
-    check directly, same style as TestGenerateStopContent above."""
+    check directly, same style as TestGenerateStopContent above. Per-stop
+    (revised 2026-11-16): the user's summary belongs next to each stop, so
+    this is now a {stop_id: summary} map, not one combined paragraph."""
 
     VISITED = [
         {"id": "node/1", "name": "Newtown Station", "content": "A historic railway station."},
         {"id": "node/2", "name": "Mural Lane", "content": "A laneway covered in street art."},
     ]
 
-    def test_grounded_summary_is_returned(self):
-        with patch("ai._call_walk_summary", return_value="You explored a historic station and a vibrant mural lane."), \
-             patch("ai.check_grounding_semantic", return_value=True) as mock_check:
+    def test_grounded_summaries_are_returned_per_stop(self):
+        generated = {
+            "node/1": "You stepped into a historic railway station.",
+            "node/2": "A laneway covered in street art greeted you.",
+        }
+        with patch("ai._call_walk_summary_batch", return_value=generated), \
+             patch("ai._call_grounding_check_batch", return_value={"node/1": True, "node/2": True}) as mock_check:
             result = generate_walk_summary(self.VISITED)
-        self.assertEqual(result, "You explored a historic station and a vibrant mural lane.")
-        # Grounded strictly in the visited stops' own content (FR-16).
-        self.assertEqual(mock_check.call_args.args[1], [s["content"] for s in self.VISITED])
+        self.assertEqual(result, generated)
+        # Each stop checked only against its OWN content and OWN name
+        # (FR-16) - never pooled, and never missing the name even though
+        # generation is given it (Codex review 2026-11-16).
+        checked_items = mock_check.call_args.args[0]
+        self.assertEqual(
+            {item_id: tuple(evidence) for item_id, _content, evidence in checked_items},
+            {
+                "node/1": ("A historic railway station.", "Newtown Station"),
+                "node/2": ("A laneway covered in street art.", "Mural Lane"),
+            },
+        )
+        # Real-API-confirmed 2026-11-16: the strict default prompt rejects
+        # ANY recap narrating the walker having visited the place ("you
+        # stepped into...") as an unsupported claim about evidence that
+        # never says a visit happened - this relaxed prompt is what lets a
+        # genuine recap pass at all.
+        self.assertEqual(mock_check.call_args.kwargs["system_prompt"], ai.WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT)
 
-    def test_grounding_rejection_returns_none_not_the_ungrounded_text(self):
-        with patch("ai._call_walk_summary", return_value="A fabricated claim."), \
-             patch("ai.check_grounding_semantic", return_value=False):
+    def test_a_stop_failing_grounding_is_dropped_but_others_survive(self):
+        generated = {"node/1": "A historic railway station.", "node/2": "A fabricated claim."}
+        with patch("ai._call_walk_summary_batch", return_value=generated), \
+             patch("ai._call_grounding_check_batch", return_value={"node/1": True, "node/2": False}):
             result = generate_walk_summary(self.VISITED)
-        self.assertIsNone(result)
+        self.assertEqual(result, {"node/1": "A historic railway station."})
 
-    def test_call_failure_returns_none(self):
-        with patch("ai._call_walk_summary", side_effect=AiSelectionError("boom")), \
-             patch("ai.check_grounding_semantic") as mock_check:
+    def test_generation_call_failure_returns_empty_dict(self):
+        with patch("ai._call_walk_summary_batch", side_effect=AiSelectionError("boom")), \
+             patch("ai._call_grounding_check_batch") as mock_check:
             result = generate_walk_summary(self.VISITED)
-        self.assertIsNone(result)
+        self.assertEqual(result, {})
         mock_check.assert_not_called()
 
+    def test_grounding_call_failure_returns_empty_dict(self):
+        generated = {"node/1": "A historic railway station."}
+        with patch("ai._call_walk_summary_batch", return_value=generated), \
+             patch("ai._call_grounding_check_batch", side_effect=AiSelectionError("boom")):
+            result = generate_walk_summary(self.VISITED)
+        self.assertEqual(result, {})
+
     def test_zero_visited_stops_never_calls_ai_at_all(self):
-        with patch("ai._call_walk_summary") as mock_call:
+        with patch("ai._call_walk_summary_batch") as mock_call:
             result = generate_walk_summary([])
-        self.assertIsNone(result)
+        self.assertEqual(result, {})
         mock_call.assert_not_called()
 
 
-class TestCallWalkSummary(unittest.TestCase):
+class TestCallWalkSummaryBatch(unittest.TestCase):
     """Low-level HTTP-boundary tests, same style as the other _call_* tests."""
 
-    def test_returns_summary_string_from_well_formed_response(self):
-        mock_response = make_mock_response(make_openai_response({"summary": "A lovely afternoon walk."}))
-        with patch("ai.requests.post", return_value=mock_response):
-            result = ai._call_walk_summary([{"name": "A Place", "content": "Some content."}])
-        self.assertEqual(result, "A lovely afternoon walk.")
+    STOPS = [
+        {"id": "node/1", "name": "A Place", "content": "Some content."},
+        {"id": "node/2", "name": "Another Place", "content": "Other content."},
+    ]
 
-    def test_empty_summary_raises_selection_error(self):
-        mock_response = make_mock_response(make_openai_response({"summary": "   "}))
+    def test_returns_summary_by_stop_id_from_well_formed_response(self):
+        mock_response = make_mock_response(make_openai_response({
+            "stops": [
+                {"stop_id": "node/1", "summary": "A lovely afternoon walk."},
+                {"stop_id": "node/2", "summary": "A charming little detour."},
+            ]
+        }))
         with patch("ai.requests.post", return_value=mock_response):
-            with self.assertRaises(AiSelectionError):
-                ai._call_walk_summary([{"name": "A Place", "content": "Some content."}])
+            result = ai._call_walk_summary_batch(self.STOPS)
+        self.assertEqual(result, {
+            "node/1": "A lovely afternoon walk.",
+            "node/2": "A charming little detour.",
+        })
+
+    def test_malformed_individual_entry_is_skipped_not_fatal(self):
+        mock_response = make_mock_response(make_openai_response({
+            "stops": [
+                {"stop_id": "node/1", "summary": "A lovely afternoon walk."},
+                {"stop_id": "node/2", "summary": "   "},
+            ]
+        }))
+        with patch("ai.requests.post", return_value=mock_response):
+            result = ai._call_walk_summary_batch(self.STOPS)
+        self.assertEqual(result, {"node/1": "A lovely afternoon walk."})
 
     def test_malformed_response_shape_raises_selection_error(self):
         mock_response = make_mock_response({"choices": [{"message": {"content": "not json"}}]})
         with patch("ai.requests.post", return_value=mock_response):
             with self.assertRaises(AiSelectionError):
-                ai._call_walk_summary([{"name": "A Place", "content": "Some content."}])
+                ai._call_walk_summary_batch(self.STOPS)
 
     def test_non_retryable_http_error_raises_fatal_error(self):
         mock_response = make_http_error_response(401, error_type="invalid_api_key")
         with patch("ai.requests.post", return_value=mock_response):
             with self.assertRaises(AiFatalError):
-                ai._call_walk_summary([{"name": "A Place", "content": "Some content."}])
+                ai._call_walk_summary_batch(self.STOPS)
 
 
 if __name__ == "__main__":

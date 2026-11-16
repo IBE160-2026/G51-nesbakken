@@ -1747,6 +1747,14 @@ input:focus-visible,
   font-weight: 600;
   color: var(--ink);
 }
+.walk-summary-stop-summary {
+  flex: 1 0 100%;
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
 .walk-summary-stop-photo-wrap {
   display: flex;
   flex-direction: column;
@@ -1758,11 +1766,39 @@ input:focus-visible,
   border-radius: 8px;
   object-fit: cover;
 }
-.walk-summary-stop-credit {
-  font-size: 9px;
+/* Bottom-right corner button (user's correction, 2026-11-16): the real
+   per-photo/per-source credit moved here, off the main list, into the
+   sheet below (.sources-stop-list). */
+.walk-complete-sources-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+}
+.sources-stop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+.sources-stop-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.sources-stop-line {
+  display: block;
+  font-size: 12px;
   color: var(--ink-faint);
-  max-width: 48px;
-  line-height: 1.2;
+  line-height: 1.4;
+}
+.sources-stop-line a {
+  color: var(--ink-faint);
 }
 /* Ported from the approved mockup (flow-03-walk.html) - the only
    difference between favourited/unfavourited is the path's own fill

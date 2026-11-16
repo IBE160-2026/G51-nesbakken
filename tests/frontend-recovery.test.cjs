@@ -36,6 +36,9 @@ function browser(storedTrip, location = {}, placesSeed, visitHistorySeed) {
         listeners.get('click')?.(event);
         this.onclick?.(event); // real DOM fires both a listener and .onclick
       },
+      // Generic event simulation for anything click()/input() don't
+      // already cover (e.g. a keydown listener for Escape-to-dismiss).
+      fire(name, event = {}) { listeners.get(name)?.({ ...event, target: this }); },
       input(value) { this.value = String(value); listeners.get('input')?.(); },
       appendChild(child) { this.children.push(child); },
       setAttribute(name, value) { this[name] = value; },
@@ -1519,19 +1522,25 @@ test('Story 3.1: a catch-up row is a real toggle - tap to mark Visited retroacti
   assert.equal(app.evaluate("isStopVisited('a')"), false);
 });
 
-test('Story 3.2: a successful AI summary shows the real text and each visited stop with its own favourite-heart', async () => {
+test('Story 3.2: a successful per-stop summary shows a grounded recap next to that stop, plus its own favourite-heart', async () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');
   app.evaluate("setStopVisited('a', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
-  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  app.respondSummary({ summaries: { a: 'A lovely afternoon walk past the old mill.' } });
   await app.evaluate('finishWrapUp(true)');
   assert.equal(app.elements.get('screen-walk-complete').hidden, false);
-  assert.equal(app.elements.get('walk-complete-message').textContent, 'A lovely afternoon walk.');
-  assert.equal(app.elements.get('walk-complete-stop-list').children.length, 1);
+  assert.equal(app.elements.get('walk-complete-message').textContent, "Here's what you visited on this Jaunt:");
+  const rows = app.elements.get('walk-complete-stop-list').children;
+  assert.equal(rows.length, 1);
+  // [name, summary, heart] - stop 'a' has no photo here.
+  assert.equal(rows[0].children.length, 3);
+  assert.equal(rows[0].children[1].className, 'walk-summary-stop-summary');
+  assert.equal(rows[0].children[1].textContent, 'A lovely afternoon walk past the old mill.');
   // FR-16: grounded strictly in Visited stops - only 'a' was sent, not 'b'.
   assert.deepEqual(app.summaryRequests[0].visited_stops.map((s) => s.name), ['Stop a']);
+  assert.deepEqual(app.summaryRequests[0].visited_stops.map((s) => s.id), ['a']);
 });
 
 test('Story 3.2 follow-up: a visited stop with an already rights-cleared photo shows it in the summary list; one without never gets an image', async () => {
@@ -1543,19 +1552,79 @@ test('Story 3.2 follow-up: a visited stop with an already rights-cleared photo s
   app.evaluate("setStopVisited('b', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
-  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  app.respondSummary({ summaries: {} });
   await app.evaluate('finishWrapUp(true)');
   const rows = app.elements.get('walk-complete-stop-list').children;
   assert.equal(rows.length, 2);
   // 'a' has a photo: [photo-wrap, name, heart] - 'b' has none: [name, heart].
+  // (Neither stop got a grounded recap here, so no summary paragraph. The
+  // real photo credit moved to the Sources sheet - see the dedicated test
+  // below - so the inline photo-wrap now holds only the image.)
   assert.equal(rows[0].children.length, 3);
   assert.equal(rows[0].children[0].className, 'walk-summary-stop-photo-wrap');
-  const [img, credit] = rows[0].children[0].children;
+  const [img] = rows[0].children[0].children;
   assert.equal(img.className, 'walk-summary-stop-photo');
   assert.equal(img.src, publicPhoto.url);
-  assert.equal(credit.textContent, `Photo by ${publicPhoto.creator}, ${publicPhoto.license}`);
   assert.equal(rows[1].children.length, 2);
   assert.equal(rows[1].children[0].className, 'walk-summary-stop-name');
+});
+
+test('Sources button is hidden when no visited stop has a photo or a real content source', async () => {
+  const app = browser(route(['a', 'b']));
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ summaries: {} });
+  await app.evaluate('finishWrapUp(true)');
+  assert.equal(app.elements.get('walk-complete-sources-btn').hidden, true);
+});
+
+test('Sources button opens a sheet with the real per-photo credit and per-stop content source, moved off the main list', async () => {
+  const trip = route(['a', 'b']);
+  trip.stops[0].photo = publicPhoto;
+  trip.stops[0].attribution = [{ source_type: 'wikipedia', source_title: 'Newtown Station', source_url: 'https://example.org/station' }];
+  const app = browser(trip);
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ summaries: {} });
+  await app.evaluate('finishWrapUp(true)');
+  const btn = app.elements.get('walk-complete-sources-btn');
+  assert.equal(btn.hidden, false);
+  btn.click();
+  assert.equal(app.elements.get('walk-complete-sources-sheet-wrap').hidden, false);
+  const entry = app.elements.get('walk-complete-sources-list').children[0];
+  const [name, photoLine, infoLine] = entry.children;
+  assert.equal(name.textContent, 'Stop a');
+  assert.equal(photoLine.textContent, `Photo: ${publicPhoto.creator}, ${publicPhoto.license}`);
+  assert.equal(infoLine.textContent, 'Info: Wikipedia - Newtown Station');
+});
+
+test('Sources sheet closes on Escape, same as the other dismissal paths', async () => {
+  const trip = route(['a', 'b']);
+  trip.stops[0].photo = publicPhoto;
+  const app = browser(trip);
+  app.click('approve-route-btn');
+  app.evaluate("setStopVisited('a', true)");
+  app.click('walking-menu-btn');
+  app.click('end-jaunt-btn');
+  app.respondSummary({ summaries: {} });
+  await app.evaluate('finishWrapUp(true)');
+  app.elements.get('walk-complete-sources-btn').click();
+  const sheetWrap = app.elements.get('walk-complete-sources-sheet-wrap');
+  assert.equal(sheetWrap.hidden, false);
+  app.elements.get('walk-complete-sources-sheet').fire('keydown', { key: 'Escape' });
+  assert.equal(sheetWrap.hidden, true);
+});
+
+test('Sources sheet uses .sheet-scroll so many sources never overflow the viewport on a small screen', () => {
+  // Raw source-text check, same house pattern as the UX-DR4/UX-DR5
+  // regression test above - this harness's generic element stubs don't
+  // track real class attributes.
+  const dialog = html.split('id="walk-complete-sources-sheet"')[0].split('<div').pop();
+  assert(dialog.includes('sheet-scroll'));
 });
 
 test('Share summary: uses the native share sheet when available, includes the real summary and visited names', async () => {
@@ -1564,13 +1633,13 @@ test('Share summary: uses the native share sheet when available, includes the re
   app.evaluate("setStopVisited('a', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
-  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  app.respondSummary({ summaries: { a: 'A lovely afternoon walk.' } });
   await app.evaluate('finishWrapUp(true)');
   assert.equal(app.elements.get('walk-complete-share-btn').hidden, false);
   await app.evaluate('document.getElementById("walk-complete-share-btn").click()');
   await app.settle();
   assert.equal(app.shareRequests.length, 1);
-  assert.equal(app.shareRequests[0].text, 'A lovely afternoon walk.\n\nVisited: Stop a');
+  assert.equal(app.shareRequests[0].text, "Here's what I visited on my Jaunt:\n\nStop a: A lovely afternoon walk.");
   assert.equal(app.clipboardWrites.length, 0);
 });
 
@@ -1580,12 +1649,12 @@ test('Share summary: falls back to clipboard copy when the Web Share API is unsu
   app.evaluate("setStopVisited('a', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
-  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  app.respondSummary({ summaries: { a: 'A lovely afternoon walk.' } });
   await app.evaluate('finishWrapUp(true)');
   await app.evaluate('document.getElementById("walk-complete-share-btn").click()');
   await app.settle();
   assert.equal(app.clipboardWrites.length, 1);
-  assert.equal(app.clipboardWrites[0], 'A lovely afternoon walk.\n\nVisited: Stop a');
+  assert.equal(app.clipboardWrites[0], "Here's what I visited on my Jaunt:\n\nStop a: A lovely afternoon walk.");
 });
 
 test('Share summary: a cancelled native share sheet (AbortError) never falls through to clipboard', async () => {
@@ -1594,7 +1663,7 @@ test('Share summary: a cancelled native share sheet (AbortError) never falls thr
   app.evaluate("setStopVisited('a', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
-  app.respondSummary({ feasible: true, summary: 'A lovely afternoon walk.' });
+  app.respondSummary({ summaries: { a: 'A lovely afternoon walk.' } });
   await app.evaluate('finishWrapUp(true)');
   await app.evaluate('document.getElementById("walk-complete-share-btn").click()');
   await app.settle();
@@ -1610,13 +1679,13 @@ test('Share summary: hidden on the honest empty ending - nothing was Visited, no
   assert.equal(app.elements.get('walk-complete-share-btn').hidden, true);
 });
 
-test('Story 3.2: generation failure (feasible:false) falls back to the plain list, never an error screen', async () => {
+test('Story 3.2: no stop getting a grounded recap falls back to the plain list, never an error screen', async () => {
   const app = browser(route(['a', 'b']));
   app.click('approve-route-btn');
   app.evaluate("setStopVisited('a', true)");
   app.click('walking-menu-btn');
   app.click('end-jaunt-btn');
-  app.respondSummary({ feasible: false });
+  app.respondSummary({ summaries: {} });
   await app.evaluate('finishWrapUp(true)');
   assert.equal(app.elements.get('screen-walk-complete').hidden, false);
   assert.equal(app.elements.get('walk-complete-stop-list').children.length, 1);

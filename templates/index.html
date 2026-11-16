@@ -175,7 +175,6 @@
           <button type="button" class="chip topic-pill" role="radio" aria-checked="false" data-topic="architecture" aria-label="Architecture topic">Architecture</button>
           <button type="button" class="chip topic-pill" role="radio" aria-checked="false" data-topic="public_art" aria-label="Public Art topic">Public Art</button>
           <button type="button" class="chip topic-pill" role="radio" aria-checked="false" data-topic="sculpture" aria-label="Sculpture topic">Sculpture</button>
-          <button type="button" class="chip topic-pill" role="radio" aria-checked="false" data-topic="memorial" aria-label="Memorials topic">Memorials</button>
         </div>
       </div>
 
@@ -379,7 +378,25 @@
       <button type="button" class="btn-pill" id="walk-complete-share-btn" aria-label="Share summary" hidden>Share summary</button>
       <button type="button" class="btn-pill" id="walk-complete-back-btn" aria-label="Back to start">Back to start</button>
     </div>
+    <!-- Moved out of the per-stop photo caption (user's correction,
+         2026-11-16: the inline credit line under each photo took up too
+         much space) - still names the actual photographer/license per
+         photo (CC BY/BY-SA require that specific attribution), just
+         behind one corner button instead of inline on every stop. -->
+    <button type="button" class="text-link walk-complete-sources-btn" id="walk-complete-sources-btn" aria-label="View photo and information sources" hidden>Sources</button>
   </section>
+
+  <div id="walk-complete-sources-sheet-wrap" class="sheet-wrap" hidden>
+    <div class="dim-overlay"></div>
+    <div class="confirm-sheet sheet-scroll" id="walk-complete-sources-sheet" role="dialog" aria-modal="true" aria-labelledby="walk-complete-sources-heading" tabindex="-1">
+      <div class="handle" aria-hidden="true"></div>
+      <div class="sheet-header-row">
+        <h2 id="walk-complete-sources-heading">Sources</h2>
+        <button type="button" class="close-x" id="walk-complete-sources-close-btn" aria-label="Close sources">&#10005;</button>
+      </div>
+      <ul class="sources-stop-list" id="walk-complete-sources-list"></ul>
+    </div>
+  </div>
 
   <!-- ============== HONEST FALLBACK (Story 1.6): shown for both
        feasible:false sub-cases (zero-feasible combinations and the AI's
