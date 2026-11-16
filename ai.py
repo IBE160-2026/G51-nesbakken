@@ -590,29 +590,43 @@ GROUNDING_CHECK_SYSTEM_PROMPT = (
     "Respond using only the required JSON schema - no extra commentary."
 )
 
-# A separate, deliberately less strict variant used only for the walk
-# summary (Story 3.2 follow-up, 2026-10-30): the strict prompt above treats
-# ANY connecting/thematic language ("tributes to character and leadership",
-# "from X to Y") as an invented relationship, which real-world testing
-# showed makes almost every genuine multi-stop narrative fail - the
-# connecting language itself was never a false FACT, just normal
-# summarizing. User's explicit choice: allow narrative framing, but still
-# verify every concrete, checkable fact against its own stop's evidence.
+# A separate, deliberately less strict variant for the per-stop walk
+# summary (Story 3.2, re-diagnosed 2026-11-16): confirmed against the real
+# OpenAI API that the strict prompt above rejects ANY recap that narrates
+# the walker having visited the place ("you visited...") as an
+# unsupported claim, since the evidence itself never says a visit
+# happened - that framing was never a false fact about the PLACE, just
+# normal recap language (same root cause the original multi-stop
+# walk-summary bug had, see commit history; this is its single-stop
+# equivalent after Story 4.3's redesign to per-stop recaps).
+#
+# The allowance is deliberately narrow (Codex review 2026-11-16): marking
+# a stop Visited in the app means only that - never that the walker went
+# inside, spoke to anyone, or spent a particular amount of time there.
+# Anything that specific is a real claim needing its own evidence, same
+# as any other fact, so the exemption below covers only generic
+# visited/saw framing and explicitly says so.
 WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT = (
-    "You are a fact-checker for a walk summary that narrates several stops "
-    "together as one story. You will be given a list of items, each with "
-    "its own content and its own evidence (an item's evidence may be "
-    "several separate pieces of text, one per stop the summary covers).\n\n"
-    "Thematic framing, transitions, and language that ties the stops "
-    "together into a narrative (e.g. 'tributes to...', 'from X to Y', "
-    "'along the way') is expected and fine, even when that exact wording "
-    "isn't in the evidence - that is normal summarizing, not invention.\n\n"
-    "Mark an item unsupported only if it states a concrete, checkable "
-    "fact - what something is, who did what, when, where, or why - that "
-    "is not directly stated or reasonably implied by its own evidence, or "
-    "that contradicts its evidence. General background not specific to "
-    "the item, presented as a specific fact about that item, is also "
-    "unsupported.\n\n"
+    "You are a fact-checker for a short recap written after someone "
+    "visited a single stop on a walking tour. You will be given a list of "
+    "items, each with its own recap text and its own evidence "
+    "(information about that place only).\n\n"
+    "The ONLY thing you may assume without evidence is that the walker "
+    "visited or saw the place - narration like 'you visited...', 'you "
+    "saw...', 'on your walk you passed...' is expected and fine, even "
+    "though the evidence itself never literally states that a visit "
+    "happened. Do not extend this allowance any further: a claim that the "
+    "walker went inside, spoke to someone, spent a particular amount of "
+    "time, or did anything more specific than visiting/seeing the place "
+    "is a real claim about the walker's experience, not ordinary recap "
+    "framing - mark it unsupported unless the evidence itself actually "
+    "says that happened.\n\n"
+    "Mark an item unsupported if it states a concrete, checkable "
+    "fact about the place itself - what it is, who did what, when, where, "
+    "or why - that is not directly stated or reasonably implied by its own "
+    "evidence, or that contradicts its evidence. General background not "
+    "specific to the item, presented as a specific fact about that item, "
+    "is also unsupported.\n\n"
     "Judge each item only against its own evidence, never against another "
     "item's evidence in this same list.\n\n"
     "Respond using only the required JSON schema - no extra commentary."
@@ -655,10 +669,8 @@ def _call_grounding_check_batch(items, system_prompt=None):
     unsupported, matching its "never show unless genuinely confirmed"
     policy).
 
-    system_prompt defaults to the strict GROUNDING_CHECK_SYSTEM_PROMPT;
-    generate_walk_summary() passes WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT
-    instead (2026-10-30) - same fact-verification guarantee, just not
-    treating narrative connecting language as an invented fact.
+    system_prompt defaults to the strict GROUNDING_CHECK_SYSTEM_PROMPT; a
+    caller may pass its own instead (none currently does).
 
     Raises AiSelectionError/AiFatalError the same way _call_openai() and
     _call_content_generation() do.
@@ -745,8 +757,7 @@ def check_grounding_semantic(generated_text, source_texts, system_prompt=None):
     multi-stop efficiency (one call per route, not one per stop).
 
     system_prompt defaults to the strict GROUNDING_CHECK_SYSTEM_PROMPT, as
-    it always has; generate_walk_summary() passes the relaxed
-    WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT instead (2026-10-30).
+    it always has.
 
     Raises AiSelectionError/AiFatalError on a call failure - callers
     decide the fallback (generate_stop_content() falls back to the raw
@@ -1000,54 +1011,72 @@ def generate_stop_content(stops, topic):
 
 
 # =====================================================================
-# WALK SUMMARY (Story 3.2, FR-16) - a short recap of the stops a user
-# actually confirmed Visited/Completed, grounded only in that content.
+# WALK SUMMARY (Story 3.2, FR-16, revised 2026-11-16) - a short recap for
+# EACH stop a user actually confirmed Visited/Completed, grounded only in
+# that stop's own content - not one combined narrative paragraph (user's
+# explicit correction: the summary belongs next to each stop, and it must
+# actually describe that place, not just name it).
 # =====================================================================
 
 WALK_SUMMARY_SYSTEM_PROMPT = (
-    "You write a short, warm recap of a walk someone just completed on a "
-    "walking tour app called Jaunt. You will be given the stops they "
-    "actually confirmed visiting, each with its own name and its own "
-    "content.\n\n"
-    "Ground the recap ONLY in the supplied content. Never invent a name, "
-    "date, number or fact that isn't in it, and never describe visiting "
-    "anywhere not in the list.\n\n"
-    "Write 2-4 warm, plain sentences reflecting on the walk as a whole - "
-    "not a mechanical stop-by-stop list, but also not vague filler that "
-    "could describe any walk; it should clearly reflect what was actually "
-    "visited.\n\n"
+    "You write a short, warm one-to-two sentence recap of a single stop "
+    "someone just visited on a walking tour app called Jaunt. You will be "
+    "given a list of stops, each with its own name and its own content - "
+    "source material for that stop and nothing else.\n\n"
+    "Ground every stop's recap ONLY in that stop's own content. Never "
+    "invent a name, date, number, or fact that isn't in that stop's own "
+    "content - and never borrow a detail from a different stop, even one "
+    "listed elsewhere in this same request. If a stop's content is very "
+    "short, keep its recap short and simple too - never pad it out with "
+    "invented detail just to sound fuller.\n\n"
+    "Write in a warm, plain voice, as if reminding the walker what they "
+    "just saw at that stop.\n\n"
     "Respond using only the required JSON schema - no extra commentary."
 )
 
 WALK_SUMMARY_SCHEMA = {
-    "name": "walk_summary",
+    "name": "walk_summary_batch",
     "strict": True,
     "schema": {
         "type": "object",
         "properties": {
-            "summary": {"type": "string"},
+            "stops": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "stop_id": {"type": "string"},
+                        "summary": {"type": "string"},
+                    },
+                    "required": ["stop_id", "summary"],
+                    "additionalProperties": False,
+                },
+            },
         },
-        "required": ["summary"],
+        "required": ["stops"],
         "additionalProperties": False,
     },
 }
 
 
-def _call_walk_summary(visited_stops):
-    """One OpenAI call producing a single short recap of the whole walk,
-    grounded only in the supplied stops' own content - not a batch (there's
-    exactly one summary, not one per stop). Raises AiSelectionError/
-    AiFatalError the same way every other call in this module does;
-    generate_walk_summary() below decides the fallback.
+def _call_walk_summary_batch(visited_stops):
+    """One batched OpenAI call covering every visited stop, each keyed by
+    its own stop_id with its OWN content only - the same per-stop
+    isolation discipline as _call_content_generation(), for the same
+    reason (no pooled text to blend facts across stops, and a clean
+    per-stop boundary for the grounding check afterward).
+
+    Raises AiSelectionError/AiFatalError the same way every other call in
+    this module does; generate_walk_summary() below decides the fallback.
     """
     request_details = {
         "stops": [
-            {"name": stop.get("name"), "content": stop.get("content")}
+            {"stop_id": stop["id"], "name": stop.get("name"), "content": stop.get("content")}
             for stop in visited_stops
         ],
     }
     prompt = (
-        "Write a short recap of this walk, grounded only in the stops below.\n\n"
+        "Write a short recap for each stop below, grounded only in its own content.\n\n"
         + json.dumps(request_details, indent=2)
     )
 
@@ -1089,35 +1118,67 @@ def _call_walk_summary(visited_stops):
 
     try:
         parsed = json.loads(raw_content)
-        summary = parsed["summary"]
+        stops = parsed["stops"]
+        if not isinstance(stops, list):
+            raise AiSelectionError(f"AI response 'stops' was not a list: {stops!r}")
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         raise AiSelectionError(f"AI response was not the expected JSON shape: {exc}") from exc
-    if not isinstance(summary, str) or not summary.strip():
-        raise AiSelectionError(f"AI response 'summary' was empty or not a string: {summary!r}")
-    return summary
+
+    # A malformed individual entry is skipped, not a reason to fail the
+    # whole batch - same discipline as _call_content_generation().
+    result = {}
+    for s in stops:
+        if not isinstance(s, dict):
+            continue
+        stop_id = s.get("stop_id")
+        summary = s.get("summary")
+        if not isinstance(stop_id, str) or not isinstance(summary, str) or not summary.strip():
+            continue
+        result[stop_id] = summary
+    return result
 
 
 def generate_walk_summary(visited_stops):
-    """The real entry point Story 3.2 calls: one short AI recap of the
-    walk, grounded strictly in the stops the caller passes - the caller
+    """The real entry point Story 3.2 calls: a short AI recap for EACH
+    stop, grounded strictly in that stop's own content - the caller
     (app.py) is responsible for only ever passing stops actually marked
     Visited/Completed, never one merely Proposed or Opened/Engaged (FR-16),
     the same division of responsibility generate_stop_content() already
-    has with ITS caller.
+    has with ITS caller. Each stop needs its own "id" (see app.py).
 
-    Returns None on any failure - a technical error, a malformed response,
-    or a real grounding-check rejection - never a technical error shown as
-    if it were content, and never an unverified claim. The caller falls
-    back to a plain list of the visited stops' own names, so favouriting
-    never depends on AI succeeding (FR-16, revised 2026-10-18).
+    Returns {stop_id: summary_text} covering only the stops whose recap
+    was both generated and passed the grounding check - a stop_id simply
+    missing from the result means "no AI recap for this one", never a
+    technical error shown as if it were content, and never an unverified
+    claim. The caller falls back to showing just that stop's own name, so
+    favouriting never depends on AI succeeding (FR-16).
     """
     if not visited_stops:
-        return None
+        return {}
     try:
-        summary = _call_walk_summary(visited_stops)
+        generated_by_id = _call_walk_summary_batch(visited_stops)
     except AiSelectionError:
-        return None
-    source_texts = [stop.get("content") for stop in visited_stops if stop.get("content")]
-    if not check_grounding_semantic(summary, source_texts, system_prompt=WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT):
-        return None
-    return summary
+        return {}
+
+    # The stop's own real name is legitimate grounding material too, same
+    # as generate_stop_content()'s evidence_texts - a recap naming the
+    # place it's actually about isn't fabrication just because the name
+    # happens to live in the "name" field rather than inside "content"
+    # (Codex review 2026-11-16: generation is given the name and may use
+    # it, so the grounding check must be able to see it too).
+    evidence_by_id = {
+        stop["id"]: [stop.get("content") or "", stop.get("name") or ""] for stop in visited_stops
+    }
+    candidates = [
+        (stop_id, summary) for stop_id, summary in generated_by_id.items() if stop_id in evidence_by_id
+    ]
+    if not candidates:
+        return {}
+    try:
+        verdicts = _call_grounding_check_batch(
+            [(stop_id, summary, evidence_by_id[stop_id]) for stop_id, summary in candidates],
+            system_prompt=WALK_SUMMARY_GROUNDING_SYSTEM_PROMPT,
+        )
+    except AiSelectionError:
+        return {}
+    return {stop_id: summary for stop_id, summary in candidates if verdicts.get(stop_id, False)}

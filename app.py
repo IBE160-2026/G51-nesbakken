@@ -395,14 +395,15 @@ MAX_SUMMARY_FIELD_LENGTH = 4000
 
 
 def _validate_summary_request(data):
-    """Returns a list of {"name", "content"} dicts if data is a well-formed
-    summary request, else raises PlanRequestError. Reuses PlanRequestError
-    rather than a new exception class - same "malformed input, 400 before
-    any AI call" contract /api/plan already has.
+    """Returns a list of {"id", "name", "content"} dicts if data is a
+    well-formed summary request, else raises PlanRequestError. Reuses
+    PlanRequestError rather than a new exception class - same "malformed
+    input, 400 before any AI call" contract /api/plan already has.
 
     The frontend sends the stops it already has locally (from the original
     /api/plan response) - this endpoint is stateless like every other one
-    here (AD-2), it never looks anything up by id."""
+    here (AD-2), it never looks anything up by id; the id is only a key to
+    match each per-stop recap back to its stop in the response."""
     if not isinstance(data, dict):
         raise PlanRequestError("request body must be a JSON object")
     visited_stops = data.get("visited_stops")
@@ -418,33 +419,44 @@ def _validate_summary_request(data):
     for stop in visited_stops:
         if not isinstance(stop, dict):
             raise PlanRequestError("each visited stop must be an object")
+        stop_id = stop.get("id")
         name = stop.get("name")
         content = stop.get("content")
         if (
-            not isinstance(name, str) or not name.strip() or len(name) > 200
+            not isinstance(stop_id, str) or not stop_id.strip() or len(stop_id) > 200
+            or not isinstance(name, str) or not name.strip() or len(name) > 200
             or not isinstance(content, str) or not content.strip()
             or len(content) > MAX_SUMMARY_FIELD_LENGTH
         ):
             raise PlanRequestError(
-                f"each visited stop needs a non-empty name (<=200 chars) and "
-                f"content (<={MAX_SUMMARY_FIELD_LENGTH} chars)"
+                f"each visited stop needs a non-empty id and name (<=200 chars each) "
+                f"and content (<={MAX_SUMMARY_FIELD_LENGTH} chars)"
             )
-        cleaned.append({"name": name, "content": content})
+        cleaned.append({"id": stop_id, "name": name, "content": content})
+    # A duplicate id would silently overwrite another stop's evidence when
+    # ai.generate_walk_summary() keys its per-stop lookups by id - rejected
+    # here, before any AI call, rather than letting one stop's summary get
+    # grounding-checked against a different stop's content (Codex review
+    # 2026-11-16).
+    ids = [stop["id"] for stop in cleaned]
+    if len(set(ids)) != len(ids):
+        raise PlanRequestError("each visited stop must have a unique id")
     return cleaned
 
 
 @app.route("/api/summary", methods=["POST"])
 def api_summary():
-    """Story 3.2 (FR-16): a short AI recap of only the stops a user
-    confirmed Visited/Completed, grounded strictly in their own content -
-    the frontend is responsible for only ever sending Visited stops here
-    (never merely Proposed or Opened/Engaged). Stateless (AD-2): the
-    frontend sends the stop data it already has, nothing is looked up
-    server-side.
+    """Story 3.2 (FR-16, revised 2026-11-16): a short AI recap for EACH
+    stop a user confirmed Visited/Completed, grounded strictly in that
+    stop's own content - the frontend is responsible for only ever sending
+    Visited stops here (never merely Proposed or Opened/Engaged).
+    Stateless (AD-2): the frontend sends the stop data it already has,
+    nothing is looked up server-side.
 
-    Always 200 on well-formed input - "feasible: false" (never a non-2xx)
-    is the honest "summary couldn't be generated" outcome, so the frontend
-    can fall back to a plain list of visited stops without treating a
+    Always 200 on well-formed input: "summaries" maps only the stop ids
+    that got a real, grounding-checked recap - any stop_id simply absent
+    is the honest "no AI recap for this one" outcome, so the frontend can
+    fall back to showing just that stop's own name without treating a
     grounding-check rejection as a service failure.
     """
     try:
@@ -452,10 +464,8 @@ def api_summary():
     except PlanRequestError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    summary = ai.generate_walk_summary(visited_stops)
-    if summary is None:
-        return jsonify({"feasible": False})
-    return jsonify({"feasible": True, "summary": summary})
+    summaries = ai.generate_walk_summary(visited_stops)
+    return jsonify({"summaries": summaries})
 
 
 if __name__ == "__main__":

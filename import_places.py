@@ -37,21 +37,42 @@ OUTPUT_PATH = os.path.join("data", "sydney_places.json")
 # OSM entity resolution.
 DUPLICATE_DISTANCE_METERS = 75
 
+# Widened 2026-11-17 (user's own real-world test): Sydney Opera House,
+# Sydney Harbour Bridge, and Anzac Bridge were all missing. Opera House is
+# an OSM relation (multipolygon) with real heritage/architect tags - it
+# was simply never fetched, since every filter below only queried
+# node/way. The bridges are tagged tourism=attraction + man_made=bridge,
+# neither of which any existing filter matched at all. relation[...] was
+# added for every existing filter, plus a new man_made=bridge filter for
+# named, notable bridges generally - build_record()'s own "no name, no
+# topic, or no real source" rejection already filters the ~340 unnamed
+# minor footbridge segments in this bbox down to just the well-sourced
+# landmarks, so this is safe to query broadly rather than hand-pick names.
 OVERPASS_QUERY_TEMPLATE = """
 [out:json][timeout:180];
 (
   node["historic"]({bbox});
   way["historic"]({bbox});
+  relation["historic"]({bbox});
   node["heritage"]({bbox});
   way["heritage"]({bbox});
+  relation["heritage"]({bbox});
   node["tourism"="artwork"]({bbox});
   way["tourism"="artwork"]({bbox});
+  relation["tourism"="artwork"]({bbox});
   node["artwork_type"]({bbox});
   way["artwork_type"]({bbox});
+  relation["artwork_type"]({bbox});
   node["architect"]({bbox});
   way["architect"]({bbox});
+  relation["architect"]({bbox});
   way["building"="church"]({bbox});
   way["building"="cathedral"]({bbox});
+  relation["building"="church"]({bbox});
+  relation["building"="cathedral"]({bbox});
+  node["man_made"="bridge"]({bbox});
+  way["man_made"="bridge"]({bbox});
+  relation["man_made"="bridge"]({bbox});
 );
 out center tags;
 """
@@ -87,11 +108,12 @@ def coordinates(element):
 def assign_topics(tags):
     """Simple, documented OSM-tag rules - see docs/architecture-plan.md.
 
-    memorial (added for Story 4.3, 2026-10-30) is additive with history - a
-    memorial stays history too, since a war memorial or a statue of a
-    historical figure genuinely is history, not a separate interest
-    (user's explicit call, checked against the 60% dilution this would
-    otherwise cause - see commit history).
+    memorial (Story 4.3, revised 2026-11-16) is folded into history, not a
+    separate selectable topic - a war memorial or a statue of a historical
+    figure genuinely is history, not a distinct interest a user picks
+    instead of history (user's explicit call). "historic" already covers
+    this (tags.get("historic") == "memorial" still satisfies "historic" in
+    tags below), so no separate tag is added for it.
 
     sculpture is exclusive with public_art, not additive - checked
     directly against the real catalogue: sculptures/statues were 39% of
@@ -108,8 +130,6 @@ def assign_topics(tags):
     topics = set()
     if "historic" in tags or "heritage" in tags:
         topics.add("history")
-    if tags.get("historic") == "memorial":
-        topics.add("memorial")
     if tags.get("building") in ("church", "cathedral"):
         topics.add("architecture")
         topics.add("history")
@@ -119,6 +139,12 @@ def assign_topics(tags):
         topics.add("sculpture")
     elif tags.get("tourism") == "artwork" or "artwork_type" in tags:
         topics.add("public_art")
+    # Added 2026-11-17 (user's own real-world test): a named landmark
+    # bridge is history, same reasoning as any other named, dated
+    # structure - matches the user's own framing ("history/landmarks") for
+    # Sydney Harbour Bridge and Anzac Bridge specifically.
+    if tags.get("man_made") == "bridge":
+        topics.add("history")
     return sorted(topics)
 
 
@@ -398,7 +424,7 @@ def save_records(records_by_id):
 
 
 def main():
-    print("Querying Overpass for the Newtown pilot area...")
+    print("Querying Overpass for the configured pilot bbox...")
     elements = fetch_overpass_elements(PILOT_BBOX)
     print(f"Overpass returned {len(elements)} candidate elements.")
 
