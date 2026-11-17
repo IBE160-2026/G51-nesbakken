@@ -1078,6 +1078,14 @@ function loadActiveTrip() {
     return defaultTrip();
   }
 
+  // "memorial" was folded into "history" (Codex review 2026-11-17): a trip
+  // saved before that change still carries the old topic value and must be
+  // migrated before validation, or a previously valid saved walk gets
+  // rejected and the user loses their in-progress route.
+  if (parsed && typeof parsed === "object" && parsed.topic === "memorial") {
+    parsed.topic = "history";
+  }
+
   if (!isValidTrip(parsed)) {
     console.error("Stored active trip failed schema/shape validation, starting fresh.");
     return defaultTrip();
@@ -2530,31 +2538,71 @@ function renderWalkCompleteStopPhoto(stop) {
   return wrap;
 }
 
+// Appends one <span class="sources-stop-line"> built from alternating text
+// and {url, label} link parts - same mixed text/anchor construction
+// renderStopPhoto above uses for the stop overlay's credit line, so the
+// Sources sheet can carry the same links without duplicating markup.
+function appendSourcesLine(li, parts) {
+  const line = document.createElement("span");
+  line.className = "sources-stop-line";
+  parts.forEach((part) => {
+    if (typeof part === "string") {
+      if (part) line.appendChild(document.createTextNode(part));
+      return;
+    }
+    if (!isHttpsPhotoCreditLink(part.url)) return;
+    const a = document.createElement("a");
+    a.href = part.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = part.label;
+    line.appendChild(a);
+  });
+  li.appendChild(line);
+}
+
 // The "Sources" sheet content: one entry per visited stop that actually
 // has a photo credit and/or a content source to show - a stop with
 // neither is simply skipped, never shown with nothing to say.
+//
+// Codex review 2026-11-17: this previously flattened photo/info credit to
+// plain text, dropping the same source_url/license_url/changes links the
+// stop overlay already shows (renderStopPhoto/openStopOverlay above) - the
+// completion screen offers no way back to that overlay, so those links were
+// otherwise unreachable here. Kept to the approved corner-button/sheet
+// layout; only the line content gained the missing provenance.
 function renderWalkCompleteSourcesList(stops) {
   walkCompleteSourcesListEl.innerHTML = "";
   let anySource = false;
   stops.forEach((stop) => {
-    const photoLine = isValidPhoto(stop.photo)
-      ? `Photo: ${stop.photo.creator}, ${stop.photo.license}`
-      : null;
-    const infoLines = (stop.attribution || [])
-      .filter(isValidAttributionEntry)
-      .map((entry) => `Info: ${humanizeSourceType(entry.source_type)} - ${entry.source_title}`);
-    if (!photoLine && infoLines.length === 0) return;
+    const hasPhoto = isValidPhoto(stop.photo);
+    const infoEntries = (stop.attribution || []).filter(isValidAttributionEntry);
+    if (!hasPhoto && infoEntries.length === 0) return;
     anySource = true;
     const li = document.createElement("li");
     const name = document.createElement("span");
     name.className = "sources-stop-name";
     name.textContent = stop.name || "Stop";
     li.appendChild(name);
-    [photoLine, ...infoLines].filter(Boolean).forEach((text) => {
-      const line = document.createElement("span");
-      line.className = "sources-stop-line";
-      line.textContent = text;
-      li.appendChild(line);
+    if (hasPhoto) {
+      const photo = stop.photo;
+      appendSourcesLine(li, [
+        `Photo by ${photo.creator}. `,
+        { url: photo.source_url, label: "Source" },
+        ". ",
+        { url: photo.license_url, label: photo.license },
+        ". ",
+        photo.changes,
+      ]);
+    }
+    infoEntries.forEach((entry) => {
+      const prefix = `Info: ${humanizeSourceType(entry.source_type)} - `;
+      appendSourcesLine(
+        li,
+        entry.source_url
+          ? [prefix, { url: entry.source_url, label: entry.source_title || entry.source_url }]
+          : [prefix + (entry.source_title || "unknown")]
+      );
     });
     walkCompleteSourcesListEl.appendChild(li);
   });

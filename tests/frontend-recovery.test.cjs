@@ -849,6 +849,17 @@ test('replacement uses canonical backend photo metadata while retaining grounded
   assert.equal(browser(app.saved()).valid(), true);
 });
 
+test('Codex review 2026-11-17: a trip saved before memorial was folded into history still resumes, not reset to a fresh setup', () => {
+  const savedTrip = route();
+  savedTrip.topic = 'memorial'; // the retired value a pre-change save still has on disk
+  const restored = browser(savedTrip);
+  // The in-memory trip is migrated at load time; nothing has re-saved it to
+  // storage yet, so the raw stored value still reads "memorial" here.
+  assert.equal(restored.evaluate('trip.topic'), 'history');
+  assert.equal(restored.evaluate('trip.phase'), 'reviewing');
+  assert.equal(restored.elements.get('screen-reviewing').hidden, false);
+  assert.equal(restored.evaluate('trip.stops.length'), savedTrip.stops.length);
+});
 
 test('malformed optional photos preserve saved review and planned response text', async () => {
   for (const photo of [null, {}, { ...publicPhoto, creator: '' },
@@ -1580,7 +1591,7 @@ test('Sources button is hidden when no visited stop has a photo or a real conten
   assert.equal(app.elements.get('walk-complete-sources-btn').hidden, true);
 });
 
-test('Sources button opens a sheet with the real per-photo credit and per-stop content source, moved off the main list', async () => {
+test('Sources button opens a sheet with the real per-photo credit (with its source/license links and changes note) and per-stop content source link, moved off the main list', async () => {
   const trip = route(['a', 'b']);
   trip.stops[0].photo = publicPhoto;
   trip.stops[0].attribution = [{ source_type: 'wikipedia', source_title: 'Newtown Station', source_url: 'https://example.org/station' }];
@@ -1598,8 +1609,20 @@ test('Sources button opens a sheet with the real per-photo credit and per-stop c
   const entry = app.elements.get('walk-complete-sources-list').children[0];
   const [name, photoLine, infoLine] = entry.children;
   assert.equal(name.textContent, 'Stop a');
-  assert.equal(photoLine.textContent, `Photo: ${publicPhoto.creator}, ${publicPhoto.license}`);
-  assert.equal(infoLine.textContent, 'Info: Wikipedia - Newtown Station');
+  // Codex review 2026-11-17: Sources must carry the same provenance links
+  // the stop overlay shows (source, license, changes note), not just the
+  // creator/license as plain text.
+  const photoText = photoLine.children.map((child) => child.textContent).join('');
+  assert(photoText.includes(publicPhoto.creator));
+  assert(photoText.includes(publicPhoto.changes));
+  const sourceLink = photoLine.children.find((child) => child.href === publicPhoto.source_url);
+  assert.equal(sourceLink.textContent, 'Source');
+  const licenseLink = photoLine.children.find((child) => child.href === publicPhoto.license_url);
+  assert.equal(licenseLink.textContent, publicPhoto.license);
+  const infoText = infoLine.children.map((child) => child.textContent).join('');
+  assert(infoText.includes('Info: Wikipedia'));
+  const infoLink = infoLine.children.find((child) => child.href === 'https://example.org/station');
+  assert.equal(infoLink.textContent, 'Newtown Station');
 });
 
 test('Sources sheet closes on Escape, same as the other dismissal paths', async () => {
